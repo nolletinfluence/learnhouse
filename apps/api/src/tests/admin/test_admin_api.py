@@ -65,6 +65,7 @@ from src.services.admin.admin import (
     get_user_certificates,
     issue_user_token,
     list_course_enrollments,
+    list_organization_courses,
     list_usergroup_members,
     provision_user,
     remove_course_from_usergroup,
@@ -205,6 +206,10 @@ def token_user(org, user):
         org_id=org.id,
         token_name="Test Token",
         created_by_user_id=user.id,
+        rights={
+            "users": {"action_read": True, "action_create": True},
+            "courses": {"action_read": True, "action_update": True},
+        },
     )
 
 
@@ -217,6 +222,10 @@ def other_org_token(other_org):
         org_id=other_org.id,
         token_name="Other Org Token",
         created_by_user_id=99,
+        rights={
+            "users": {"action_read": True, "action_create": True},
+            "courses": {"action_read": True, "action_update": True},
+        },
     )
 
 
@@ -1205,8 +1214,7 @@ class TestProvisionUser:
             )
         seat_check.assert_awaited_once()
 
-    async def test_duplicate_email_in_org_rejected(self, token_user, user, student_role, mock_request, db, mock_admin_side_effects):
-        # `user` is already a member of token_user's org via the fixture
+    async def test_duplicate_email_in_org_with_different_role_is_rejected(self, token_user, user, student_role, mock_request, db, mock_admin_side_effects):
         with pytest.raises(HTTPException) as exc:
             await provision_user(
                 token_user=token_user,
@@ -1214,9 +1222,9 @@ class TestProvisionUser:
                 username="different",
                 first_name="", last_name="", password=None, role_id=4,
                 request=mock_request, db_session=db,
-            )
-        assert exc.value.status_code == 400
-        assert "in this organization" in exc.value.detail
+        )
+        assert exc.value.status_code == 409
+        assert exc.value.detail == "ROLE_CONFLICT"
 
     async def test_existing_user_in_other_org_is_attached(self, token_user, other_org, student_role, mock_request, db, mock_admin_side_effects):
         # Seed a user that exists ONLY in another org → simulates the orphan case
@@ -2591,3 +2599,202 @@ class TestCourseAnalytics:
         with pytest.raises(HTTPException) as exc:
             await get_course_analytics(token_user, "missing", db)
         assert exc.value.status_code == 404
+
+
+class TestOrganizationCourseCatalog:
+
+    async def test_lists_only_token_organization_courses_in_stable_update_order(
+        self, token_user, org, other_org, db
+    ):
+        db.add_all([
+            Course(
+                name="Older draft",
+                public=False,
+                published=False,
+                open_to_contributors=False,
+                org_id=org.id,
+                course_uuid="course_a",
+                creation_date="2026-08-20T09:00:00Z",
+                update_date="2026-08-20T09:00:00Z",
+            ),
+            Course(
+                name="Newest published",
+                public=True,
+                published=True,
+                open_to_contributors=False,
+                org_id=org.id,
+                course_uuid="course_b",
+                creation_date="2026-08-20T10:00:00Z",
+                update_date="2026-08-20T10:00:00Z",
+            ),
+            Course(
+                name="Same timestamp",
+                public=False,
+                published=False,
+                open_to_contributors=False,
+                org_id=org.id,
+                course_uuid="course_c",
+                creation_date="2026-08-20T10:00:00Z",
+                update_date="2026-08-20T10:00:00Z",
+            ),
+            Course(
+                name="Other organization",
+                public=True,
+                published=True,
+                open_to_contributors=False,
+                org_id=other_org.id,
+                course_uuid="course_other",
+                creation_date="2026-08-20T11:00:00Z",
+                update_date="2026-08-20T11:00:00Z",
+            ),
+        ])
+        await db.commit()
+
+        with patch(
+            "src.services.admin.admin.get_org_plan",
+            new_callable=AsyncMock,
+            return_value="pro",
+        ):
+            result = await list_organization_courses(token_user, "test-org", db)
+
+        assert [item["course_uuid"] for item in result] == [
+            "course_b",
+            "course_c",
+            "course_a",
+        ]
+        assert result[2] == {
+            "course_uuid": "course_a",
+            "name": "Older draft",
+            "published": False,
+            "public": False,
+            "updated_at": "2026-08-20T09:00:00Z",
+        }
+
+    async def test_catalog_rejects_another_organization_before_disclosing_courses(
+        self, other_org_token, org, db
+    ):
+        with patch(
+            "src.services.admin.admin.get_org_plan",
+            new_callable=AsyncMock,
+            return_value="pro",
+        ), pytest.raises(HTTPException) as exc:
+            await list_organization_courses(other_org_token, "test-org", db)
+
+        assert exc.value.status_code == 403
+
+    async def test_catalog_requires_courses_read_permission(self, token_user, db):
+        token_user.rights = {}
+
+        with pytest.raises(HTTPException) as exc:
+            await list_organization_courses(token_user, "test-org", db)
+
+        assert exc.value.status_code == 403
+
+
+class TestAdminTokenRights:
+
+    async def test_integration_operations_require_explicit_token_rights(
+        self, token_user, mock_request, db
+    ):
+        token_user.rights = {}
+        operations = [
+            lambda: provision_user(
+                token_user, "new@example.com", "new", "New", "User", None, 4, mock_request, db
+            ),
+            lambda: issue_magic_link(token_user, 9999, None, 300, "test-org", mock_request, db),
+            lambda: check_course_access(token_user, "missing", 9999, db),
+            lambda: get_user_progress(token_user, 9999, "missing", db),
+            lambda: get_all_user_progress(token_user, 9999, db),
+            lambda: list_course_enrollments(token_user, "missing", db),
+            lambda: bulk_enroll_users(token_user, "missing", [9999], mock_request, db),
+            lambda: bulk_unenroll_users(token_user, "missing", [9999], db),
+        ]
+
+        for operation in operations:
+            with pytest.raises(HTTPException) as exc:
+                await operation()
+            assert exc.value.status_code == 403
+
+
+class TestProvisioningIdempotency:
+
+    async def test_same_role_existing_membership_is_returned_without_mutation(
+        self, token_user, student_role, mock_request, db, mock_admin_side_effects
+    ):
+        existing = User(
+            id=55,
+            username="existing",
+            first_name="Existing",
+            last_name="User",
+            email="existing@example.com",
+            password="hashed",
+            user_uuid="user_existing",
+        )
+        db.add(existing)
+        await db.commit()
+        db.add(UserOrganization(
+            user_id=existing.id,
+            org_id=token_user.org_id,
+            role_id=student_role.id,
+            creation_date="2026-08-20T10:00:00Z",
+            update_date="2026-08-20T10:00:00Z",
+        ))
+        await db.commit()
+
+        result = await provision_user(
+            token_user, existing.email, "ignored", "Ignored", "Name", None,
+            student_role.id, mock_request, db,
+        )
+
+        assert result.id == existing.id
+        memberships = (await db.execute(
+            select(UserOrganization).where(UserOrganization.user_id == existing.id)
+        )).scalars().all()
+        assert [(membership.org_id, membership.role_id) for membership in memberships] == [
+            (token_user.org_id, student_role.id)
+        ]
+
+    async def test_different_role_existing_membership_returns_role_conflict_without_mutation(
+        self, token_user, student_role, mock_request, db, mock_admin_side_effects
+    ):
+        existing = User(
+            id=56,
+            username="role-conflict",
+            first_name="Role",
+            last_name="Conflict",
+            email="role-conflict@example.com",
+            password="hashed",
+            user_uuid="user_role_conflict",
+        )
+        instructor_role = Role(
+            id=3,
+            name="Instructor",
+            description="",
+            rights={},
+            org_id=token_user.org_id,
+            role_type=RoleTypeEnum.TYPE_ORGANIZATION,
+            role_uuid="role_instructor_3",
+        )
+        db.add_all([existing, instructor_role])
+        await db.commit()
+        db.add(UserOrganization(
+            user_id=existing.id,
+            org_id=token_user.org_id,
+            role_id=student_role.id,
+            creation_date="2026-08-20T10:00:00Z",
+            update_date="2026-08-20T10:00:00Z",
+        ))
+        await db.commit()
+
+        with pytest.raises(HTTPException) as exc:
+            await provision_user(
+                token_user, existing.email, "ignored", "Ignored", "Name", None,
+                instructor_role.id, mock_request, db,
+            )
+
+        assert exc.value.status_code == 409
+        assert exc.value.detail == "ROLE_CONFLICT"
+        membership = (await db.execute(
+            select(UserOrganization).where(UserOrganization.user_id == existing.id)
+        )).scalars().one()
+        assert membership.role_id == student_role.id

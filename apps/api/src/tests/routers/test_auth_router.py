@@ -66,7 +66,7 @@ async def client(app):
 
 
 @pytest.fixture
-def auth_user(db):
+async def auth_user(db):
     user = User(
         id=11,
         username="authuser",
@@ -80,8 +80,8 @@ def auth_user(db):
         update_date=str(datetime.now()),
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return user
 
 

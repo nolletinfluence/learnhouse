@@ -22,7 +22,10 @@ def api_user():
         user_uuid="token_user",
         username="api_token",
         org_id=1,
-        rights={"users": {"action_read": True}, "courses": {"action_read": True}},
+        rights={
+            "users": {"action_read": True, "action_create": True},
+            "courses": {"action_read": True, "action_update": True},
+        },
         token_name="admin-token",
         created_by_user_id=99,
     )
@@ -125,6 +128,60 @@ def _admin_context(api_user):
 
 
 class TestAdminRouter:
+    async def test_admin_course_list_requires_api_token(self, app, client):
+        app.dependency_overrides[get_current_user] = lambda: UserRead(
+            id=2,
+            username="browser",
+            first_name="Browser",
+            last_name="User",
+            email="browser@test.com",
+            user_uuid="user_browser",
+            email_verified=True,
+            avatar_image="",
+            bio="",
+        )
+
+        response = await client.get("/api/v1/admin/acme/courses")
+
+        assert response.status_code == 403
+
+    async def test_admin_course_list_is_org_scoped(self, client, api_user):
+        with _admin_context(api_user), patch(
+            "src.routers.admin.list_organization_courses",
+            new_callable=AsyncMock,
+            return_value=[
+                {
+                    "course_uuid": "course_1",
+                    "name": "Frontend",
+                    "published": False,
+                    "public": False,
+                    "updated_at": "2026-08-20T10:00:00Z",
+                }
+            ],
+        ):
+            response = await client.get("/api/v1/admin/acme/courses")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "course_uuid": "course_1",
+                "name": "Frontend",
+                "published": False,
+                "public": False,
+                "updated_at": "2026-08-20T10:00:00Z",
+            }
+        ]
+
+    @pytest.mark.parametrize(
+        ("params", "expected_status"),
+        [({"page": 0}, 422), ({"limit": 0}, 422), ({"limit": 101}, 422)],
+    )
+    async def test_admin_course_list_validates_pagination(self, client, api_user, params, expected_status):
+        with _admin_context(api_user):
+            response = await client.get("/api/v1/admin/acme/courses", params=params)
+
+        assert response.status_code == expected_status
+
     async def test_auth_progress_and_certifications(self, client, api_user):
         """The auth/token, aggregate progress, and certificates endpoints all
         operate on a single user_id and are grouped here for a smoke check."""

@@ -44,6 +44,7 @@ from src.services.admin.admin import (
     get_user_trail_detail,
     issue_magic_link,
     issue_user_token,
+    list_organization_courses,
     list_course_enrollments,
     list_usergroup_members,
     provision_user,
@@ -78,6 +79,14 @@ class CourseAccessResponse(BaseModel):
     is_enrolled: bool = Field(description="True if the user is enrolled in the course")
     is_public: bool = Field(description="True if the course is public")
     is_published: bool = Field(description="True if the course is published")
+
+
+class AdminCourseListItem(BaseModel):
+    course_uuid: str
+    name: str
+    published: bool
+    public: bool
+    updated_at: str
 
 
 class ProgressResponse(BaseModel):
@@ -399,6 +408,19 @@ async def api_admin_issue_token(
 
 
 # ── Course access ────────────────────────────────────────────────────────────
+
+
+@router.get("/{org_slug}/courses", response_model=list[AdminCourseListItem])
+async def api_admin_list_courses(
+    org_slug: str,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=100, ge=1, le=100),
+    current_user=Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> list[AdminCourseListItem]:
+    token_user = _require_api_token(current_user)
+    courses = await list_organization_courses(token_user, org_slug, db_session, page, limit)
+    return [AdminCourseListItem(**course) for course in courses]
 
 
 @router.get(

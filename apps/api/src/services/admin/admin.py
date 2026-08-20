@@ -72,6 +72,12 @@ def _require_api_token(current_user) -> APITokenUser:
     return current_user
 
 
+def _require_token_right(token_user: APITokenUser, resource: str, action: str) -> None:
+    rights = token_user.rights.model_dump() if hasattr(token_user.rights, "model_dump") else token_user.rights
+    if not bool((rights or {}).get(resource, {}).get(action, False)):
+        raise HTTPException(status_code=403, detail="API token lacks required permission")
+
+
 async def _resolve_org_slug(org_slug: str, token_user: APITokenUser, db_session: AsyncSession) -> Organization:
     """Resolve an org_slug, verify it matches the API token's org, and check plan."""
     org = (await db_session.execute(
@@ -220,6 +226,7 @@ async def issue_user_token(
     impersonation properly needs ``users`` to become a grantable bucket first.
     """
 
+    _require_token_right(token_user, "users", "action_read")
     user = await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     await _check_token_can_impersonate(user, token_user.org_id, db_session)
@@ -250,6 +257,35 @@ async def issue_user_token(
 # -- Course access ------------------------------------------------------------
 
 
+async def list_organization_courses(
+    token_user: APITokenUser,
+    org_slug: str,
+    db_session: AsyncSession,
+    page: int = 1,
+    limit: int = 100,
+) -> List[dict]:
+    _require_token_right(token_user, "courses", "action_read")
+    organization = await _resolve_org_slug(org_slug, token_user, db_session)
+    offset = (page - 1) * limit
+    courses = (await db_session.execute(
+        select(Course)
+        .where(Course.org_id == organization.id)
+        .order_by(Course.update_date.desc(), Course.course_uuid.asc())
+        .offset(offset)
+        .limit(limit)
+    )).scalars().all()
+    return [
+        {
+            "course_uuid": course.course_uuid,
+            "name": course.name,
+            "published": course.published,
+            "public": course.public,
+            "updated_at": course.update_date,
+        }
+        for course in courses
+    ]
+
+
 async def check_course_access(
     token_user: APITokenUser,
     course_uuid: str,
@@ -258,6 +294,7 @@ async def check_course_access(
 ) -> dict:
     """Check if a user can access a specific course within the token's org."""
 
+    _require_token_right(token_user, "courses", "action_read")
     await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     course = (await db_session.execute(
@@ -414,6 +451,7 @@ async def get_user_enrollments(
 ) -> TrailRead:
     """Get all enrollments for a user in the token's org."""
 
+    _require_token_right(token_user, "courses", "action_read")
     await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     trail = (await db_session.execute(
@@ -444,6 +482,7 @@ async def get_user_progress(
 ) -> dict:
     """Get a user's progress in a specific course."""
 
+    _require_token_right(token_user, "courses", "action_read")
     await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     course = (await db_session.execute(
@@ -789,6 +828,7 @@ async def get_all_user_progress(
 ) -> List[dict]:
     """Get progress summary for all courses a user is enrolled in."""
 
+    _require_token_right(token_user, "courses", "action_read")
     await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     trail_runs = (await db_session.execute(
@@ -862,6 +902,7 @@ async def get_user_trail_detail(
     """Build a full trail breakdown for a user — every chapter + every activity
     with per-activity completion status. Optionally filtered to a single course."""
 
+    _require_token_right(token_user, "courses", "action_read")
     await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     target_course: Optional[Course] = None
@@ -1056,6 +1097,8 @@ async def provision_user(
     bypasses the normal email-verification flow.
     """
 
+    _require_token_right(token_user, "users", "action_create")
+
     if password:
         validation = validate_password_complexity(password)
         if not validation.is_valid:
@@ -1101,10 +1144,9 @@ async def provision_user(
             )
         )).scalars().first()
         if existing_membership:
-            raise HTTPException(
-                status_code=400,
-                detail="Email already exists in this organization",
-            )
+            if existing_membership.role_id == role_id:
+                return UserRead.model_validate(existing_user)
+            raise HTTPException(status_code=409, detail="ROLE_CONFLICT")
 
         membership = UserOrganization(
             user_id=existing_user.id if existing_user.id else 0,
@@ -1329,6 +1371,7 @@ async def issue_magic_link(
     deployment's allowed-origin config.
     """
 
+    _require_token_right(token_user, "users", "action_read")
     user = await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     # Same check issue_user_token applies, for the same reason: consuming this
@@ -1470,6 +1513,8 @@ async def bulk_enroll_users(
 ) -> dict:
     """Enroll a batch of users in a course. Returns summary of results."""
 
+    _require_token_right(token_user, "courses", "action_update")
+
     course = (await db_session.execute(
         select(Course).where(
             Course.course_uuid == course_uuid,
@@ -1581,6 +1626,8 @@ async def list_course_enrollments(
     limit: int = 25,
 ) -> List[dict]:
     """List users enrolled in a course within the token's org."""
+
+    _require_token_right(token_user, "courses", "action_read")
 
     course = (await db_session.execute(
         select(Course).where(
@@ -2309,6 +2356,7 @@ async def bulk_unenroll_users(
     db_session: AsyncSession,
 ) -> dict:
     """Unenroll a batch of users from a course. Returns summary."""
+    _require_token_right(token_user, "courses", "action_update")
     from sqlmodel import delete as sql_delete
 
     course = (await db_session.execute(
@@ -2517,6 +2565,7 @@ async def get_course_analytics(
 ) -> dict:
     """Aggregate course stats: enrollment, completion, in-progress, cert count."""
 
+    _require_token_right(token_user, "courses", "action_read")
     from src.db.trail_runs import StatusEnum
 
     course = (await db_session.execute(
