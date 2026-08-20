@@ -2693,30 +2693,183 @@ class TestOrganizationCourseCatalog:
 
 class TestAdminTokenRights:
 
-    async def test_integration_operations_require_explicit_token_rights(
-        self, token_user, mock_request, db
+    async def test_provision_requires_users_create_not_users_read(
+        self, token_user, student_role, mock_request, db, mock_admin_side_effects
     ):
-        token_user.rights = {}
-        operations = [
-            lambda: provision_user(
-                token_user, "new@example.com", "new", "New", "User", None, 4, mock_request, db
-            ),
-            lambda: issue_magic_link(token_user, 9999, None, 300, "test-org", mock_request, db),
-            lambda: check_course_access(token_user, "missing", 9999, db),
-            lambda: get_user_progress(token_user, 9999, "missing", db),
-            lambda: get_all_user_progress(token_user, 9999, db),
-            lambda: list_course_enrollments(token_user, "missing", db),
-            lambda: bulk_enroll_users(token_user, "missing", [9999], mock_request, db),
-            lambda: bulk_unenroll_users(token_user, "missing", [9999], db),
-        ]
+        token_user.rights = {"users": {"action_read": True}}
 
-        for operation in operations:
-            with pytest.raises(HTTPException) as exc:
-                await operation()
-            assert exc.value.status_code == 403
+        with pytest.raises(HTTPException) as exc:
+            await provision_user(
+                token_user, "new@example.com", "new", "New", "User", None,
+                student_role.id, mock_request, db,
+            )
+        assert exc.value.status_code == 403
+
+        token_user.rights = {"users": {"action_create": True}}
+        result = await provision_user(
+            token_user, "new@example.com", "new", "New", "User", None,
+            student_role.id, mock_request, db,
+        )
+        assert result.email == "new@example.com"
+
+    async def test_magic_link_requires_users_read_not_users_create(
+        self, token_user, learner_user, mock_request, db
+    ):
+        token_user.rights = {"users": {"action_create": True}}
+
+        with pytest.raises(HTTPException) as exc:
+            await issue_magic_link(
+                token_user, learner_user.id, None, 300, "test-org", mock_request, db
+            )
+        assert exc.value.status_code == 403
+
+        token_user.rights = {"users": {"action_read": True}}
+        with patch(
+            "src.services.admin.admin.get_base_url_from_request",
+            return_value="https://academy.test",
+        ), patch(
+            "src.services.admin.admin.create_access_token",
+            return_value="magic-token",
+        ):
+            result = await issue_magic_link(
+                token_user, learner_user.id, None, 300, "test-org", mock_request, db
+            )
+        assert result["token"] == "magic-token"
+
+    async def test_course_and_progress_reads_require_courses_read_not_courses_update(
+        self, token_user, user, course, db
+    ):
+        token_user.rights = {"courses": {"action_update": True}}
+
+        with pytest.raises(HTTPException) as exc:
+            await check_course_access(token_user, course.course_uuid, user.id, db)
+        assert exc.value.status_code == 403
+
+        token_user.rights = {"courses": {"action_read": True}}
+        access = await check_course_access(token_user, course.course_uuid, user.id, db)
+        progress = await get_user_progress(token_user, user.id, course.course_uuid, db)
+        assert access["has_access"] is True
+        assert progress["course_uuid"] == course.course_uuid
+
+    async def test_course_catalog_requires_courses_read_not_courses_update(
+        self, token_user, org, db
+    ):
+        token_user.rights = {"courses": {"action_update": True}}
+
+        with pytest.raises(HTTPException) as exc:
+            await list_organization_courses(token_user, org.slug, db)
+        assert exc.value.status_code == 403
+
+        token_user.rights = {"courses": {"action_read": True}}
+        with patch(
+            "src.services.admin.admin.get_org_plan",
+            new_callable=AsyncMock,
+            return_value="pro",
+        ):
+            result = await list_organization_courses(token_user, org.slug, db)
+        assert result == []
+
+    async def test_bulk_enrollment_requires_courses_update_not_courses_read(
+        self, token_user, user, course, mock_request, db, mock_admin_side_effects
+    ):
+        token_user.rights = {"courses": {"action_read": True}}
+
+        with pytest.raises(HTTPException) as exc:
+            await bulk_enroll_users(token_user, course.course_uuid, [user.id], mock_request, db)
+        assert exc.value.status_code == 403
+
+        token_user.rights = {"courses": {"action_update": True}}
+        result = await bulk_enroll_users(token_user, course.course_uuid, [user.id], mock_request, db)
+        assert result["enrolled"] == [user.id]
 
 
 class TestProvisioningIdempotency:
+
+    async def test_same_role_retry_returns_existing_user_before_member_limit(
+        self, token_user, student_role, mock_request, db, mock_admin_side_effects
+    ):
+        existing = User(
+            id=57,
+            username="at-capacity",
+            first_name="At",
+            last_name="Capacity",
+            email="at-capacity@example.com",
+            password="hashed",
+            user_uuid="user_at_capacity",
+        )
+        db.add(existing)
+        await db.commit()
+        db.add(UserOrganization(
+            user_id=existing.id,
+            org_id=token_user.org_id,
+            role_id=student_role.id,
+            creation_date="2026-08-20T10:00:00Z",
+            update_date="2026-08-20T10:00:00Z",
+        ))
+        await db.commit()
+        mock_admin_side_effects["check_limits_with_usage"].side_effect = HTTPException(
+            status_code=403,
+            detail="Usage Limit has been reached for Members",
+        )
+
+        result = await provision_user(
+            token_user, existing.email, "ignored", "Ignored", "Name", None,
+            student_role.id, mock_request, db,
+        )
+
+        assert result.id == existing.id
+
+    async def test_role_conflict_precedes_role_authority_and_member_limit(
+        self, token_user, user, student_role, mock_request, db, mock_admin_side_effects
+    ):
+        existing = User(
+            id=58,
+            username="authority-conflict",
+            first_name="Authority",
+            last_name="Conflict",
+            email="authority-conflict@example.com",
+            password="hashed",
+            user_uuid="user_authority_conflict",
+        )
+        instructor_role = Role(
+            id=3,
+            name="Instructor",
+            description="",
+            rights={},
+            org_id=token_user.org_id,
+            role_type=RoleTypeEnum.TYPE_ORGANIZATION,
+            role_uuid="role_instructor_3",
+        )
+        creator_membership = (await db.execute(
+            select(UserOrganization).where(
+                UserOrganization.user_id == user.id,
+                UserOrganization.org_id == token_user.org_id,
+            )
+        )).scalars().one()
+        creator_membership.role_id = student_role.id
+        db.add_all([existing, instructor_role])
+        await db.commit()
+        db.add(UserOrganization(
+            user_id=existing.id,
+            org_id=token_user.org_id,
+            role_id=student_role.id,
+            creation_date="2026-08-20T10:00:00Z",
+            update_date="2026-08-20T10:00:00Z",
+        ))
+        await db.commit()
+        mock_admin_side_effects["check_limits_with_usage"].side_effect = HTTPException(
+            status_code=403,
+            detail="Usage Limit has been reached for Members",
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            await provision_user(
+                token_user, existing.email, "ignored", "Ignored", "Name", None,
+                instructor_role.id, mock_request, db,
+            )
+
+        assert exc.value.status_code == 409
+        assert exc.value.detail == "ROLE_CONFLICT"
 
     async def test_same_role_existing_membership_is_returned_without_mutation(
         self, token_user, student_role, mock_request, db, mock_admin_side_effects

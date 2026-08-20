@@ -1099,6 +1099,19 @@ async def provision_user(
 
     _require_token_right(token_user, "users", "action_create")
 
+    existing_user = (await db_session.execute(select(User).where(User.email == email))).scalars().first()
+    if existing_user:
+        existing_membership = (await db_session.execute(
+            select(UserOrganization).where(
+                UserOrganization.user_id == existing_user.id,
+                UserOrganization.org_id == token_user.org_id,
+            )
+        )).scalars().first()
+        if existing_membership:
+            if existing_membership.role_id == role_id:
+                return UserRead.model_validate(existing_user)
+            raise HTTPException(status_code=409, detail="ROLE_CONFLICT")
+
     if password:
         validation = validate_password_complexity(password)
         if not validation.is_valid:
@@ -1131,23 +1144,11 @@ async def provision_user(
 
     now = datetime.now()
 
-    existing_user = (await db_session.execute(select(User).where(User.email == email))).scalars().first()
     if existing_user:
         # Email matches an existing account — treat this as "attach to org"
         # rather than "create new user". Previously this raised 400 and left
         # any user that had been created in a prior aborted call as an orphan
         # (in the users table but with no UserOrganization row).
-        existing_membership = (await db_session.execute(
-            select(UserOrganization).where(
-                UserOrganization.user_id == existing_user.id,
-                UserOrganization.org_id == token_user.org_id,
-            )
-        )).scalars().first()
-        if existing_membership:
-            if existing_membership.role_id == role_id:
-                return UserRead.model_validate(existing_user)
-            raise HTTPException(status_code=409, detail="ROLE_CONFLICT")
-
         membership = UserOrganization(
             user_id=existing_user.id if existing_user.id else 0,
             org_id=token_user.org_id,
