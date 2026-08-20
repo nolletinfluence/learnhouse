@@ -1,10 +1,12 @@
 'use client'
 import { Building2, ArrowRight } from 'lucide-react'
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getLEARNHOUSE_DOMAIN_VAL } from '@services/config/config'
 import { stripPort } from '@services/utils/ts/hostUtils'
 
 function OrgNotFound() {
+  const { t } = useTranslation()
   const [orgSlug, setOrgSlug] = useState('')
   const [isNavigating, setIsNavigating] = useState(false)
 
@@ -20,6 +22,7 @@ function OrgNotFound() {
     const port = window.location.port
     const portSuffix = port && port !== '80' && port !== '443' ? `:${port}` : ''
 
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `${protocol}${cleanSlug}.${baseDomain}${portSuffix}/login`
   }
 
@@ -31,10 +34,10 @@ function OrgNotFound() {
             <Building2 className="h-8 w-8 text-gray-600" />
           </div>
           <h1 className="mt-6 text-2xl font-bold text-gray-900">
-            Enter Your Organization
+            {t('org_not_found.title')}
           </h1>
           <p className="mt-3 text-sm text-gray-600">
-            Enter your organization name to continue to the login page.
+            {t('org_not_found.description')}
           </p>
         </div>
 
@@ -45,7 +48,7 @@ function OrgNotFound() {
                 type="text"
                 value={orgSlug}
                 onChange={(e) => setOrgSlug(e.target.value)}
-                placeholder="your-organization"
+                placeholder={t('org_not_found.placeholder')}
                 className="flex-1 bg-transparent outline-none text-gray-900 placeholder-gray-400"
                 autoFocus
               />
@@ -58,10 +61,10 @@ function OrgNotFound() {
               className="w-full flex items-center justify-center gap-2 bg-black text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isNavigating ? (
-                'Redirecting...'
+                t('org_not_found.redirecting')
               ) : (
                 <>
-                  Continue
+                  {t('org_not_found.continue')}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -70,7 +73,7 @@ function OrgNotFound() {
         </form>
 
         <p className="mt-6 text-center text-xs text-gray-500">
-          Don't know your organization name? Contact your administrator.
+          {t('org_not_found.help')}
         </p>
       </div>
     </div>

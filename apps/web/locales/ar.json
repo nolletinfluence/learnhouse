@@ -238,6 +238,14 @@
     "less": "أقل",
     "more": "المزيد"
   },
+  "org_not_found": {
+    "title": "أدخل منظمتك",
+    "description": "أدخل اسم منظمتك للمتابعة إلى صفحة تسجيل الدخول.",
+    "placeholder": "منظمتك",
+    "continue": "متابعة",
+    "redirecting": "جارٍ التحويل...",
+    "help": "لا تعرف اسم منظمتك؟ تواصل مع المسؤول."
+  },
   "banner": {
     "viewing_as_guest": "أنت تتصفح {{name}} كضيف.",
     "join_organization": "انضم لهذه المنظمة",

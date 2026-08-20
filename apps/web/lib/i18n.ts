@@ -74,16 +74,18 @@ export function detectPreferredLocale(): string {
   return normalizeLocale(window.navigator.languages?.[0] || window.navigator.language)
 }
 
-async function loadLocale(language: string): Promise<void> {
+async function loadLocale(language: string): Promise<boolean> {
   const code = normalizeLocale(language)
-  if (code === DEFAULT_LOCALE || !LOCALE_LOADERS[code]) return
-  if (i18n.hasResourceBundle(code, 'common')) return;
+  if (code === DEFAULT_LOCALE) return true
+  if (!LOCALE_LOADERS[code]) return false
+  if (i18n.hasResourceBundle(code, 'common')) return true
 
   try {
     const mod = await LOCALE_LOADERS[code]();
     i18n.addResourceBundle(code, 'common', mod.default, true, true);
+    return true
   } catch {
-    return
+    return false
   }
 }
 
@@ -103,10 +105,12 @@ i18n
     }
   });
 
-export async function prepareLocale(language: string): Promise<void> {
+export async function prepareLocale(language: string): Promise<boolean> {
   const locale = normalizeLocale(language)
-  await Promise.all([loadLocale(locale), loadDateLocale(locale)])
+  if (!await loadLocale(locale)) return false
+  await loadDateLocale(locale)
   applyDocumentDirection(locale)
+  return true
 }
 
 function persistCookie(language: string): void {
@@ -125,11 +129,12 @@ function persistLocale(language: string): void {
   persistCookie(language)
 }
 
-export async function changeLanguage(language: string): Promise<void> {
+export async function changeLanguage(language: string): Promise<boolean> {
   const locale = normalizeLocale(language)
-  await prepareLocale(locale)
+  if (!await prepareLocale(locale)) return false
   await i18n.changeLanguage(locale)
   persistLocale(locale)
+  return true
 }
 
 export default i18n;
