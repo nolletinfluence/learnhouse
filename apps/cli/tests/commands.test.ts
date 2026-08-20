@@ -85,7 +85,7 @@ import { promptDomain } from '../src/prompts/domain.js'
 import { promptFeatures } from '../src/prompts/features.js'
 import { promptDatabase } from '../src/prompts/database.js'
 import { checkDevEnv } from '../src/services/env-check.js'
-import { devCommand } from '../src/commands/dev.js'
+import { devCommand, resolveDevInfrastructure } from '../src/commands/dev.js'
 import { printBanner } from '../src/ui/banner.js'
 import { setupCommand } from '../src/commands/setup.js'
 import { checkPrerequisites } from '../src/prompts/prerequisites.js'
@@ -919,6 +919,27 @@ describe('setup input prompts', () => {
 // (spawn + keep-alive) cannot be asserted past that point. Every DECISION
 // branch before it is reachable, driven here by controlling process.cwd()
 // (so findProjectRoot resolves to a fixture) and the docker/env state.
+
+describe('dev infrastructure ports', () => {
+  it('uses isolated host ports consistently for compose and API connections', () => {
+    const infrastructure = resolveDevInfrastructure({
+      LEARNHOUSE_DEV_POSTGRES_PORT: '55432',
+      LEARNHOUSE_DEV_REDIS_PORT: '56379',
+    })
+
+    expect(infrastructure.composePorts).toEqual({ postgres: '55432', redis: '56379' })
+    expect(infrastructure.sqlConnectionString)
+      .toBe('postgresql://learnhouse:learnhouse@localhost:55432/learnhouse')
+    expect(infrastructure.redisConnectionString).toBe('redis://localhost:56379/learnhouse')
+  })
+
+  it('rejects malformed port overrides before they reach Docker Compose', () => {
+    expect(() => resolveDevInfrastructure({ LEARNHOUSE_DEV_POSTGRES_PORT: '5432:evil' }))
+      .toThrow('LEARNHOUSE_DEV_POSTGRES_PORT must be a TCP port between 1 and 65535')
+    expect(() => resolveDevInfrastructure({ LEARNHOUSE_DEV_REDIS_PORT: '70000' }))
+      .toThrow('LEARNHOUSE_DEV_REDIS_PORT must be a TCP port between 1 and 65535')
+  })
+})
 
 describe('dev command guards', () => {
   let tmp: string

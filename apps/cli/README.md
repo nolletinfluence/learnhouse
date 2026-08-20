@@ -60,6 +60,16 @@ npx learnhouse@1.0.0 setup
 | `learnhouse env` | Edit environment variables |
 | `learnhouse dev` | Start local development environment |
 
+Development mode exposes PostgreSQL on `5432` and Redis on `6379` by default.
+When those host ports are already used by another local stack, override them
+without changing the container ports:
+
+```powershell
+$env:LEARNHOUSE_DEV_POSTGRES_PORT = "55432"
+$env:LEARNHOUSE_DEV_REDIS_PORT = "56379"
+npx learnhouse dev
+```
+
 ## Setup
 
 The setup wizard walks through:

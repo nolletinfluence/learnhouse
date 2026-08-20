@@ -8,7 +8,35 @@ import { checkDevEnv } from '../services/env-check.js'
 
 const PROJECT_NAME = 'learnhouse-dev'
 
-const DEV_COMPOSE = `name: learnhouse-dev
+type DevEnvironment = Record<string, string | undefined>
+
+export type DevInfrastructure = {
+  composePorts: { postgres: string; redis: string }
+  sqlConnectionString: string
+  redisConnectionString: string
+}
+
+function resolveTcpPort(env: DevEnvironment, name: string, fallback: string): string {
+  const value = env[name] ?? fallback
+  const port = Number(value)
+  if (!/^\d+$/.test(value) || !Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`${name} must be a TCP port between 1 and 65535`)
+  }
+  return value
+}
+
+export function resolveDevInfrastructure(env: DevEnvironment = process.env): DevInfrastructure {
+  const postgres = resolveTcpPort(env, 'LEARNHOUSE_DEV_POSTGRES_PORT', '5432')
+  const redis = resolveTcpPort(env, 'LEARNHOUSE_DEV_REDIS_PORT', '6379')
+  return {
+    composePorts: { postgres, redis },
+    sqlConnectionString: `postgresql://learnhouse:learnhouse@localhost:${postgres}/learnhouse`,
+    redisConnectionString: `redis://localhost:${redis}/learnhouse`,
+  }
+}
+
+function buildDevCompose({ postgres, redis }: DevInfrastructure['composePorts']): string {
+  return `name: learnhouse-dev
 
 services:
   db:
@@ -20,7 +48,7 @@ services:
       - POSTGRES_PASSWORD=learnhouse
       - POSTGRES_DB=learnhouse
     ports:
-      - "5432:5432"
+      - "${postgres}:5432"
     volumes:
       - learnhouse_db_dev_data:/var/lib/postgresql/data
     healthcheck:
@@ -35,7 +63,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "${redis}:6379"
     volumes:
       - learnhouse_redis_dev_data:/data
     healthcheck:
@@ -48,6 +76,7 @@ volumes:
   learnhouse_db_dev_data:
   learnhouse_redis_dev_data:
 `
+}
 
 function findProjectRoot(): string | null {
   let dir = process.cwd()
@@ -64,11 +93,11 @@ function findProjectRoot(): string | null {
   }
 }
 
-function getDevComposePath(root: string): string {
+function getDevComposePath(root: string, ports: DevInfrastructure['composePorts']): string {
   const dotDir = path.join(root, '.learnhouse')
   if (!fs.existsSync(dotDir)) fs.mkdirSync(dotDir, { recursive: true })
   const composePath = path.join(dotDir, 'docker-compose.dev.yml')
-  fs.writeFileSync(composePath, DEV_COMPOSE)
+  fs.writeFileSync(composePath, buildDevCompose(ports))
   return composePath
 }
 
@@ -226,7 +255,8 @@ export async function devCommand(opts: { ee?: boolean; adminEmail?: string; admi
   }
   console.log()
 
-  const composePath = getDevComposePath(root)
+  const infrastructure = resolveDevInfrastructure()
+  const composePath = getDevComposePath(root, infrastructure.composePorts)
 
   // Check if infrastructure is already running
   const alreadyRunning = isInfraRunning()
@@ -282,6 +312,8 @@ export async function devCommand(opts: { ee?: boolean; adminEmail?: string; admi
   serviceEnv = {
     FORCE_COLOR: '1',
     LEARNHOUSE_DEVELOPMENT_MODE: 'true',
+    LEARNHOUSE_SQL_CONNECTION_STRING: infrastructure.sqlConnectionString,
+    LEARNHOUSE_REDIS_CONNECTION_STRING: infrastructure.redisConnectionString,
     ...(adminEmail && { LEARNHOUSE_INITIAL_ADMIN_EMAIL: adminEmail }),
     ...(adminPassword && { LEARNHOUSE_INITIAL_ADMIN_PASSWORD: adminPassword }),
     ...(!opts.ee && { LEARNHOUSE_DISABLE_EE: '1' }),
