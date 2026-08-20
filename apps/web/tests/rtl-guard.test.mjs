@@ -148,7 +148,8 @@ describe('Arabic translations', () => {
     )
 
   test('ar.json covers every en.json key', () => {
-    const missing = flatten(en).filter((k) => !new Set(flatten(ar)).has(k))
+    const arabicKeys = new Set(flatten(ar))
+    const missing = flatten(en).filter((k) => !arabicKeys.has(k))
     expect(missing).toEqual([])
   })
 })

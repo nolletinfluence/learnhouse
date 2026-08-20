@@ -1,6 +1,5 @@
 'use client'
 import React, { useState } from 'react'
-import '../lib/i18n'
 import { SessionProvider } from '@components/Contexts/AuthContext'
 import LHSessionProvider from '@components/Contexts/LHSessionContext'
 import AuthFetchInterceptor from '@components/Contexts/AuthFetchInterceptor'
@@ -23,7 +22,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <LHSessionProvider>
           <PostHogProvider>
             <I18nProvider>
-              {/* Inside I18nProvider so it re-renders when the language changes. */}
               <DirectionProvider>
                 <BackgroundTasksProvider>
                   {children}

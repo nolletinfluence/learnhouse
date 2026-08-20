@@ -2,9 +2,9 @@
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
 import en from '../locales/en.json';
 import { loadDateLocale } from './format';
+import { applyDocumentDirection } from './direction';
 
 const LOCALE_LOADERS: Record<string, () => Promise<{ default: any }>> = {
   fr: () => import('../locales/fr.json'),
@@ -30,62 +30,106 @@ const LOCALE_LOADERS: Record<string, () => Promise<{ default: any }>> = {
   sk: () => import('../locales/sk.json'),
 };
 
-// Only bundle English; lazy-load all other locales on demand
 const resources = {
   en: { common: en },
 };
 
-async function loadLocale(lng: string) {
-  const code = lng.split('-')[0]
-  if (code === 'en' || !LOCALE_LOADERS[code]) return;
+const DEFAULT_LOCALE = 'en'
+const SUPPORTED_LOCALES = new Set([DEFAULT_LOCALE, ...Object.keys(LOCALE_LOADERS)])
+
+export function normalizeLocale(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_LOCALE
+
+  const code = value.trim().toLowerCase().replace('_', '-').split('-')[0]
+  return SUPPORTED_LOCALES.has(code) ? code : DEFAULT_LOCALE
+}
+
+export function detectPreferredLocale(): string {
+  if (typeof window === 'undefined') return DEFAULT_LOCALE
+
+  let stored: string | null = null
+  try {
+    stored = window.localStorage.getItem('i18nextLng')
+  } catch {
+    stored = null
+  }
+  if (stored) return normalizeLocale(stored)
+
+  const cookie = document.cookie.match(/(?:^|;\s*)i18next=([^;]*)/)
+  if (cookie) {
+    try {
+      return normalizeLocale(decodeURIComponent(cookie[1]))
+    } catch {
+      return DEFAULT_LOCALE
+    }
+  }
+
+  try {
+    const query = new URLSearchParams(window.location.search).get('lng')
+    if (query) return normalizeLocale(query)
+  } catch {
+    return DEFAULT_LOCALE
+  }
+
+  return normalizeLocale(window.navigator.languages?.[0] || window.navigator.language)
+}
+
+async function loadLocale(language: string): Promise<void> {
+  const code = normalizeLocale(language)
+  if (code === DEFAULT_LOCALE || !LOCALE_LOADERS[code]) return
   if (i18n.hasResourceBundle(code, 'common')) return;
 
   try {
     const mod = await LOCALE_LOADERS[code]();
     i18n.addResourceBundle(code, 'common', mod.default, true, true);
-  } catch (e) {
-    console.warn(`Failed to load locale: ${lng}`, e);
+  } catch {
+    return
   }
 }
 
 i18n
-  .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'en',
+    lng: 'en',
+    fallbackLng: DEFAULT_LOCALE,
     ns: ['common'],
     defaultNS: 'common',
     interpolation: {
-      escapeValue: false, // react already safes from xss
-    },
-    detection: {
-      order: ['localStorage', 'cookie', 'querystring', 'navigator', 'path', 'subdomain'],
-      caches: ['localStorage', 'cookie'],
-      lookupLocalStorage: 'i18nextLng',
-      lookupCookie: 'i18next',
+      escapeValue: false,
     },
     react: {
       useSuspense: false,
     }
   });
 
-// Load the detected language if it's not English — export the promise
-// so I18nProvider can wait for resources before rendering.
-// The date locale rides along: dayjs keeps its own registry, and without this
-// every "2 hours ago" renders in English no matter the language.
-export const initialLocaleReady = Promise.all([
-  loadLocale(i18n.language.split('-')[0]),
-  loadDateLocale(i18n.language),
-]).then(() => undefined);
+export async function prepareLocale(language: string): Promise<void> {
+  const locale = normalizeLocale(language)
+  await Promise.all([loadLocale(locale), loadDateLocale(locale)])
+  applyDocumentDirection(locale)
+}
 
-/**
- * Switch language safely — preloads the bundle before switching
- * so the UI never flashes English as a fallback.
- */
-export async function changeLanguage(lng: string) {
-  await Promise.all([loadLocale(lng), loadDateLocale(lng)])
-  return i18n.changeLanguage(lng)
+function persistCookie(language: string): void {
+  document.cookie = `i18next=${encodeURIComponent(language)}; path=/; max-age=31536000; samesite=lax`
+}
+
+function persistLocale(language: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem('i18nextLng', language)
+  } catch {
+    persistCookie(language)
+    return
+  }
+
+  persistCookie(language)
+}
+
+export async function changeLanguage(language: string): Promise<void> {
+  const locale = normalizeLocale(language)
+  await prepareLocale(locale)
+  await i18n.changeLanguage(locale)
+  persistLocale(locale)
 }
 
 export default i18n;
