@@ -52,9 +52,9 @@ export default function DashboardHome() {
   const planStyle = PLAN_COLORS[plan] || PLAN_COLORS.free
 
   return (
-    <div className="h-full w-full bg-[#f8f8f8]">
+    <div className="bestdevs-lms-home h-full w-full bg-[#f8f8f8]">
       <div className="px-4 sm:px-10 pt-8 pb-10">
-        <div className="space-y-6 max-w-[1600px] mx-auto w-full">
+        <div className="bestdevs-lms-home__inner space-y-6 max-w-[1600px] mx-auto w-full">
           {/* Welcome Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>

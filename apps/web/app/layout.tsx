@@ -1,10 +1,10 @@
 import '../styles/globals.css'
 import React from 'react'
 import Providers from '@components/Providers'
-import { Wix_Madefor_Text, Tajawal } from 'next/font/google'
+import { Onest, Tajawal } from 'next/font/google'
 
-const wixMadeforText = Wix_Madefor_Text({
-  subsets: ['latin'],
+const onest = Onest({
+  subsets: ['cyrillic', 'latin'],
   display: 'swap',
   variable: '--font-default',
 })
@@ -39,7 +39,7 @@ export default function RootLayout({
   // no-JS baseline for crawlers; the script overwrites it for everyone else.
   return (
     <html
-      className={`${wixMadeforText.variable} ${tajawal.variable}`}
+      className={`${onest.variable} ${tajawal.variable}`}
       lang="en"
       suppressHydrationWarning
     >

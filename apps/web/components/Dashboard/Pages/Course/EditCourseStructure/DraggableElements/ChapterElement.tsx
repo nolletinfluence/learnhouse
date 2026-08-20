@@ -228,7 +228,7 @@ function ChapterElement(props: ChapterElementProps) {
     >
       {(provided, snapshot) => (
         <div
-          className={`mx-2 sm:mx-4 md:mx-6 lg:mx-10 bg-white rounded-xl nice-shadow px-3 sm:px-4 md:px-6 pt-4 sm:pt-6 ${
+          className={`bestdevs-chapter mx-2 sm:mx-4 md:mx-6 lg:mx-10 bg-white rounded-xl nice-shadow px-3 sm:px-4 md:px-6 pt-4 sm:pt-6 ${
             snapshot.isDragging ? 'shadow-xl ring-2 ring-blue-500/20 rotate-1' : ''
           }`}
           key={props.chapter.chapter_uuid}

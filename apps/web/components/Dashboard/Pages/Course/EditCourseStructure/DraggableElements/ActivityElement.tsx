@@ -245,7 +245,7 @@ function ActivityElement(props: ActivitiyElementProps) {
     >
       {(provided, snapshot) => (
         <div
-          className={`flex items-center gap-3 py-2.5 px-3 my-2 w-full rounded-lg text-gray-500
+          className={`bestdevs-activity flex items-center gap-3 py-2.5 px-3 my-2 w-full rounded-lg text-gray-500
             ${snapshot.isDragging
               ? 'nice-shadow bg-white ring-2 ring-blue-500/20 z-drag-overlay rotate-1 scale-[1.02]'
               : props.isSelected

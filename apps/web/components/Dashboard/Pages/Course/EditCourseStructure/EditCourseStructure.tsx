@@ -139,14 +139,14 @@ const EditCourseStructure = (props: EditCourseStructureProps) => {
   if (!course) return <PageLoading></PageLoading>
 
   return (
-    <div className="flex flex-col">
+    <div className="bestdevs-course-structure flex flex-col">
       <div className="h-6"></div>
       {winReady ? (
         <DragDropContext onDragEnd={updateStructure}>
           <Droppable type="chapter" droppableId="chapters" direction="vertical">
             {(provided, snapshot) => (
               <div
-                className={`space-y-4 ${snapshot.isDraggingOver ? 'bg-gray-50/50' : ''}`}
+                className={`bestdevs-course-structure__chapters space-y-4 ${snapshot.isDraggingOver ? 'bg-gray-50/50' : ''}`}
                 {...provided.droppableProps}
                 ref={provided.innerRef}
               >

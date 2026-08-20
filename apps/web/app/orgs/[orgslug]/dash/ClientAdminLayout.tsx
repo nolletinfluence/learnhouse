@@ -11,6 +11,7 @@ import CommandPalette from '@components/Dashboard/CommandPalette/CommandPalette'
 import { UpgradeModalProvider } from '@components/Dashboard/Shared/PlanRestricted/UpgradeModalContext'
 import React from 'react'
 import { useMediaQuery } from 'usehooks-ts';
+import BestDevsWorkspaceBar from '@components/Dashboard/BestDevsWorkspaceBar'
 
 function ClientAdminLayout({
     children,
@@ -34,9 +35,10 @@ function ClientAdminLayout({
                             this node", taking the whole page with it. The dashboard is
                             already translated by i18n, so opting it out costs nothing.
                             Public course pages stay translatable. */}
-                        <div translate="no" className="notranslate flex flex-col lg:flex-row">
+                        <div translate="no" className="notranslate bestdevs-lms-shell flex flex-col lg:flex-row">
                             {!isMobile && <DashLeftMenu />}
-                            <div className="flex flex-col w-full min-w-0 relative isolate pb-24 lg:pb-0">
+                            <div className="bestdevs-lms-content flex flex-col w-full min-w-0 relative isolate pb-24 lg:pb-0">
+                                <BestDevsWorkspaceBar />
                                 {/* Renders nothing outside the demo organization. */}
                                 <DemoBanner />
                                 {children}

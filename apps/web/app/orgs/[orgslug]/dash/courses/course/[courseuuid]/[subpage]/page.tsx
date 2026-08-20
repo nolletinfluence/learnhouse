@@ -127,9 +127,9 @@ function CourseOverviewPage(props: { params: Promise<CourseOverviewParams> }) {
   // no sequential waterfall. The tab content is gated by hasPermission() which returns
   // false (safe default) until rights finish loading.
   return (
-    <div className="h-screen w-full bg-[#f8f8f8] grid grid-rows-[auto_1fr] grid-cols-1">
+    <div className="bestdevs-course-page h-screen w-full bg-[#f8f8f8] grid grid-rows-[auto_1fr] grid-cols-1">
       <CourseProvider courseuuid={courseuuid} withUnpublishedActivities={true}>
-        <div className="ps-4 pe-4 sm:ps-10 sm:pe-10 text-sm tracking-tight bg-[#fcfbfc] z-10 nice-shadow relative min-w-0 overflow-hidden">
+        <div className="bestdevs-course-header ps-4 pe-4 sm:ps-10 sm:pe-10 text-sm tracking-tight bg-[#fcfbfc] z-10 nice-shadow relative min-w-0 overflow-hidden">
           <CourseOverviewTop params={params} />
           <DashTabBar tabs={tabs.map((tab) => {
             const hasAccess = hasPermission(tab.requiredPermission)
@@ -158,7 +158,7 @@ function CourseOverviewPage(props: { params: Promise<CourseOverviewParams> }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.1, type: 'spring', stiffness: 80 }}
-          className="h-full overflow-y-auto overflow-x-hidden"
+          className="bestdevs-course-content h-full overflow-y-auto overflow-x-hidden"
         >
           <div>
             {rightsLoading ? (

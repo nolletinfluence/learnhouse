@@ -86,7 +86,7 @@ function DashMobileMenu() {
       {/* Floating pill */}
       <nav
         aria-label={t('dashboard.nav.mobile_navigation')}
-        className="fixed inset-x-0 mx-auto w-fit z-[9999]"
+        className="bestdevs-mobile-pill fixed inset-x-0 mx-auto w-fit z-[9999]"
         style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
       >
         <div
@@ -181,7 +181,7 @@ function DashMobileMenu() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.97 }}
               transition={{ type: 'spring', damping: 30, stiffness: 360 }}
-              className="fixed start-4 end-4 z-[9998] max-w-sm mx-auto bg-[#0e0e10]/95 backdrop-blur-xl rounded-2xl overflow-hidden"
+              className="bestdevs-mobile-panel fixed start-4 end-4 z-[9998] max-w-sm mx-auto bg-[#0e0e10]/95 backdrop-blur-xl rounded-2xl overflow-hidden"
               style={{
                 bottom: 'calc(env(safe-area-inset-bottom) + 5.5rem)',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.4)',

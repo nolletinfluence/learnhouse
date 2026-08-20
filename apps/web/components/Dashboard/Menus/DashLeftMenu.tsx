@@ -239,7 +239,7 @@ function DashLeftMenu() {
     <nav
       aria-label={t('dashboard.nav.sidebar_navigation')}
       className={cn(
-        "flex flex-col text-white h-screen sticky top-0 z-overlay border-e border-white/[0.08] bg-[#0f0f10] transition-all duration-300",
+        "bestdevs-lms-sidebar flex flex-col text-white h-screen sticky top-0 z-overlay border-e border-white/[0.08] bg-[#0f0f10] transition-all duration-300",
         isCollapsed ? "w-[72px]" : "w-64"
       )}
     >

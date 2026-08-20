@@ -145,13 +145,13 @@ export function CourseOverviewTop({
 
   return (
     <>
-      <div className="pt-6 pb-4">
+      <div className="bestdevs-course-breadcrumbs pt-6 pb-4">
         <Breadcrumbs items={[
           { label: t('courses.courses'), href: '/dash/courses', icon: <BookCopy size={14} /> },
           { label: courseStructure.name }
         ]} />
       </div>
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="bestdevs-course-overview flex flex-wrap gap-2 items-center">
         <div className="flex py-2 grow min-w-0 items-center">
           <Link
             href={getUriWithOrg(org?.slug, '') + `/course/${params.courseuuid}`}
