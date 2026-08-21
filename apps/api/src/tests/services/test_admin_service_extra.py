@@ -53,18 +53,22 @@ from src.services.admin.admin import (
 # ---------------------------------------------------------------------------
 
 
-def _make_token_user(org_id: int) -> APITokenUser:
+def _make_token_user(org_id: int, *, allow_user_delete: bool = False) -> APITokenUser:
+    rights = {
+        "courses": {
+            "action_read": True,
+            "action_update": True,
+        }
+    }
+    if allow_user_delete:
+        rights["users"] = {"action_delete": True}
+
     return APITokenUser(
         id=99,
         user_uuid="api_token_user",
         username="api_token_user",
         org_id=org_id,
-        rights={
-            "courses": {
-                "action_read": True,
-                "action_update": True,
-            }
-        },
+        rights=rights,
         token_name="test-token",
         created_by_user_id=1,
     )
@@ -337,7 +341,7 @@ async def test_revoke_certificate_course_wrong_org_raises_404(db, org, course, u
 @pytest.mark.asyncio
 async def test_remove_user_from_org_invalidate_cache_raises_is_swallowed(db, org, admin_role, user_role):
     """Lines 847-848: _invalidate_session_cache raises → swallowed, function succeeds."""
-    token_user = _make_token_user(org.id)
+    token_user = _make_token_user(org.id, allow_user_delete=True)
 
     # We need an admin user in the org too (so we're not removing the last admin)
     admin_user = await _create_user(db, user_id=60, username="admin60", email="admin60@test.com")
@@ -362,7 +366,7 @@ async def test_remove_user_from_org_invalidate_cache_raises_is_swallowed(db, org
 @pytest.mark.asyncio
 async def test_remove_user_from_org_decrease_feature_usage_raises_is_swallowed(db, org, admin_role, user_role):
     """Lines 852-853: decrease_feature_usage raises → swallowed, function succeeds."""
-    token_user = _make_token_user(org.id)
+    token_user = _make_token_user(org.id, allow_user_delete=True)
 
     admin_user = await _create_user(db, user_id=63, username="admin63", email="admin63@test.com")
     await _add_user_to_org(db, admin_user, org, role_id=admin_role.id)
@@ -486,7 +490,7 @@ async def test_bulk_unenroll_users_user_not_enrolled_goes_to_not_enrolled(db, or
 @pytest.mark.asyncio
 async def test_anonymize_user_invalidate_cache_raises_is_swallowed(db, org, user_role):
     """Lines 1979-1980: _invalidate_session_cache raises → swallowed."""
-    token_user = _make_token_user(org.id)
+    token_user = _make_token_user(org.id, allow_user_delete=True)
     user = await _create_user(db, user_id=100, username="anon100", email="anon100@test.com")
     await _add_user_to_org(db, user, org, role_id=user_role.id)
 
@@ -529,7 +533,7 @@ async def test_get_course_analytics_with_certification_and_cert_users(db, org, c
 @pytest.mark.asyncio
 async def test_remove_user_from_org_admin_no_membership_row_raises_404(db, org):
     """Line 827: _get_user_in_org succeeds but UserOrganization row missing."""
-    token_user = _make_token_user(org.id)
+    token_user = _make_token_user(org.id, allow_user_delete=True)
     user = await _create_user(db, user_id=120, username="orphan120", email="orphan120@test.com")
 
     with patch("src.services.admin.admin._get_user_in_org", return_value=user):
