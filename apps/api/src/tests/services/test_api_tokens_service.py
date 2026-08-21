@@ -89,7 +89,6 @@ class TestTokenHelpersAndValidation:
 
     @pytest.mark.asyncio
     async def test_validate_rights_structure_with_rights_object(self):
-        """Covers validate_rights_structure when passed a Rights instance (line 472)."""
         _p = {"action_create": False, "action_read": False, "action_update": False, "action_delete": False}
         _po = {
             "action_create": False, "action_read": False, "action_read_own": False,
@@ -111,12 +110,7 @@ class TestTokenHelpersAndValidation:
             discussions=_po,
             podcasts=_po,
         )
-        # The Rights object is converted to dict at line 472; the subsequent key
-        # validation may raise 400 (Rights lacks api-token-specific keys), but
-        # the important thing is line 472 is executed without error.
-        with pytest.raises(HTTPException) as exc_info:
-            await validate_rights_structure(rights_obj, None)
-        assert exc_info.value.status_code == 400
+        await validate_rights_structure(rights_obj, None)
 
     @pytest.mark.asyncio
     async def test_validate_rights_structure_paths(self):

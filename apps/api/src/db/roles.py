@@ -52,6 +52,24 @@ class Rights(BaseModel):
         action_update=False,
         action_delete=False,
     )  # Default: read-only for backward compat with existing roles
+    certifications: Permission = Permission(
+        action_create=False,
+        action_read=False,
+        action_update=False,
+        action_delete=False,
+    )
+    payments: Permission = Permission(
+        action_create=False,
+        action_read=False,
+        action_update=False,
+        action_delete=False,
+    )
+    search: Permission = Permission(
+        action_create=False,
+        action_read=False,
+        action_update=False,
+        action_delete=False,
+    )
     organizations: Permission
     coursechapters: Permission
     activities: Permission
