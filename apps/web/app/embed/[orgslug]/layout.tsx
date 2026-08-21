@@ -1,13 +1,13 @@
 'use client'
 
-import { use } from 'react'
+import { use, type ReactNode } from 'react'
 import { OrgProvider } from '@components/Contexts/OrgContext'
 import OrgLanguageSync from '@components/Contexts/OrgLanguageSync'
 import '@styles/globals.css'
 
 export default function EmbedLayout(
   props: {
-    children: React.ReactNode
+    children: ReactNode
     params: Promise<{ orgslug: string }>
   }
 ) {

@@ -305,7 +305,7 @@ function courseReducer(state: CourseState, action: CourseAction): CourseState {
         isSaved: false,
       }
 
-    case 'mergePendingChanges':
+    case 'mergePendingChanges': {
       // Merge new changes with existing pending changes and courseStructure
       const mergedStructure = {
         ...state.courseStructure,
@@ -320,6 +320,7 @@ function courseReducer(state: CourseState, action: CourseAction): CourseState {
           ...action.payload,
         },
       }
+    }
 
     case 'setUnsyncedChanges':
       return {

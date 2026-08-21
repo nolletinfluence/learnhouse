@@ -98,9 +98,10 @@ class TestContentFilesRouter:
 
         with pytest.MonkeyPatch.context() as mp:
             def fake_realpath(path):
-                if path == "content":
+                portable_path = str(path).replace("\\", "/")
+                if portable_path == "content":
                     return "/tmp/content"
-                if path == "/tmp/content/safe.txt":
+                if portable_path == "/tmp/content/safe.txt":
                     return "/tmp/other/safe.txt"
                 return path
 

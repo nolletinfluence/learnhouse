@@ -33,7 +33,7 @@ export default function CourseLearnerProgress({
     color: BAR_COLORS[i % BAR_COLORS.length],
   }))
 
-  const MiniChart = () => (
+  const miniChart = (
     <ResponsiveContainer width="100%" height={160}>
       <BarChart data={chartRows}>
         <XAxis dataKey="bracket" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -47,7 +47,7 @@ export default function CourseLearnerProgress({
     </ResponsiveContainer>
   )
 
-  const ModalChart = () => (
+  const modalChart = (
     <ResponsiveContainer width="100%" height={380}>
       <BarChart data={chartRows}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -76,7 +76,7 @@ export default function CourseLearnerProgress({
         ) : (
           <div className="space-y-5">
             <p className="text-sm text-gray-500">{t('analytics.course_analytics.learner_progress.total_across_brackets', { count: totalLearners })}</p>
-            <ModalChart />
+            {modalChart}
             <div className="flex flex-wrap gap-4">
               {rows.map((row: any, i: number) => (
                 <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
@@ -100,7 +100,7 @@ export default function CourseLearnerProgress({
             <span className="text-2xl font-bold text-gray-900"><AnimatedNumber value={totalLearners} /></span>
             <span className="text-xs text-gray-400">{t('analytics.course_analytics.units.learners')}</span>
           </div>
-          <MiniChart />
+          {miniChart}
         </div>
       )}
     </CourseWidgetCard>

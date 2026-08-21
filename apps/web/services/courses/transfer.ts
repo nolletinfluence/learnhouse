@@ -116,12 +116,12 @@ export async function exportCourse(
     const total = parseInt(contentLength, 10)
     let loaded = 0
     const reader = response.body.getReader()
-    const chunks: BlobPart[] = []
+    const chunks: Array<Uint8Array<ArrayBuffer>> = []
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      chunks.push(value as BlobPart)
+      chunks.push(new Uint8Array(value))
       loaded += value.length
       const progress = 55 + Math.round((loaded / total) * 40) // 55-95%
       onProgress?.(progress, getExportStatus(progress, true))
@@ -203,12 +203,12 @@ export async function exportCoursesBatch(
     const total = parseInt(contentLength, 10)
     let loaded = 0
     const reader = response.body.getReader()
-    const chunks: BlobPart[] = []
+    const chunks: Array<Uint8Array<ArrayBuffer>> = []
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      chunks.push(value as BlobPart)
+      chunks.push(new Uint8Array(value))
       loaded += value.length
       const progress = 55 + Math.round((loaded / total) * 40) // 55-95%
       onProgress?.(progress, getExportStatus(progress, true))

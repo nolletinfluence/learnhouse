@@ -139,7 +139,7 @@ def _validate_content_path(file_path: str) -> str | None:
     if not full_real.startswith(base_real + os.sep):
         return None
     # Return the validated relative path
-    return os.path.relpath(full_real, base_real)
+    return os.path.relpath(full_real, base_real).replace(os.sep, '/')
 
 
 async def _check_content_access(

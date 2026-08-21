@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 
 export const metadata: Metadata = {
   title: 'Organization Details',
@@ -7,7 +8,7 @@ export const metadata: Metadata = {
 export default function OrgDetailLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return <>{children}</>
 }

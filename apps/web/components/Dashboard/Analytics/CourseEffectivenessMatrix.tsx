@@ -13,7 +13,7 @@ export default function CourseEffectivenessMatrix({ days = '90' }: { days?: stri
     z: Math.max(40, Math.min(400, r.enrollments * 4)),
   }))
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const renderCustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null
     const d = payload[0].payload
     return (
@@ -40,7 +40,7 @@ export default function CourseEffectivenessMatrix({ days = '90' }: { days?: stri
             <XAxis dataKey="activity_count" name="Activities" tick={{ fontSize: 11 }} stroke="#9ca3af" label={{ value: 'Activities', position: 'insideBottom', offset: -5, fontSize: 11 }} />
             <YAxis dataKey="completion_rate" name="Completion %" tick={{ fontSize: 11 }} stroke="#9ca3af" tickFormatter={(v: number) => `${v}%`} label={{ value: 'Completion %', angle: -90, position: 'insideLeft', fontSize: 11 }} />
             <ZAxis dataKey="z" range={[40, 400]} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={renderCustomTooltip} />
             <Scatter data={rows} fill="rgba(139, 92, 246, 0.6)" stroke="#8b5cf6" strokeWidth={1} />
           </ScatterChart>
         </ResponsiveContainer>

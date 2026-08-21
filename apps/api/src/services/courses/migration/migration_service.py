@@ -37,6 +37,7 @@ from src.services.courses.transfer.storage_utils import (
     upload_file_to_s3,
     is_s3_enabled,
 )
+from src.services.utils.filesystem import extended_length_path
 from src.services.courses.migration.models import (
     UploadedFileInfo,
     MigrationUploadResponse,
@@ -457,7 +458,7 @@ async def create_course_from_migration(
             "content", "orgs", org_uuid, "courses", course_uuid
         )
         if not is_s3_enabled():
-            os.makedirs(course_dir, exist_ok=True)
+            os.makedirs(extended_length_path(course_dir), exist_ok=True)
 
         chapters_created = 0
         activities_created = 0
@@ -498,7 +499,7 @@ async def create_course_from_migration(
                     course_dir, "activities", activity_uuid
                 )
                 if not is_s3_enabled():
-                    os.makedirs(activity_dir, exist_ok=True)
+                    os.makedirs(extended_length_path(activity_dir), exist_ok=True)
 
                 block_to_add = None
 
@@ -542,7 +543,7 @@ async def create_course_from_migration(
                                 raise RuntimeError(f"S3 upload failed for {s3_key}")
                         else:
                             files_dir = os.path.join(activity_dir, "files")
-                            os.makedirs(files_dir, exist_ok=True)
+                            os.makedirs(extended_length_path(files_dir), exist_ok=True)
                             dst_real = os.path.realpath(
                                 os.path.join(files_dir, f"{new_file_id}.{ext}")
                             )
@@ -550,7 +551,11 @@ async def create_course_from_migration(
                                 os.path.realpath(files_dir) + os.sep
                             ):
                                 continue
-                            await asyncio.to_thread(shutil.copy2, src_real, dst_real)
+                            await asyncio.to_thread(
+                                shutil.copy2,
+                                extended_length_path(src_real),
+                                extended_length_path(dst_real),
+                            )
 
                     elif activity_type == ActivityTypeEnum.TYPE_DYNAMIC:
                         block_uuid = f"block_{uuid4()}"
@@ -603,7 +608,7 @@ async def create_course_from_migration(
                                 block_type_folder,
                                 block_uuid,
                             )
-                            os.makedirs(block_dir, exist_ok=True)
+                            os.makedirs(extended_length_path(block_dir), exist_ok=True)
                             dst_real = os.path.realpath(
                                 os.path.join(block_dir, f"{new_file_id}.{ext}")
                             )
@@ -611,7 +616,11 @@ async def create_course_from_migration(
                                 os.path.realpath(block_dir) + os.sep
                             ):
                                 continue
-                            await asyncio.to_thread(shutil.copy2, src_real, dst_real)
+                            await asyncio.to_thread(
+                                shutil.copy2,
+                                extended_length_path(src_real),
+                                extended_length_path(dst_real),
+                            )
 
                 activity = Activity(
                     name=act_node.name,

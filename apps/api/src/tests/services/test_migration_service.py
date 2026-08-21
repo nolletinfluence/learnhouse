@@ -726,9 +726,10 @@ async def test_create_course_from_migration_covers_local_copy_and_s3_failure_bra
     )
 
     def dst_escape_realpath(path):
-        if "/files/" in path and path.endswith(".mp4"):
+        portable_path = str(path).replace("\\", "/")
+        if "/files/" in portable_path and portable_path.endswith(".mp4"):
             return str(tmp_path / "outside" / Path(path).name)
-        if "/dynamic/blocks/" in path and path.endswith(".webp"):
+        if "/dynamic/blocks/" in portable_path and portable_path.endswith(".webp"):
             return str(tmp_path / "outside" / Path(path).name)
         return original_realpath(path)
 

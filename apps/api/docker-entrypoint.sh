@@ -68,7 +68,7 @@ export PYTHONIOENCODING=utf-8
 
 # Get port from config or use default
 PORT=${LEARNHOUSE_PORT:-9000}
-HOST=${HOSTNAME:-0.0.0.0}
+HOST=${LEARNHOUSE_HOST:-0.0.0.0}
 
 echo "Starting LearnHouse backend on ${HOST}:${PORT}..."
 

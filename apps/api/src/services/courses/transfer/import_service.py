@@ -34,6 +34,7 @@ from src.db.users import PublicUser, AnonymousUser, APITokenUser
 from src.security.file_validation import EXT_TO_CANONICAL_MIME, MIME_TO_SAFE_EXT
 from src.security.rbac import check_resource_access, AccessAction
 from src.security.features_utils.usage import check_limits_with_usage, increase_feature_usage
+from src.services.utils.filesystem import extended_length_path
 
 from .models import (
     ImportAnalysisResponse,
@@ -971,18 +972,33 @@ async def _import_block(
 
     if block_type_folder:
         # The copytree already copied files with old UUIDs, we need to rename folders
-        old_copied_block_path = f"{new_activity_path}/dynamic/blocks/{block_type_folder}/{original_block_uuid}"
-        new_block_path = f"{new_activity_path}/dynamic/blocks/{block_type_folder}/{new_block_uuid}"
+        old_copied_block_path = os.path.join(
+            new_activity_path,
+            "dynamic",
+            "blocks",
+            block_type_folder,
+            original_block_uuid,
+        )
+        new_block_path = os.path.join(
+            new_activity_path,
+            "dynamic",
+            "blocks",
+            block_type_folder,
+            new_block_uuid,
+        )
+        old_copied_block_io_path = extended_length_path(old_copied_block_path)
+        new_block_io_path = extended_length_path(new_block_path)
 
-        if os.path.exists(old_copied_block_path):
+        if os.path.exists(old_copied_block_io_path):
             # Rename the folder to use new block UUID
-            os.rename(old_copied_block_path, new_block_path)
+            os.rename(old_copied_block_io_path, new_block_io_path)
 
             # Rename files inside the folder and update file references
-            if os.path.exists(new_block_path):
-                for filename in os.listdir(new_block_path):
-                    old_file_path = f"{new_block_path}/{filename}"
-                    if os.path.isfile(old_file_path):
+            if os.path.exists(new_block_io_path):
+                for filename in os.listdir(new_block_io_path):
+                    old_file_path = os.path.join(new_block_path, filename)
+                    old_file_io_path = extended_length_path(old_file_path)
+                    if os.path.isfile(old_file_io_path):
                         # Get old file_id before renaming
                         old_file_id = new_block_content.get('file_id')
 
@@ -990,18 +1006,20 @@ async def _import_block(
                         # extension rather than republishing it under content/.
                         file_ext = safe_stored_extension(filename)
                         if not file_ext:
-                            os.remove(old_file_path)
+                            os.remove(old_file_io_path)
                             continue
 
                         # Generate new file ID (UUID without prefix, matching URL structure)
                         new_file_id = str(uuid4())
                         new_filename = f"{new_file_id}.{file_ext}"
-                        new_file_path = f"{new_block_path}/{new_filename}"
-                        os.rename(old_file_path, new_file_path)
+                        new_file_path = os.path.join(new_block_path, new_filename)
+                        new_file_io_path = extended_length_path(new_file_path)
+                        os.rename(old_file_io_path, new_file_io_path)
 
                         # Upload renamed file to S3 and clean up old key
                         if is_s3_enabled():
-                            if not upload_file_to_s3(new_file_path, new_file_path):
+                            new_s3_key = f"{new_activity_path}/dynamic/blocks/{block_type_folder}/{new_block_uuid}/{new_filename}"
+                            if not upload_file_to_s3(new_s3_key, new_file_io_path):
                                 raise HTTPException(status_code=500, detail="Failed to upload block file to storage")
                             # Delete the old S3 key (uploaded with old UUID before rename)
                             old_s3_key = f"{new_activity_path}/dynamic/blocks/{block_type_folder}/{original_block_uuid}/{filename}"

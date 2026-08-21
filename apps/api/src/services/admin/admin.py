@@ -226,7 +226,6 @@ async def issue_user_token(
     impersonation properly needs ``users`` to become a grantable bucket first.
     """
 
-    _require_token_right(token_user, "users", "action_read")
     user = await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     await _check_token_can_impersonate(user, token_user.org_id, db_session)

@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useBoardSelection } from '../BoardSelectionContext'
 
 interface DragResizeOptions {
@@ -111,7 +112,7 @@ export function useDragResize({
   })
 
   /** Find the NodeViewWrapper (outermost node-view element) from the event */
-  const getWrapper = (e: React.MouseEvent): HTMLElement | null => {
+  const getWrapper = (e: ReactMouseEvent): HTMLElement | null => {
     // Walk from both target and currentTarget to find the wrapper
     let el: HTMLElement | null = e.currentTarget as HTMLElement
     while (el && !el.hasAttribute('data-node-view-wrapper')) {
@@ -141,7 +142,7 @@ export function useDragResize({
     iframes.forEach((iframe) => { (iframe as HTMLElement).style.pointerEvents = '' })
   }
 
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
+  const handleDragStart = useCallback((e: ReactMouseEvent) => {
     // Block drag if inside a locked frame
     if (editor && isInsideLockedFrame(editor, x, y, width, height)) {
       return
@@ -273,7 +274,7 @@ export function useDragResize({
     window.addEventListener('mouseup', handleUp)
   }, [x, y, width, height, updateAttributes, editor, selectedPositions, getPos])
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleResizeStart = useCallback((e: ReactMouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
     const el = getWrapper(e)

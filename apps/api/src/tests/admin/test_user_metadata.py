@@ -34,6 +34,7 @@ def token_user(org, admin_user):
         user_uuid="apitoken_test",
         username="api_token",
         org_id=org.id,
+        rights={"users": {"action_create": True}},
         token_name="Test Token",
         created_by_user_id=admin_user.id,
     )

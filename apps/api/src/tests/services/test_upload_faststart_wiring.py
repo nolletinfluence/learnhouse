@@ -1,5 +1,6 @@
 """The upload pipeline must apply faststart to stored videos."""
 
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +13,6 @@ from src.services.utils.upload_content import upload_content, _safe_content_path
 def test_safe_content_path_contains_within_root(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     p = _safe_content_path("orgs", "org_x", "courses/c/video", "clip.mp4")
-    import os
     assert os.path.isabs(p)
     assert p == os.path.realpath("content/orgs/org_x/courses/c/video/clip.mp4")
 
@@ -51,9 +51,7 @@ async def test_filesystem_upload_invokes_faststart(monkeypatch, tmp_path):
     written = tmp_path / "content/orgs/org_x/courses/c/activities/a/video/clip.mp4"
     assert written.read_bytes() == b"videobytes"
     # faststart was applied to the freshly-written file.
-    assert seen["path"].endswith(
-        "content/orgs/org_x/courses/c/activities/a/video/clip.mp4"
-    )
+    assert os.path.samefile(seen["path"], written)
 
 
 def test_safe_content_path_rejects_absolute_escape(tmp_path, monkeypatch):

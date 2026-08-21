@@ -28,7 +28,7 @@ export default function CourseLearnerRetention({
 
   const empty = !isLoading && chartRows.length === 0
 
-  const MiniChart = () => (
+  const miniChart = (
     <ResponsiveContainer width="100%" height={160}>
       <AreaChart data={chartRows}>
         <defs>
@@ -48,7 +48,7 @@ export default function CourseLearnerRetention({
     </ResponsiveContainer>
   )
 
-  const ModalChart = () => (
+  const modalChart = (
     <ResponsiveContainer width="100%" height={380}>
       <AreaChart data={chartRows}>
         <defs>
@@ -104,7 +104,7 @@ export default function CourseLearnerRetention({
                 <p className="text-2xl font-bold text-gray-700">{latestRetention}%</p>
               </div>
             </div>
-            <ModalChart />
+            {modalChart}
           </div>
         )
       }
@@ -122,7 +122,7 @@ export default function CourseLearnerRetention({
             </div>
             <span className="text-xs text-indigo-400">{cohortSize} {t('analytics.course_analytics.units.in_cohort')}</span>
           </div>
-          <MiniChart />
+          {miniChart}
         </div>
       )}
     </CourseWidgetCard>

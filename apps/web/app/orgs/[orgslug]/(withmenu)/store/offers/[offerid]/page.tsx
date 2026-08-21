@@ -17,7 +17,9 @@ export async function generateMetadata({ params }: { params: PageParams }): Prom
   try {
     const result = await getPublicOffer(org.id, offerid)
     offerName = result?.data?.name || 'Offer'
-  } catch {}
+  } catch {
+    offerName = 'Offer'
+  }
   const title = buildPageTitle(offerName, org?.name || 'Organization', seoConfig)
   return {
     title,
@@ -36,7 +38,9 @@ export default async function OfferPage({ params }: { params: PageParams }) {
   try {
     const result = await getPublicOffer(org.id, offerid)
     offer = result?.data ?? result
-  } catch {}
+  } catch {
+    offer = null
+  }
 
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: 'Home', url: await getServerCanonicalUrl(orgslug, '/') },

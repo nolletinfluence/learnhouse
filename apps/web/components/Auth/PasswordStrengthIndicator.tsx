@@ -44,7 +44,7 @@ export function PasswordStrengthIndicator({
         {
             id: 'special',
             label: t('auth.password_req_special'),
-            validator: (pwd: string) => /[!@#$%^&*()_+\-=\[\]{}|;':",./<>?]/.test(pwd),
+            validator: (pwd: string) => /[!@#$%^&*()_+\-=[\]{}|;':",./<>?]/.test(pwd),
         },
     ], [t])
 
@@ -143,7 +143,7 @@ export function validatePasswordStrength(password: string): {
     if (!/[0-9]/.test(password)) {
         errors.push('Password must contain at least one number')
     }
-    if (!/[!@#$%^&*()_+\-=\[\]{}|;':",./<>?]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=[\]{}|;':",./<>?]/.test(password)) {
         errors.push('Password must contain at least one special character')
     }
 

@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { Editor } from '@tiptap/core'
 
 interface FrameDragOptions {
@@ -20,7 +21,7 @@ interface ChildSnapshot {
 }
 
 /** Find the NodeViewWrapper from an event target */
-function getWrapper(e: React.MouseEvent): HTMLElement | null {
+function getWrapper(e: ReactMouseEvent): HTMLElement | null {
   let el: HTMLElement | null = e.currentTarget as HTMLElement
   while (el && !el.hasAttribute('data-node-view-wrapper')) {
     el = el.parentElement
@@ -144,7 +145,7 @@ export function useFrameDrag({
     }
   })
 
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
+  const handleDragStart = useCallback((e: ReactMouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
     const el = getWrapper(e)
@@ -258,7 +259,7 @@ export function useFrameDrag({
     window.addEventListener('mouseup', handleUp)
   }, [x, y, width, height, updateAttributes, editor, getPos])
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleResizeStart = useCallback((e: ReactMouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
     const el = getWrapper(e)

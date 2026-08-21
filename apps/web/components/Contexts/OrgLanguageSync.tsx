@@ -19,7 +19,9 @@ export default function OrgLanguageSync() {
     let userPicked: string | null = null
     try {
       userPicked = localStorage.getItem(USER_PICKED_KEY)
-    } catch {}
+    } catch {
+      userPicked = null
+    }
     if (userPicked) return
 
     if (i18n.language.split('-')[0] !== orgDefault) {

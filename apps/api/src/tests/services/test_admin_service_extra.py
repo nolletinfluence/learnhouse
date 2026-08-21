@@ -59,7 +59,12 @@ def _make_token_user(org_id: int) -> APITokenUser:
         user_uuid="api_token_user",
         username="api_token_user",
         org_id=org_id,
-        rights={},
+        rights={
+            "courses": {
+                "action_read": True,
+                "action_update": True,
+            }
+        },
         token_name="test-token",
         created_by_user_id=1,
     )
