@@ -38,6 +38,7 @@ from src.services.users.users import (
     delete_user_by_id,
     get_user_session,
     read_user_by_id,
+    read_users_by_email_global,
     read_user_by_uuid,
     read_user_by_username,
     update_user,
@@ -53,6 +54,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SESSION_CACHE_TTL = 600  # 10 minutes
+
+
+class GlobalUserEmailSearchRequest(BaseModel):
+    email: EmailStr
+
+
+class GlobalUserEmailSearchResponse(BaseModel):
+    items: List[UserRead]
+    total: int
 
 
 def _get_session_cache(user_id: int) -> Optional[dict]:
@@ -160,6 +170,28 @@ async def api_get_authorization_status(
     return await authorize_user_action(
         request, db_session, current_user, ressource_uuid, action
     )
+
+
+@router.post(
+    "/global/email-search",
+    response_model=GlobalUserEmailSearchResponse,
+    summary="Find a global user by exact email",
+    description="Return at most two exact email matches to an authenticated platform superadmin.",
+    responses={
+        200: {"description": "Exact global matches, including an empty result."},
+        401: {"description": "Authentication required"},
+        403: {"description": "Platform superadmin access required"},
+    },
+)
+async def api_search_users_by_email_global(
+    body: GlobalUserEmailSearchRequest,
+    current_user: PublicUser = Depends(get_authenticated_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> GlobalUserEmailSearchResponse:
+    if not current_user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    users = await read_users_by_email_global(db_session, str(body.email))
+    return GlobalUserEmailSearchResponse(items=users, total=len(users))
 
 
 async def _enforce_password_signup_allowed(db_session: AsyncSession, org_id: int) -> None:

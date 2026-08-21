@@ -758,6 +758,20 @@ async def read_user_by_id(
     return UserReadPublic.model_validate(user)
 
 
+async def read_users_by_email_global(
+    db_session: AsyncSession,
+    email: str,
+) -> list[UserRead]:
+    statement = (
+        select(User)
+        .where(func.lower(User.email) == email.strip().lower())
+        .order_by(User.id)
+        .limit(2)
+    )
+    users = (await db_session.exec(statement)).all()
+    return [UserRead.model_validate(user) for user in users]
+
+
 async def read_user_by_uuid(
     request: Request,
     db_session: AsyncSession,

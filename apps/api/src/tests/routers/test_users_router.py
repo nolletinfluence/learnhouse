@@ -78,6 +78,34 @@ class TestGetProfile:
         assert body["username"] == "admin"
 
 
+class TestGlobalUserEmailSearch:
+    async def test_superadmin_finds_exact_global_identity(self, app, client, admin_user):
+        app.dependency_overrides[get_authenticated_user] = lambda: admin_user.model_copy(
+            update={"is_superadmin": True}
+        )
+
+        response = await client.post(
+            "/api/v1/users/global/email-search",
+            json={"email": "ADMIN@test.com"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1
+        assert len(body["items"]) == 1
+        assert body["items"][0]["id"] == admin_user.id
+        assert body["items"][0]["user_uuid"] == admin_user.user_uuid
+        assert body["items"][0]["email"] == "admin@test.com"
+
+    async def test_non_superadmin_cannot_search_global_identity(self, client):
+        response = await client.post(
+            "/api/v1/users/global/email-search",
+            json={"email": "admin@test.com"},
+        )
+
+        assert response.status_code == 403
+
+
 class TestGetUserById:
     async def test_get_user_by_id(self, client):
         mock_user = _mock_user_public()
