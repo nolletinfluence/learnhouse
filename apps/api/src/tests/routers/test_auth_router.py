@@ -169,11 +169,13 @@ class TestAuthHelpers:
             cookie_header = "\n".join(response.headers.getlist("set-cookie"))
             assert JWT_COOKIE_NAME in cookie_header
             assert JWT_REFRESH_COOKIE_NAME in cookie_header
+            assert "LH_session=1" in cookie_header
 
             unset_response = Response()
             unset_auth_cookies(unset_response, request)
             deleted_header = "\n".join(unset_response.headers.getlist("set-cookie"))
             assert "Max-Age=0" in deleted_header
+            assert "LH_session=" in deleted_header
 
     def test_get_token_expiry_ms_handles_dev_mode(self):
         with patch("src.routers.auth.isDevModeEnabled", return_value=True):

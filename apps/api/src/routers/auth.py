@@ -204,6 +204,15 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str, 
         domain=cookie_domain,
         max_age=int(timedelta(days=30).total_seconds()),
     )
+    response.set_cookie(
+        key="LH_session",
+        value="1",
+        httponly=False,
+        secure=is_secure,
+        samesite="lax",
+        domain=cookie_domain,
+        max_age=int(timedelta(hours=8).total_seconds()),
+    )
 
 
 def unset_auth_cookies(response: Response, request: Request = None):
@@ -212,6 +221,7 @@ def unset_auth_cookies(response: Response, request: Request = None):
 
     response.delete_cookie(key=JWT_COOKIE_NAME, domain=cookie_domain)
     response.delete_cookie(key=JWT_REFRESH_COOKIE_NAME, domain=cookie_domain)
+    response.delete_cookie(key="LH_session", domain=cookie_domain)
 
 
 _refresh_logger = logging.getLogger("learnhouse.auth.refresh")
