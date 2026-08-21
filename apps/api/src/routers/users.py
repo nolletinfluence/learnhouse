@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Literal, List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, Query
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
 from src.core.redis import get_redis_client as _get_redis_pool_client
 from src.services.users.password_reset import (
@@ -22,7 +22,9 @@ from src.db.courses.courses import CourseRead
 
 from src.db.users import (
     AnonymousUser,
+    APITokenUser,
     PublicUser,
+    SuperadminAPITokenUser,
     UserCreate,
     UserRead,
     UserReadPublic,
@@ -57,12 +59,31 @@ SESSION_CACHE_TTL = 600  # 10 minutes
 
 
 class GlobalUserEmailSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     email: EmailStr
 
 
+class GlobalUserEmailIdentity(BaseModel):
+    id: int
+    user_uuid: str
+    email: EmailStr
+    username: str
+
+
 class GlobalUserEmailSearchResponse(BaseModel):
-    items: List[UserRead]
-    total: int
+    items: List[GlobalUserEmailIdentity] = Field(max_length=2)
+    total: int = Field(ge=0, le=2)
+
+
+async def require_session_superadmin(
+    current_user: PublicUser | APITokenUser | SuperadminAPITokenUser = Depends(
+        get_authenticated_user
+    ),
+) -> PublicUser:
+    if not isinstance(current_user, PublicUser) or not current_user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    return current_user
 
 
 def _get_session_cache(user_id: int) -> Optional[dict]:
@@ -185,13 +206,20 @@ async def api_get_authorization_status(
 )
 async def api_search_users_by_email_global(
     body: GlobalUserEmailSearchRequest,
-    current_user: PublicUser = Depends(get_authenticated_user),
+    _current_user: PublicUser = Depends(require_session_superadmin),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> GlobalUserEmailSearchResponse:
-    if not current_user.is_superadmin:
-        raise HTTPException(status_code=403, detail="Superadmin access required")
     users = await read_users_by_email_global(db_session, str(body.email))
-    return GlobalUserEmailSearchResponse(items=users, total=len(users))
+    identities = [
+        GlobalUserEmailIdentity(
+            id=user.id,
+            user_uuid=user.user_uuid,
+            email=user.email,
+            username=user.username,
+        )
+        for user in users
+    ]
+    return GlobalUserEmailSearchResponse(items=identities, total=len(identities))
 
 
 async def _enforce_password_signup_allowed(db_session: AsyncSession, org_id: int) -> None:
