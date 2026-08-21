@@ -229,6 +229,14 @@ def other_org_token(other_org):
     )
 
 
+def token_with_user_rights(token: APITokenUser, **overrides: bool) -> APITokenUser:
+    rights = dict(token.rights or {})
+    users = dict(rights.get("users", {}))
+    users.update(overrides)
+    rights["users"] = users
+    return token.model_copy(update={"rights": rights})
+
+
 @pytest.fixture
 async def course(db, org):
     c = Course(
@@ -1585,7 +1593,8 @@ class TestProvisionUser:
 class TestRemoveUserFromOrg:
 
     async def test_removes_membership(self, token_user, second_user, db, mock_admin_side_effects):
-        result = await remove_user_from_org_admin(token_user, second_user.id, db)
+        authorized_token = token_with_user_rights(token_user, action_delete=True)
+        result = await remove_user_from_org_admin(authorized_token, second_user.id, db)
         assert result["detail"] == "User removed from org"
 
         membership = (await db.execute(
@@ -1607,15 +1616,57 @@ class TestRemoveUserFromOrg:
             org_id=org.id,
             token_name="Admin Token",
             created_by_user_id=org_admin_user.id,
+            rights={"users": {"action_delete": True}},
         )
         with pytest.raises(HTTPException) as exc:
             await remove_user_from_org_admin(admin_token, org_admin_user.id, db)
         assert exc.value.status_code == 400
 
     async def test_user_not_in_org(self, token_user, db, mock_admin_side_effects):
+        authorized_token = token_with_user_rights(token_user, action_delete=True)
         with pytest.raises(HTTPException) as exc:
-            await remove_user_from_org_admin(token_user, 9999, db)
+            await remove_user_from_org_admin(authorized_token, 9999, db)
         assert exc.value.status_code == 404
+
+    @pytest.mark.parametrize(
+        "rights",
+        [
+            {"action_create": True, "action_read": True},
+            {"action_create": True, "action_read": True, "action_update": True},
+        ],
+        ids=["bestdevs-least-privilege", "adjacent-update"],
+    )
+    async def test_requires_users_delete_without_mutating_membership(
+        self, token_user, second_user, db, mock_admin_side_effects, rights
+    ):
+        restricted_token = token_user.model_copy(update={"rights": {"users": rights}})
+        with pytest.raises(HTTPException) as exc:
+            await remove_user_from_org_admin(restricted_token, second_user.id, db)
+        assert exc.value.status_code == 403
+
+        membership = (await db.execute(
+            select(UserOrganization).where(
+                UserOrganization.user_id == second_user.id,
+                UserOrganization.org_id == token_user.org_id,
+            )
+        )).scalars().first()
+        assert membership is not None
+
+    async def test_users_delete_does_not_cross_organization(
+        self, token_user, other_org_token, second_user, db, mock_admin_side_effects
+    ):
+        authorized_other_org = token_with_user_rights(other_org_token, action_delete=True)
+        with pytest.raises(HTTPException) as exc:
+            await remove_user_from_org_admin(authorized_other_org, second_user.id, db)
+        assert exc.value.status_code == 403
+
+        membership = (await db.execute(
+            select(UserOrganization).where(
+                UserOrganization.user_id == second_user.id,
+                UserOrganization.org_id == token_user.org_id,
+            )
+        )).scalars().first()
+        assert membership is not None
 
 
 # ── Get user by email tests ─────────────────────────────────────────────────
@@ -2509,7 +2560,8 @@ class TestAnonymizeUser:
 
     async def test_scrubs_pii(self, token_user, user, db, mock_admin_side_effects):
         original_email = user.email
-        result = await anonymize_user(token_user, user.id, db)
+        authorized_token = token_with_user_rights(token_user, action_delete=True)
+        result = await anonymize_user(authorized_token, user.id, db)
         assert result["api_tokens_revoked"] == 0
         assert "deleted-user-" in result["anonymized_email"]
 
@@ -2537,7 +2589,8 @@ class TestAnonymizeUser:
         db.add(api_token)
         await db.commit()
 
-        result = await anonymize_user(token_user, user.id, db)
+        authorized_token = token_with_user_rights(token_user, action_delete=True)
+        result = await anonymize_user(authorized_token, user.id, db)
         assert result["api_tokens_revoked"] == 1
 
         remaining = (await db.execute(
@@ -2562,13 +2615,48 @@ class TestAnonymizeUser:
         db.add(other_org_token)
         await db.commit()
 
-        result = await anonymize_user(token_user, user.id, db)
+        authorized_token = token_with_user_rights(token_user, action_delete=True)
+        result = await anonymize_user(authorized_token, user.id, db)
         assert result["api_tokens_revoked"] == 0
 
         remaining = (await db.execute(
             select(APIToken).where(APIToken.org_id == other_org.id)
         )).scalars().all()
         assert len(remaining) == 1
+
+    @pytest.mark.parametrize(
+        "rights",
+        [
+            {"action_create": True, "action_read": True},
+            {"action_create": True, "action_read": True, "action_update": True},
+        ],
+        ids=["bestdevs-least-privilege", "adjacent-update"],
+    )
+    async def test_requires_users_delete_without_scrubbing_pii(
+        self, token_user, user, db, mock_admin_side_effects, rights
+    ):
+        original_email = user.email
+        restricted_token = token_user.model_copy(update={"rights": {"users": rights}})
+        with pytest.raises(HTTPException) as exc:
+            await anonymize_user(restricted_token, user.id, db)
+        assert exc.value.status_code == 403
+
+        await db.refresh(user)
+        assert user.email == original_email
+        assert user.signup_method != "anonymized"
+
+    async def test_users_delete_does_not_anonymize_cross_organization_user(
+        self, other_org_token, user, db, mock_admin_side_effects
+    ):
+        original_email = user.email
+        authorized_other_org = token_with_user_rights(other_org_token, action_delete=True)
+        with pytest.raises(HTTPException) as exc:
+            await anonymize_user(authorized_other_org, user.id, db)
+        assert exc.value.status_code == 403
+
+        await db.refresh(user)
+        assert user.email == original_email
+        assert user.signup_method != "anonymized"
 
 
 # ── Course analytics tests ──────────────────────────────────────────────────

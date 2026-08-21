@@ -1255,6 +1255,7 @@ async def remove_user_from_org_admin(
 ) -> dict:
     """Remove a user's org membership (scope: membership only)."""
 
+    _require_token_right(token_user, "users", "action_delete")
     await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     membership = (await db_session.execute(
@@ -2500,6 +2501,7 @@ async def anonymize_user(
     exposed here) that has platform-wide authority.
     """
 
+    _require_token_right(token_user, "users", "action_delete")
     user = await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     placeholder_email = f"deleted-user-{user_id}@anonymized.local"
