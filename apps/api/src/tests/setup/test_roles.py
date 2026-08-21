@@ -193,7 +193,10 @@ class TestRightsModel:
         assert "discussions" in dumped
         assert "podcasts" in dumped
         assert "assignments" in dumped
-        assert len(dumped) == 16  # All 16 fields
+        assert "certifications" in dumped
+        assert "payments" in dumped
+        assert "search" in dumped
+        assert len(dumped) == 19
 
 
 class TestPermissionModels:
@@ -250,6 +253,9 @@ class TestDefaultRolesValidation:
         "usergroups",
         "folders",
         "media",
+        "certifications",
+        "payments",
+        "search",
         "organizations",
         "coursechapters",
         "activities",
@@ -578,6 +584,9 @@ class TestRightsFieldConsistency:
             "usergroups",
             "folders",
             "media",
+            "certifications",
+            "payments",
+            "search",
             "organizations",
             "coursechapters",
             "activities",
