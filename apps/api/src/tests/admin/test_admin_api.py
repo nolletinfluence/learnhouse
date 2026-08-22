@@ -774,6 +774,28 @@ class TestGetUserProgress:
         assert result["completed_activities"] == 0
         assert result["completion_percentage"] == 0
 
+    async def test_operational_progress_fields_are_stable(
+        self, token_user, user, course, chapter_activity, db
+    ):
+        result = await get_user_progress(
+            token_user, user.id, course.course_uuid, db
+        )
+
+        assert result.keys() >= {
+            "course_uuid",
+            "status",
+            "total_activities",
+            "completed_activities",
+            "completion_percentage",
+            "last_activity_at",
+            "pending_assignments",
+            "pending_grading",
+        }
+        assert result["status"] == "STATUS_NOT_ENROLLED"
+        assert result["last_activity_at"] is None
+        assert result["pending_assignments"] == 0
+        assert result["pending_grading"] == 0
+
     async def test_course_not_found(self, token_user, user, db):
         with pytest.raises(HTTPException) as exc:
             await get_user_progress(token_user, user.id, "nonexistent", db)

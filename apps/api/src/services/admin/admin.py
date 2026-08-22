@@ -12,6 +12,11 @@ from fastapi import HTTPException, Request, status
 from sqlmodel import select, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 from src.db.courses.activities import Activity
+from src.db.courses.assignments import (
+    Assignment,
+    AssignmentUserSubmission,
+    AssignmentUserSubmissionStatus,
+)
 from src.db.courses.chapter_activities import ChapterActivity
 from src.db.courses.chapters import Chapter
 from src.db.courses.course_chapters import CourseChapter
@@ -515,13 +520,68 @@ async def get_user_progress(
         )
     )).scalars().all()
 
+    trail_run = (await db_session.execute(
+        select(TrailRun).where(
+            TrailRun.course_id == course.id,
+            TrailRun.user_id == user_id,
+            TrailRun.org_id == token_user.org_id,
+        )
+    )).scalars().first()
+    last_activity_at = (await db_session.execute(
+        select(func.max(TrailStep.update_date)).where(
+            TrailStep.course_id == course.id,
+            TrailStep.user_id == user_id,
+        )
+    )).scalar_one_or_none()
+    assignments = list((await db_session.execute(
+        select(Assignment.id).where(
+            Assignment.course_id == course.id,
+            Assignment.org_id == token_user.org_id,
+            Assignment.published == True,
+        )
+    )).scalars().all())
+    submissions = []
+    if assignments:
+        submissions = list((await db_session.execute(
+            select(AssignmentUserSubmission).where(
+                AssignmentUserSubmission.user_id == user_id,
+                AssignmentUserSubmission.assignment_id.in_(assignments),
+            )
+        )).scalars().all())
+    submissions_by_assignment = {
+        submission.assignment_id: submission for submission in submissions
+    }
+    pending_assignments = sum(
+        1
+        for assignment_id in assignments
+        if assignment_id not in submissions_by_assignment
+        or submissions_by_assignment[assignment_id].submission_status
+        in {
+            AssignmentUserSubmissionStatus.PENDING,
+            AssignmentUserSubmissionStatus.NOT_SUBMITTED,
+        }
+    )
+    pending_grading = sum(
+        1
+        for submission in submissions
+        if submission.submission_status
+        in {
+            AssignmentUserSubmissionStatus.SUBMITTED,
+            AssignmentUserSubmissionStatus.LATE,
+        }
+    )
+
     return {
         "course_uuid": course.course_uuid,
         "user_id": user_id,
+        "status": trail_run.status.value if trail_run else "STATUS_NOT_ENROLLED",
         "total_activities": total,
         "completed_activities": len(completed_activity_ids),
         "completion_percentage": round(len(completed_activity_ids) / total * 100, 1) if total > 0 else 0,
         "completed_activity_ids": completed_activity_ids,
+        "last_activity_at": last_activity_at,
+        "pending_assignments": pending_assignments,
+        "pending_grading": pending_grading,
     }
 
 

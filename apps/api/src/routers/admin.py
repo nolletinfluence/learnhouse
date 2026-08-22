@@ -99,10 +99,14 @@ class ProgressResponse(BaseModel):
     """User's progress in a specific course."""
     course_uuid: str
     user_id: int
+    status: str = Field(description="Enrollment status")
     total_activities: int = Field(description="Total number of activities in the course")
     completed_activities: int = Field(description="Number of activities the user has completed")
     completion_percentage: float = Field(description="Completion percentage (0-100)")
     completed_activity_ids: List[int] = Field(description="IDs of completed activities")
+    last_activity_at: str | None = Field(description="Last confirmed learning activity")
+    pending_assignments: int = Field(description="Published assignments not submitted yet")
+    pending_grading: int = Field(description="Submitted assignments awaiting grading")
 
 
 class ProgressSummaryItem(BaseModel):
