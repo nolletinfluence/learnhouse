@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -208,6 +209,65 @@ class TestWebhookDispatchHelpers:
         mock_deliver.assert_awaited_once()
         delivered = mock_deliver.await_args.args[0]
         assert delivered.webhook_uuid == matching.webhook_uuid
+        assert mock_deliver.await_args.kwargs["org_slug"] == org.slug
+
+    @pytest.mark.asyncio
+    async def test_development_callback_skips_public_network_guards_and_carries_org_slug(
+        self,
+        db,
+    ):
+        endpoint = dispatch._EndpointInfo(
+            id=41,
+            webhook_uuid="bestdevs",
+            url="http://host.docker.internal:8080/api/v1/integrations/learnhouse/webhooks",
+            secret_encrypted="encrypted-secret",
+            events=["course_created"],
+        )
+        requests = []
+
+        def handler(request):
+            requests.append(request)
+            return httpx.Response(202, content=b"accepted")
+
+        client = _mock_transport_client(handler)
+
+        with patch(
+            "src.services.webhooks.dispatch._async_session_factory",
+            _make_fake_session_factory(db),
+        ), patch(
+            "src.services.webhooks.dispatch.decrypt_secret",
+            return_value="plaintext-secret",
+        ), patch(
+            "src.services.webhooks.dispatch.compute_signature",
+            return_value="sha256=test",
+        ), patch(
+            "src.services.webhooks.dispatch.is_exact_development_callback",
+            return_value=True,
+        ), patch(
+            "src.services.webhooks.dispatch.resolve_and_validate_url",
+        ) as mock_resolve, patch(
+            "src.services.webhooks.dispatch.assert_connected_peer_allowed",
+        ) as mock_peer, patch(
+            "src.services.webhooks.dispatch._get_webhook_client",
+            return_value=client,
+        ), patch(
+            "src.services.webhooks.dispatch._prune_delivery_logs",
+            new_callable=AsyncMock,
+        ):
+            await dispatch._deliver_to_endpoint(
+                endpoint,
+                "course_created",
+                42,
+                {"course_uuid": "course_123"},
+                org_slug="bestdevs",
+            )
+
+        await client.aclose()
+
+        mock_resolve.assert_not_called()
+        mock_peer.assert_not_called()
+        assert len(requests) == 1
+        assert json.loads(requests[0].content)["org_slug"] == "bestdevs"
 
     @pytest.mark.asyncio
     async def test_deliver_webhooks_filters_by_requested_ids(self, db, org, admin_user):

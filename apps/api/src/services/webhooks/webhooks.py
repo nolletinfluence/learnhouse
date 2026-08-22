@@ -2,73 +2,39 @@
 CRUD operations for webhook endpoints.
 """
 
-import ipaddress
 import secrets
-import socket
 from datetime import datetime
 from typing import List
-from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import HTTPException, Request, status
-from sqlmodel import select, col
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.db.organizations import Organization
+from src.db.users import AnonymousUser, APITokenUser, PublicUser
 from src.db.webhooks import (
+    WebhookDeliveryLog,
+    WebhookDeliveryLogRead,
     WebhookEndpoint,
     WebhookEndpointCreate,
     WebhookEndpointCreatedResponse,
     WebhookEndpointRead,
     WebhookEndpointUpdate,
-    WebhookDeliveryLog,
-    WebhookDeliveryLogRead,
 )
-from src.db.users import PublicUser, AnonymousUser, APITokenUser
 from src.security.auth import resolve_acting_user_id
-from src.security.rbac.rbac import authorization_verify_if_user_is_anon
 from src.security.org_auth import require_org_admin
+from src.security.rbac.rbac import authorization_verify_if_user_is_anon
 from src.services.webhooks.crypto import encrypt_secret
 from src.services.webhooks.events import WEBHOOK_EVENTS
+from src.services.webhooks.url_policy import (
+    validate_webhook_url as _validate_webhook_url,
+)
 
 
 def _generate_signing_secret() -> str:
     """Generate a cryptographically secure signing secret."""
     return f"whsec_{secrets.token_urlsafe(32)}"
-
-
-def _validate_webhook_url(url: str) -> None:
-    """Block SSRF: reject private/reserved IPs and non-HTTPS schemes."""
-    parsed = urlparse(url)
-
-    if parsed.scheme not in ("https", "http"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Webhook URL must use https:// (or http:// for local testing).",
-        )
-
-    hostname = parsed.hostname
-    if not hostname:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Webhook URL has no valid hostname.",
-        )
-
-    try:
-        resolved = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-    except socket.gaierror:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Could not resolve hostname: {hostname}",
-        )
-
-    for _, _, _, _, sockaddr in resolved:
-        ip = ipaddress.ip_address(sockaddr[0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Webhook URL must not point to a private or internal address.",
-            )
 
 
 def _validate_events(events: List[str]) -> None:

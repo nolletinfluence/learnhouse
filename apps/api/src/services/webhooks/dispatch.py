@@ -14,17 +14,19 @@ from typing import List, Optional
 from uuid import uuid4
 
 import httpx
-from sqlmodel import select, col, delete
+from sqlmodel import col, delete, select
 
 from src.core.events.database import _async_session_factory
-from src.db.webhooks import WebhookEndpoint, WebhookDeliveryLog
+from src.db.organizations import Organization
+from src.db.webhooks import WebhookDeliveryLog, WebhookEndpoint
 from src.services.utils.ssrf_guard import (
     SSRFBlockedError,
     assert_connected_peer_allowed,
     resolve_and_validate_url,
 )
-from src.services.webhooks.crypto import decrypt_secret, compute_signature
+from src.services.webhooks.crypto import compute_signature, decrypt_secret
 from src.services.webhooks.events import validate_event_data
+from src.services.webhooks.url_policy import is_exact_development_callback
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +141,14 @@ async def _deliver_webhooks(
         # Short-lived DB session -- fetch endpoint data then release immediately.
         endpoints: list[_EndpointInfo] = []
         async with _async_session_factory() as db_session:
+            org_slug = (
+                await db_session.execute(
+                    select(Organization.slug).where(Organization.id == org_id)
+                )
+            ).scalars().first()
+            if not org_slug:
+                logger.warning("Webhook organization %s was not found", org_id)
+                return
             if webhook_ids:
                 # Always scope by org_id even when targeting specific ids, so a
                 # mismatched/forged id list can never deliver an org's event
@@ -166,7 +176,13 @@ async def _deliver_webhooks(
         # All HTTP work happens outside the DB session.
         for ep_info in endpoints:
             try:
-                await _deliver_to_endpoint(ep_info, event_name, org_id, data)
+                await _deliver_to_endpoint(
+                    ep_info,
+                    event_name,
+                    org_id,
+                    data,
+                    org_slug=org_slug,
+                )
             except Exception:
                 logger.error(
                     "Webhook delivery failed for endpoint %s event %s org %s",
@@ -190,6 +206,8 @@ async def _deliver_to_endpoint(
     event_name: str,
     org_id: int,
     data: dict,
+    *,
+    org_slug: str = "",
 ) -> None:
     """Deliver a single event to a single endpoint with retries."""
     delivery_uuid = f"dlv_{uuid4().hex[:16]}"
@@ -200,6 +218,7 @@ async def _deliver_to_endpoint(
         "delivery_id": delivery_uuid,
         "timestamp": timestamp,
         "org_id": org_id,
+        "org_slug": org_slug,
         "data": data,
     }
 
@@ -237,10 +256,10 @@ async def _deliver_to_endpoint(
         )
 
         try:
-            # SSRF guard: resolve DNS, verify all returned IPs are public,
-            # then after the request verify the peer we actually connected
-            # to was one of the approved IPs (defeats DNS rebinding).
-            validated_ips = resolve_and_validate_url(ep.url)
+            is_development_callback = is_exact_development_callback(ep.url)
+            validated_ips = (
+                set() if is_development_callback else resolve_and_validate_url(ep.url)
+            )
 
             # Streamed so the response body is capped as it arrives instead of
             # being buffered whole before we truncate it to 500 bytes.
@@ -248,7 +267,8 @@ async def _deliver_to_endpoint(
                 "POST", ep.url, content=payload_bytes, headers=headers
             ) as resp:
                 try:
-                    assert_connected_peer_allowed(resp, validated_ips)
+                    if not is_development_callback:
+                        assert_connected_peer_allowed(resp, validated_ips)
                 except SSRFBlockedError as ssrf_exc:
                     log_entry.success = False
                     log_entry.error_message = f"SSRF guard: {ssrf_exc}"[:1000]

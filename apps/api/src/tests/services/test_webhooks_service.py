@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,7 +10,7 @@ from src.db.webhooks import (
     WebhookEndpointCreate,
     WebhookEndpointUpdate,
 )
-from src.services.webhooks import webhooks
+from src.services.webhooks import url_policy, webhooks
 
 
 async def _make_webhook_endpoint(
@@ -61,6 +62,72 @@ async def _make_delivery_log(db, endpoint, *, delivery_uuid, attempt, created_at
 
 
 class TestWebhookHelpers:
+    def test_development_callback_accepts_only_the_exact_bestdevs_url(self):
+        config = SimpleNamespace(
+            general_config=SimpleNamespace(development_mode=True)
+        )
+
+        with patch.object(
+            url_policy,
+            "get_learnhouse_config",
+            return_value=config,
+        ):
+            webhooks._validate_webhook_url(url_policy.BESTDEVS_DEVELOPMENT_CALLBACK)
+
+    @pytest.mark.parametrize(
+        "candidate",
+        [
+            "http://user@host.docker.internal:8080/api/v1/integrations/learnhouse/webhooks",
+            "http://host.docker.internal:8081/api/v1/integrations/learnhouse/webhooks",
+            "http://host.docker.internal:8080/api/v1/integrations/learnhouse/webhooks/extra",
+            "http://host.docker.internal:8080/api/v1/integrations/learnhouse/webhooks?token=x",
+            "http://host.docker.internal:8080/api/v1/integrations/learnhouse/webhooks#fragment",
+        ],
+    )
+    def test_development_callback_rejects_every_url_variant(self, candidate):
+        config = SimpleNamespace(
+            general_config=SimpleNamespace(development_mode=True)
+        )
+
+        with patch.object(
+            url_policy,
+            "get_learnhouse_config",
+            return_value=config,
+        ), patch.object(
+            url_policy.socket,
+            "getaddrinfo",
+            return_value=[
+                (object(), object(), object(), object(), ("10.10.0.8", 8080))
+            ],
+        ):
+            with pytest.raises(HTTPException) as exc:
+                webhooks._validate_webhook_url(candidate)
+
+        assert "private or internal" in exc.value.detail
+
+    def test_development_callback_is_rejected_outside_development_mode(self):
+        config = SimpleNamespace(
+            general_config=SimpleNamespace(development_mode=False)
+        )
+
+        with patch.object(
+            url_policy,
+            "get_learnhouse_config",
+            return_value=config,
+        ), patch.object(
+            url_policy.socket,
+            "getaddrinfo",
+            return_value=[
+                (object(), object(), object(), object(), ("10.10.0.8", 8080))
+            ],
+        ):
+            with pytest.raises(HTTPException) as exc:
+                webhooks._validate_webhook_url(
+                    url_policy.BESTDEVS_DEVELOPMENT_CALLBACK
+                )
+
+        assert "private or internal" in exc.value.detail
+
     def test_generate_signing_secret_prefix(self):
         with patch(
             "src.services.webhooks.webhooks.secrets.token_urlsafe",
@@ -70,7 +137,7 @@ class TestWebhookHelpers:
 
     def test_validate_webhook_url_accepts_public_http(self):
         with patch(
-            "src.services.webhooks.webhooks.socket.getaddrinfo",
+            "src.services.webhooks.url_policy.socket.getaddrinfo",
             return_value=[
                 (
                     object(),
@@ -99,8 +166,8 @@ class TestWebhookHelpers:
 
     def test_validate_webhook_url_rejects_unresolvable_host(self):
         with patch(
-            "src.services.webhooks.webhooks.socket.getaddrinfo",
-            side_effect=webhooks.socket.gaierror,
+            "src.services.webhooks.url_policy.socket.getaddrinfo",
+            side_effect=url_policy.socket.gaierror,
         ):
             with pytest.raises(HTTPException) as exc:
                 webhooks._validate_webhook_url("https://no-such-host.example/hook")
@@ -110,7 +177,7 @@ class TestWebhookHelpers:
 
     def test_validate_webhook_url_rejects_private_address(self):
         with patch(
-            "src.services.webhooks.webhooks.socket.getaddrinfo",
+            "src.services.webhooks.url_policy.socket.getaddrinfo",
             return_value=[
                 (
                     object(),
@@ -151,7 +218,7 @@ class TestWebhookCrud:
         ) as mock_auth, patch(
             "src.services.webhooks.webhooks.require_org_admin"
         ) as mock_admin, patch(
-            "src.services.webhooks.webhooks.socket.getaddrinfo",
+            "src.services.webhooks.url_policy.socket.getaddrinfo",
             return_value=[
                 (
                     object(),
@@ -281,7 +348,7 @@ class TestWebhookCrud:
         ), patch(
             "src.services.webhooks.webhooks.require_org_admin"
         ), patch(
-            "src.services.webhooks.webhooks.socket.getaddrinfo",
+            "src.services.webhooks.url_policy.socket.getaddrinfo",
             return_value=[
                 (
                     object(),
