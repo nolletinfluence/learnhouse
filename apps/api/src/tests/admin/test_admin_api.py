@@ -2753,9 +2753,56 @@ class TestOrganizationCourseCatalog:
         assert result[2] == {
             "course_uuid": "course_a",
             "name": "Older draft",
+            "description": None,
+            "about": None,
+            "learnings": None,
+            "tags": None,
+            "thumbnail_image": "",
             "published": False,
             "public": False,
+            "created_at": "2026-08-20T09:00:00Z",
             "updated_at": "2026-08-20T09:00:00Z",
+        }
+
+    async def test_catalog_returns_authoritative_course_metadata(
+        self, token_user, org, db
+    ):
+        db.add(Course(
+            name="Production Backend",
+            description="Build a production service",
+            about="Backend engineering",
+            learnings="API\nPostgreSQL",
+            tags="backend,go",
+            thumbnail_image="https://cdn.example.test/course.webp",
+            public=True,
+            published=True,
+            open_to_contributors=False,
+            org_id=org.id,
+            course_uuid="course_metadata",
+            creation_date="2026-08-20T09:00:00Z",
+            update_date="2026-08-20T10:00:00Z",
+        ))
+        await db.commit()
+
+        with patch(
+            "src.services.admin.admin.get_org_plan",
+            new_callable=AsyncMock,
+            return_value="pro",
+        ):
+            result = await list_organization_courses(token_user, "test-org", db)
+
+        assert result[0] == {
+            "course_uuid": "course_metadata",
+            "name": "Production Backend",
+            "description": "Build a production service",
+            "about": "Backend engineering",
+            "learnings": "API\nPostgreSQL",
+            "tags": "backend,go",
+            "thumbnail_image": "https://cdn.example.test/course.webp",
+            "published": True,
+            "public": True,
+            "created_at": "2026-08-20T09:00:00Z",
+            "updated_at": "2026-08-20T10:00:00Z",
         }
 
     async def test_catalog_rejects_another_organization_before_disclosing_courses(

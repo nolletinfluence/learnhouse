@@ -277,8 +277,14 @@ async def list_organization_courses(
         {
             "course_uuid": course.course_uuid,
             "name": course.name,
+            "description": course.description,
+            "about": course.about,
+            "learnings": course.learnings,
+            "tags": course.tags,
+            "thumbnail_image": course.thumbnail_image,
             "published": course.published,
             "public": course.public,
+            "created_at": course.creation_date,
             "updated_at": course.update_date,
         }
         for course in courses

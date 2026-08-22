@@ -84,8 +84,14 @@ class CourseAccessResponse(BaseModel):
 class AdminCourseListItem(BaseModel):
     course_uuid: str
     name: str
+    description: str | None
+    about: str | None
+    learnings: str | None
+    tags: str | None
+    thumbnail_image: str | None
     published: bool
     public: bool
+    created_at: str
     updated_at: str
 
 
