@@ -16,6 +16,13 @@ export type DevInfrastructure = {
   redisConnectionString: string
 }
 
+export type DevOrganizationDefaults = {
+  LEARNHOUSE_INITIAL_ORG_NAME: string
+  LEARNHOUSE_INITIAL_ORG_SLUG: string
+  NEXT_PUBLIC_LEARNHOUSE_DEFAULT_ORG: string
+  NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE: string
+}
+
 function resolveTcpPort(env: DevEnvironment, name: string, fallback: string): string {
   const value = env[name] ?? fallback
   const port = Number(value)
@@ -32,6 +39,18 @@ export function resolveDevInfrastructure(env: DevEnvironment = process.env): Dev
     composePorts: { postgres, redis },
     sqlConnectionString: `postgresql://learnhouse:learnhouse@localhost:${postgres}/learnhouse`,
     redisConnectionString: `redis://localhost:${redis}/learnhouse`,
+  }
+}
+
+export function resolveDevOrganizationDefaults(env: DevEnvironment = process.env): DevOrganizationDefaults {
+  const orgName = env.LEARNHOUSE_DEV_ORG_NAME?.trim() || 'BestDevs'
+  const orgSlug = env.LEARNHOUSE_DEV_ORG_SLUG?.trim() || 'bestdevs'
+  const defaultLocale = env.LEARNHOUSE_DEV_DEFAULT_LOCALE?.trim() || 'ru'
+  return {
+    LEARNHOUSE_INITIAL_ORG_NAME: orgName,
+    LEARNHOUSE_INITIAL_ORG_SLUG: orgSlug,
+    NEXT_PUBLIC_LEARNHOUSE_DEFAULT_ORG: orgSlug,
+    NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE: defaultLocale,
   }
 }
 
@@ -317,6 +336,7 @@ export async function devCommand(opts: { ee?: boolean; adminEmail?: string; admi
     ...(adminEmail && { LEARNHOUSE_INITIAL_ADMIN_EMAIL: adminEmail }),
     ...(adminPassword && { LEARNHOUSE_INITIAL_ADMIN_PASSWORD: adminPassword }),
     ...(!opts.ee && { LEARNHOUSE_DISABLE_EE: '1' }),
+    ...resolveDevOrganizationDefaults(),
     // Bypass license verification for local dev when --ee is active
     ...(opts.ee && { LEARNHOUSE_FORCE_EE: '1' }),
   }

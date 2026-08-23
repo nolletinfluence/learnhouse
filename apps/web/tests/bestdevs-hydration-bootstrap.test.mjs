@@ -44,7 +44,7 @@ describe('pre-hydration bootstrap', () => {
   test('defers language detection until after the fixed English hydration render', () => {
     expect(i18nSource).toMatch(/lng:\s*['"]en['"]/,)
     expect(i18nSource).not.toMatch(/\.use\(LanguageDetector\)/)
-    expect(providerSource).toMatch(/useEffect\([\s\S]*detectPreferredLocale/)
+    expect(providerSource).toMatch(/useEffect\([\s\S]*initializeLanguage/)
   })
 
   test('keeps locale preparation and document updates synchronized', () => {
@@ -59,10 +59,11 @@ describe('pre-hydration bootstrap', () => {
 
   test('uses the same ordered preference sources in runtime and pre-paint detection', () => {
     for (const source of [i18nSource, dirInitSource]) {
-      const positions = ['i18nextLng', 'document.cookie', 'URLSearchParams', 'navigator'].map((term) => source.indexOf(term))
+      const positions = ['i18nextLng', 'document.cookie', 'URLSearchParams'].map((term) => source.indexOf(term))
       expect(positions.every((position) => position >= 0)).toBe(true)
       expect(positions).toEqual([...positions].sort((a, b) => a - b))
     }
+    expect(i18nSource).not.toContain('navigator')
   })
 
   test('falls back to English LTR for missing or malformed locale preferences', () => {

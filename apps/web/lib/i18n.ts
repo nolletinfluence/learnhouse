@@ -36,6 +36,7 @@ const resources = {
 
 const BASE_LOCALE = 'en'
 const SUPPORTED_LOCALES = new Set([BASE_LOCALE, ...Object.keys(LOCALE_LOADERS)])
+const USER_PICKED_KEY = 'i18nextLng_userPicked'
 const configuredDefaultLocale = (process.env.NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE?.trim() || 'ru')
   .toLowerCase()
   .replace('_', '-')
@@ -49,8 +50,15 @@ export function normalizeLocale(value: unknown): string {
   return SUPPORTED_LOCALES.has(code) ? code : DEFAULT_LOCALE
 }
 
-export function detectPreferredLocale(): string {
-  if (typeof window === 'undefined') return DEFAULT_LOCALE
+export type LocalePreferenceSource = 'stored' | 'cookie' | 'query' | 'default'
+
+export type LocalePreference = {
+  locale: string
+  source: LocalePreferenceSource
+}
+
+export function detectLocalePreference(): LocalePreference {
+  if (typeof window === 'undefined') return { locale: DEFAULT_LOCALE, source: 'default' }
 
   let stored: string | null = null
   try {
@@ -58,25 +66,39 @@ export function detectPreferredLocale(): string {
   } catch {
     stored = null
   }
-  if (stored) return normalizeLocale(stored)
+  if (stored) return { locale: normalizeLocale(stored), source: 'stored' }
 
   const cookie = document.cookie.match(/(?:^|;\s*)i18next=([^;]*)/)
   if (cookie) {
     try {
-      return normalizeLocale(decodeURIComponent(cookie[1]))
+      return { locale: normalizeLocale(decodeURIComponent(cookie[1])), source: 'cookie' }
     } catch {
-      return DEFAULT_LOCALE
+      return { locale: DEFAULT_LOCALE, source: 'default' }
     }
   }
 
   try {
     const query = new URLSearchParams(window.location.search).get('lng')
-    if (query) return normalizeLocale(query)
+    if (query) return { locale: normalizeLocale(query), source: 'query' }
   } catch {
-    return DEFAULT_LOCALE
+    return { locale: DEFAULT_LOCALE, source: 'default' }
   }
 
-  return DEFAULT_LOCALE
+  return { locale: DEFAULT_LOCALE, source: 'default' }
+}
+
+export function detectPreferredLocale(): string {
+  return detectLocalePreference().locale
+}
+
+export function hasExplicitLocalePreference(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    if (window.localStorage.getItem(USER_PICKED_KEY)) return true
+  } catch {
+    return detectLocalePreference().source !== 'default'
+  }
+  return detectLocalePreference().source !== 'default'
 }
 
 async function loadLocale(language: string): Promise<boolean> {
@@ -134,12 +156,42 @@ function persistLocale(language: string): void {
   persistCookie(language)
 }
 
-export async function changeLanguage(language: string): Promise<boolean> {
+function markExplicitPreference(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(USER_PICKED_KEY, '1')
+  } catch {
+    return
+  }
+}
+
+export async function changeLanguage(
+  language: string,
+  source: 'user' | 'preference' | 'default' | 'organization' = 'user',
+): Promise<boolean> {
   const locale = normalizeLocale(language)
   if (!await prepareLocale(locale)) return false
   await i18n.changeLanguage(locale)
-  persistLocale(locale)
+  if (source === 'user' || source === 'preference') {
+    persistLocale(locale)
+    markExplicitPreference()
+  }
   return true
+}
+
+export async function initializeLanguage(): Promise<boolean> {
+  const preference = detectLocalePreference()
+  return changeLanguage(
+    preference.locale,
+    preference.source === 'default' ? 'default' : 'preference',
+  )
+}
+
+export async function syncOrganizationLanguage(language: string): Promise<boolean> {
+  if (hasExplicitLocalePreference()) return false
+  const locale = normalizeLocale(language)
+  if (i18n.language.split('-')[0] === locale) return false
+  return changeLanguage(locale, 'organization')
 }
 
 export default i18n;

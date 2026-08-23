@@ -1011,6 +1011,56 @@ describe('dev command guards', () => {
     await expect(devCommand({ adminEmail: 'a@b.dev', adminPassword: 'pw' })).rejects.toBeInstanceOf(ProcessExit)
   })
 
+  it.each([
+    ['BestDevs defaults', {}, {
+      LEARNHOUSE_INITIAL_ORG_NAME: 'BestDevs',
+      LEARNHOUSE_INITIAL_ORG_SLUG: 'bestdevs',
+      NEXT_PUBLIC_LEARNHOUSE_DEFAULT_ORG: 'bestdevs',
+      NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE: 'ru',
+    }],
+    ['independent overrides', {
+      LEARNHOUSE_DEV_ORG_NAME: 'Partner Academy',
+      LEARNHOUSE_DEV_ORG_SLUG: 'partner-academy',
+      LEARNHOUSE_DEV_DEFAULT_LOCALE: 'uk',
+    }, {
+      LEARNHOUSE_INITIAL_ORG_NAME: 'Partner Academy',
+      LEARNHOUSE_INITIAL_ORG_SLUG: 'partner-academy',
+      NEXT_PUBLIC_LEARNHOUSE_DEFAULT_ORG: 'partner-academy',
+      NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE: 'uk',
+    }],
+  ])('propagates independent organization defaults to every child: %s', async (_case, overrides, expected) => {
+    const root = fakeRepo(true)
+    for (const d of ['apps/web/node_modules', 'apps/collab/node_modules', 'apps/api/.venv']) {
+      fs.mkdirSync(path.join(root, d), { recursive: true })
+    }
+    process.chdir(root)
+    const keys = ['LEARNHOUSE_DEV_ORG_NAME', 'LEARNHOUSE_DEV_ORG_SLUG', 'LEARNHOUSE_DEV_DEFAULT_LOCALE'] as const
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
+    for (const key of keys) delete process.env[key]
+    Object.assign(process.env, overrides)
+    const cp = await import('node:child_process')
+    const spawnMock = cp.spawn as unknown as ReturnType<typeof vi.fn>
+    spawnMock.mockClear()
+    const sigintBefore = process.listenerCount('SIGINT')
+    const sigtermBefore = process.listenerCount('SIGTERM')
+    try {
+      const promise = devCommand({ adminEmail: 'owner@bestdevs.local', adminPassword: 'synthetic-password' })
+      promise.catch(() => {})
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      expect(spawnMock).toHaveBeenCalledTimes(3)
+      for (const call of spawnMock.mock.calls) {
+        expect(call[2]?.env).toMatchObject(expected)
+      }
+    } finally {
+      for (const key of keys) {
+        if (previous[key] === undefined) delete process.env[key]
+        else process.env[key] = previous[key]
+      }
+      for (const handler of process.listeners('SIGINT').slice(sigintBefore)) process.removeListener('SIGINT', handler as never)
+      for (const handler of process.listeners('SIGTERM').slice(sigtermBefore)) process.removeListener('SIGTERM', handler as never)
+    }
+  })
+
   it('prefixes and prints child server output', async () => {
     const root = fakeRepo(true)
     for (const d of ['apps/web/node_modules', 'apps/collab/node_modules', 'apps/api/.venv']) {
