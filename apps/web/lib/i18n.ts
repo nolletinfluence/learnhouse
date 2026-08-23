@@ -34,8 +34,13 @@ const resources = {
   en: { common: en },
 };
 
-const DEFAULT_LOCALE = 'en'
-const SUPPORTED_LOCALES = new Set([DEFAULT_LOCALE, ...Object.keys(LOCALE_LOADERS)])
+const BASE_LOCALE = 'en'
+const SUPPORTED_LOCALES = new Set([BASE_LOCALE, ...Object.keys(LOCALE_LOADERS)])
+const configuredDefaultLocale = (process.env.NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE?.trim() || 'ru')
+  .toLowerCase()
+  .replace('_', '-')
+  .split('-')[0]
+const DEFAULT_LOCALE = SUPPORTED_LOCALES.has(configuredDefaultLocale) ? configuredDefaultLocale : 'ru'
 
 export function normalizeLocale(value: unknown): string {
   if (typeof value !== 'string') return DEFAULT_LOCALE
@@ -71,12 +76,12 @@ export function detectPreferredLocale(): string {
     return DEFAULT_LOCALE
   }
 
-  return normalizeLocale(window.navigator.languages?.[0] || window.navigator.language)
+  return DEFAULT_LOCALE
 }
 
 async function loadLocale(language: string): Promise<boolean> {
   const code = normalizeLocale(language)
-  if (code === DEFAULT_LOCALE) return true
+  if (code === BASE_LOCALE) return true
   if (!LOCALE_LOADERS[code]) return false
   if (i18n.hasResourceBundle(code, 'common')) return true
 
