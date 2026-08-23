@@ -36,6 +36,7 @@ from src.services.admin.admin import (
     export_user_data,
     get_all_user_progress,
     get_course_analytics,
+    get_course_curriculum,
     get_user_by_email,
     get_user_certificates,
     get_user_enrollments,
@@ -93,6 +94,29 @@ class AdminCourseListItem(BaseModel):
     public: bool
     created_at: str
     updated_at: str
+
+
+class AdminCurriculumActivity(BaseModel):
+    activity_uuid: str
+    name: str
+    activity_type: str
+    activity_sub_type: str
+    order: int
+    published: bool
+
+
+class AdminCurriculumChapter(BaseModel):
+    chapter_uuid: str
+    name: str
+    order: int
+    activities: List[AdminCurriculumActivity]
+
+
+class AdminCourseCurriculum(BaseModel):
+    course_uuid: str
+    course_name: str
+    updated_at: str
+    chapters: List[AdminCurriculumChapter]
 
 
 class ProgressResponse(BaseModel):
@@ -431,6 +455,30 @@ async def api_admin_list_courses(
     token_user = _require_api_token(current_user)
     courses = await list_organization_courses(token_user, org_slug, db_session, page, limit)
     return [AdminCourseListItem(**course) for course in courses]
+
+
+@router.get(
+    "/{org_slug}/courses/{course_uuid}/curriculum",
+    response_model=AdminCourseCurriculum,
+    summary="Get course curriculum",
+    description=(
+        "Get the ordered chapters and activities for a course in the token organization. "
+        "Requires `courses.action_read`, `coursechapters.action_read`, and "
+        "`activities.action_read` permissions."
+    ),
+    responses={
+        404: {"description": "Course or organization not found"},
+    },
+)
+async def api_admin_get_course_curriculum(
+    org_slug: str,
+    course_uuid: str,
+    current_user=Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> AdminCourseCurriculum:
+    token_user = _require_api_token(current_user)
+    curriculum = await get_course_curriculum(token_user, org_slug, course_uuid, db_session)
+    return AdminCourseCurriculum(**curriculum)
 
 
 @router.get(

@@ -296,6 +296,81 @@ async def list_organization_courses(
     ]
 
 
+async def get_course_curriculum(
+    token_user: APITokenUser,
+    org_slug: str,
+    course_uuid: str,
+    db_session: AsyncSession,
+) -> dict:
+    _require_token_right(token_user, "courses", "action_read")
+    _require_token_right(token_user, "coursechapters", "action_read")
+    _require_token_right(token_user, "activities", "action_read")
+    organization = await _resolve_org_slug(org_slug, token_user, db_session)
+
+    course = (await db_session.execute(
+        select(Course).where(
+            Course.course_uuid == course_uuid,
+            Course.org_id == organization.id,
+        )
+    )).scalars().first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    chapter_rows = (await db_session.execute(
+        select(CourseChapter, Chapter)
+        .join(Chapter, Chapter.id == CourseChapter.chapter_id)
+        .where(
+            CourseChapter.course_id == course.id,
+            CourseChapter.org_id == organization.id,
+            Chapter.org_id == organization.id,
+            Chapter.course_id == course.id,
+        )
+        .order_by(CourseChapter.order.asc(), Chapter.id.asc())
+    )).all()
+    chapter_ids = [chapter.id for _, chapter in chapter_rows]
+    activities_by_chapter: dict[int, list[dict]] = {chapter_id: [] for chapter_id in chapter_ids}
+
+    if chapter_ids:
+        activity_rows = (await db_session.execute(
+            select(ChapterActivity, Activity)
+            .join(Activity, Activity.id == ChapterActivity.activity_id)
+            .where(
+                ChapterActivity.course_id == course.id,
+                ChapterActivity.org_id == organization.id,
+                ChapterActivity.chapter_id.in_(chapter_ids),
+                Activity.org_id == organization.id,
+                Activity.course_id == course.id,
+            )
+            .order_by(ChapterActivity.chapter_id.asc(), ChapterActivity.order.asc(), Activity.id.asc())
+        )).all()
+        for chapter_activity, activity in activity_rows:
+            activities_by_chapter[chapter_activity.chapter_id].append(
+                {
+                    "activity_uuid": activity.activity_uuid,
+                    "name": activity.name,
+                    "activity_type": activity.activity_type.value,
+                    "activity_sub_type": activity.activity_sub_type.value,
+                    "order": chapter_activity.order,
+                    "published": activity.published,
+                }
+            )
+
+    return {
+        "course_uuid": course.course_uuid,
+        "course_name": course.name,
+        "updated_at": str(course.update_date),
+        "chapters": [
+            {
+                "chapter_uuid": chapter.chapter_uuid,
+                "name": chapter.name,
+                "order": course_chapter.order,
+                "activities": activities_by_chapter[chapter.id],
+            }
+            for course_chapter, chapter in chapter_rows
+        ],
+    }
+
+
 async def check_course_access(
     token_user: APITokenUser,
     course_uuid: str,

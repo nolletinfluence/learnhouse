@@ -23,7 +23,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
+from src.db.courses.activities import Activity, ActivitySubTypeEnum, ActivityTypeEnum
 from src.db.courses.certifications import CertificateUser, Certifications
+from src.db.courses.chapter_activities import ChapterActivity
+from src.db.courses.chapters import Chapter
+from src.db.courses.course_chapters import CourseChapter
 from src.db.courses.courses import Course
 from src.db.roles import Role, RoleTypeEnum
 from src.db.trail_runs import StatusEnum, TrailRun
@@ -40,6 +44,7 @@ from src.services.admin.admin import (
     complete_course,
     consume_magic_link_token,
     get_course_analytics,
+    get_course_curriculum,
     list_course_enrollments,
     remove_user_from_org_admin,
     revoke_certificate,
@@ -167,6 +172,100 @@ async def _create_trail_run(db, user: User, course: Course, org) -> TrailRun:
     await db.commit()
     await db.refresh(tr)
     return tr
+
+
+def _make_curriculum_token(org_id: int, *, missing_right: str | None = None) -> APITokenUser:
+    rights = {
+        "courses": {"action_read": True},
+        "coursechapters": {"action_read": True},
+        "activities": {"action_read": True},
+    }
+    if missing_right is not None:
+        rights[missing_right] = {}
+    return APITokenUser(
+        id=100,
+        user_uuid="curriculum_api_token",
+        username="curriculum_api_token",
+        org_id=org_id,
+        rights=rights,
+        token_name="curriculum-test-token",
+        created_by_user_id=1,
+    )
+
+
+async def _add_curriculum_chapter(
+    db,
+    *,
+    org_id: int,
+    course_id: int,
+    chapter_id: int,
+    chapter_uuid: str,
+    name: str,
+    order: int,
+) -> Chapter:
+    chapter = Chapter(
+        id=chapter_id,
+        name=name,
+        org_id=org_id,
+        course_id=course_id,
+        chapter_uuid=chapter_uuid,
+        creation_date=str(datetime.now()),
+        update_date=str(datetime.now()),
+    )
+    db.add(chapter)
+    db.add(
+        CourseChapter(
+            chapter_id=chapter_id,
+            course_id=course_id,
+            org_id=org_id,
+            order=order,
+            creation_date=str(datetime.now()),
+            update_date=str(datetime.now()),
+        )
+    )
+    await db.commit()
+    return chapter
+
+
+async def _add_curriculum_activity(
+    db,
+    *,
+    org_id: int,
+    course_id: int,
+    chapter_id: int,
+    activity_id: int,
+    activity_uuid: str,
+    name: str,
+    order: int,
+    published: bool,
+) -> Activity:
+    activity = Activity(
+        id=activity_id,
+        name=name,
+        activity_type=ActivityTypeEnum.TYPE_DYNAMIC,
+        activity_sub_type=ActivitySubTypeEnum.SUBTYPE_DYNAMIC_PAGE,
+        content={"type": "doc", "content": []},
+        published=published,
+        org_id=org_id,
+        course_id=course_id,
+        activity_uuid=activity_uuid,
+        creation_date=str(datetime.now()),
+        update_date=str(datetime.now()),
+    )
+    db.add(activity)
+    db.add(
+        ChapterActivity(
+            order=order,
+            chapter_id=chapter_id,
+            activity_id=activity_id,
+            course_id=course_id,
+            org_id=org_id,
+            creation_date=str(datetime.now()),
+            update_date=str(datetime.now()),
+        )
+    )
+    await db.commit()
+    return activity
 
 
 # ---------------------------------------------------------------------------
@@ -521,6 +620,104 @@ async def test_get_course_analytics_with_certification_and_cert_users(db, org, c
 
     assert result["course_uuid"] == course.course_uuid
     assert result["certificate_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_course_curriculum_preserves_order_and_includes_unpublished_activities(
+    db, org, course, chapter, activity
+):
+    await _add_curriculum_activity(
+        db,
+        org_id=org.id,
+        course_id=course.id,
+        chapter_id=chapter.id,
+        activity_id=2,
+        activity_uuid="activity_second",
+        name="Second activity",
+        order=2,
+        published=False,
+    )
+    await _add_curriculum_chapter(
+        db,
+        org_id=org.id,
+        course_id=course.id,
+        chapter_id=2,
+        chapter_uuid="chapter_second",
+        name="Second chapter",
+        order=2,
+    )
+
+    with patch("src.services.admin.admin.get_org_plan", new_callable=AsyncMock, return_value="pro"):
+        result = await get_course_curriculum(
+            _make_curriculum_token(org.id), org.slug, course.course_uuid, db
+        )
+
+    assert result["course_uuid"] == course.course_uuid
+    assert [chapter_data["order"] for chapter_data in result["chapters"]] == [1, 2]
+    assert [
+        activity_data["order"] for activity_data in result["chapters"][0]["activities"]
+    ] == [1, 2]
+    assert result["chapters"][0]["activities"][1] == {
+        "activity_uuid": "activity_second",
+        "name": "Second activity",
+        "activity_type": "TYPE_DYNAMIC",
+        "activity_sub_type": "SUBTYPE_DYNAMIC_PAGE",
+        "order": 2,
+        "published": False,
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing_right", ["courses", "coursechapters", "activities"])
+async def test_course_curriculum_requires_each_read_right(db, org, course, missing_right):
+    with pytest.raises(HTTPException) as exc_info:
+        await get_course_curriculum(
+            _make_curriculum_token(org.id, missing_right=missing_right),
+            org.slug,
+            course.course_uuid,
+            db,
+        )
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_course_curriculum_hides_cross_organization_course(db, org, other_org):
+    other_course = Course(
+        id=2,
+        name="Other organization course",
+        description="",
+        public=False,
+        published=False,
+        open_to_contributors=False,
+        org_id=other_org.id,
+        course_uuid="other_org_course",
+        creation_date=str(datetime.now()),
+        update_date=str(datetime.now()),
+    )
+    db.add(other_course)
+    await db.commit()
+
+    with patch("src.services.admin.admin.get_org_plan", new_callable=AsyncMock, return_value="pro"):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_course_curriculum(
+                _make_curriculum_token(org.id), org.slug, other_course.course_uuid, db
+            )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Course not found"
+
+
+@pytest.mark.asyncio
+async def test_course_curriculum_reports_unknown_course_as_not_found(db, org):
+    with patch("src.services.admin.admin.get_org_plan", new_callable=AsyncMock, return_value="pro"):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_course_curriculum(
+                _make_curriculum_token(org.id), org.slug, "missing-course", db
+            )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Course not found"
 
 
 # ---------------------------------------------------------------------------
