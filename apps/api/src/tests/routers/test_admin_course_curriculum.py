@@ -1,5 +1,3 @@
-"""Router coverage for the read-only admin course curriculum endpoint."""
-
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
