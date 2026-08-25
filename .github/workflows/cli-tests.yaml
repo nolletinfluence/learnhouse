@@ -7,9 +7,13 @@ on:
   push:
     paths:
       - 'apps/cli/**'
+      - '.bun-version'
+      - '.github/workflows/cli-tests.yaml'
   pull_request:
     paths:
       - 'apps/cli/**'
+      - '.bun-version'
+      - '.github/workflows/cli-tests.yaml'
 
 # The integration job boots real Docker and is allowed 45 minutes, so a
 # superseded run is worth cancelling the moment a newer commit lands.
@@ -30,7 +34,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
 
       # setup-bun restores the toolchain, not the packages.
       - name: Cache bun install cache
@@ -55,7 +59,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
 
       # setup-bun restores the toolchain, not the packages.
       - name: Cache bun install cache
