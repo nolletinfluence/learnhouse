@@ -43,6 +43,7 @@ import { useTranslation } from 'react-i18next'
 import { useDirection } from '@hooks/useDirection'
 import { formatDate } from '@/lib/format'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
+import { useManagementIdentity } from '@components/Hooks/useManagementIdentity'
 
 const ReactConfetti = dynamic(() => import('react-confetti'), { ssr: false })
 
@@ -140,6 +141,7 @@ interface ActivityActionsProps {
   assignment: any
   showNavigation?: boolean
   trailData?: any
+  isManagement?: boolean
 }
 
 // Custom hook for activity position
@@ -169,13 +171,14 @@ function useActivityPosition(course: any, activityId: string) {
   }, [course, activityId]);
 }
 
-function ActivityActions({ activity, activityid, course, orgslug, assignment, showNavigation = true, trailData }: ActivityActionsProps) {
+function ActivityActions({ activity, activityid, course, orgslug, assignment, showNavigation = true, trailData, isManagement = false }: ActivityActionsProps) {
 
   const { t: _t } = useTranslation();
   const _org = useOrg() as any;
   const session = useLHSession() as any;
   const _access_token = session?.data?.tokens?.access_token;
 
+  if (isManagement) return null
 
   return (
     <div className="flex space-x-2 items-center">
@@ -243,6 +246,7 @@ function ActivityClient(props: ActivityClientProps) {
   const courseuuid = props.courseuuid
   const orgslug = props.orgslug
   const org = useOrg() as any
+  const { isManagement } = useManagementIdentity()
 
   const { data: course, isLoading: courseLoading } = useCourseMeta(courseuuid)
   const { data: activity, isLoading: activityLoading } = useActivity(activityid)
@@ -265,6 +269,7 @@ function ActivityClient(props: ActivityClientProps) {
   const courseUuidForTracking = course?.course_uuid
   const activityTypeForTracking = activity?.activity_type
   useEffect(() => {
+    if (isManagement) return
     if (activityUuidForTracking && courseUuidForTracking) {
       activityStartTime.current = Date.now()
       track(AnalyticsEvent.ActivityViewed, {
@@ -285,12 +290,12 @@ function ActivityClient(props: ActivityClientProps) {
         }
       }
     }
-  }, [activityid, activityUuidForTracking, courseUuidForTracking, activityTypeForTracking, track])
+  }, [activityid, activityUuidForTracking, courseUuidForTracking, activityTypeForTracking, isManagement, track])
 
   const _queryClient = useQueryClient()
 
   // Fetch trail data — shares cache key with course page trail query
-  const { data: trailData } = useTrail(org?.id)
+  const { data: trailData } = useTrail(org?.id, { enabled: !isManagement })
 
   // Memoize activity position calculation
   const { allActivities, currentIndex } = useActivityPosition(course, activityid);
@@ -346,6 +351,13 @@ function ActivityClient(props: ActivityClientProps) {
           </Suspense>
         );
       case 'TYPE_ASSIGNMENT':
+        if (isManagement) {
+          return (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-6 text-sm text-blue-900">
+              Задание открыто в режиме предпросмотра. Отправка ответа и оценивание от имени текущего аккаунта отключены.
+            </div>
+          )
+        }
         return assignment ? (
           <Suspense fallback={<LoadingFallback />}>
             {/* AssignmentSubmissionProvider wraps AssignmentProvider (instead
@@ -364,6 +376,13 @@ function ActivityClient(props: ActivityClientProps) {
           </Suspense>
         ) : null;
       case 'TYPE_SCORM':
+        if (isManagement) {
+          return (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-6 text-sm text-blue-900">
+              Интерактивный SCORM-модуль отключён в управленческом предпросмотре, чтобы не записывать learner-прогресс.
+            </div>
+          )
+        }
         return (
           <Suspense fallback={<LoadingFallback />}>
             <ScormActivity course={course} activity={activity} />
@@ -372,7 +391,7 @@ function ActivityClient(props: ActivityClientProps) {
       default:
         return null;
     }
-  }, [activity, course, assignment, orgslug]);
+  }, [activity, course, assignment, isManagement, org, orgslug]);
 
   // Past the last activity lies the course-end screen holding the certificate.
   const isLastActivity = currentIndex >= 0 && !nextActivity;
@@ -394,11 +413,15 @@ function ActivityClient(props: ActivityClientProps) {
 
   // Initialize focus mode from localStorage
   React.useEffect(() => {
+    if (isManagement) {
+      setIsFocusMode(false)
+      return
+    }
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('globalFocusMode');
       setIsFocusMode(saved === 'true');
     }
-  }, []);
+  }, [isManagement]);
 
   // Save focus mode to localStorage
   React.useEffect(() => {
@@ -438,13 +461,13 @@ function ActivityClient(props: ActivityClientProps) {
     else if (activity.activity_type == 'TYPE_ASSIGNMENT') {
       setMarkStatusButtonActive(false);
       setBgColor(isFocusMode ? 'bg-white' : 'bg-white nice-shadow');
-      getAssignmentUI();
+      if (!isManagement) getAssignmentUI();
     }
     else {
       setBgColor(isFocusMode ? 'bg-zinc-950' : 'bg-zinc-950 nice-shadow');
     }
   }
-    , [activity, pathname, isFocusMode])
+    , [activity, pathname, isFocusMode, isManagement])
 
   if (courseLoading || !course) {
     return (
@@ -705,7 +728,7 @@ function ActivityClient(props: ActivityClientProps) {
                   </div>
 
                   {/* Focus Mode Bottom Bar */}
-                  {activity && activity.published == true && activity.content.paid_access != false && (
+                  {!isManagement && activity && activity.published == true && activity.content.paid_access != false && (
                     <motion.div 
                       initial={isInitialRender.current ? false : { y: 100 }}
                       animate={{ y: 0 }}
@@ -745,6 +768,7 @@ function ActivityClient(props: ActivityClientProps) {
                               assignment={assignment}
                               showNavigation={false}
                               trailData={trailData}
+                              isManagement={isManagement}
                             />
                             <button
                               onClick={() => navigateToActivity(nextActivity)}
@@ -785,14 +809,27 @@ function ActivityClient(props: ActivityClientProps) {
               <GeneralWrapperStyled>
                 {/* Original non-focus mode UI */}
                 {activityid === 'end' ? (
-                  <CourseEndView 
-                    courseName={course.name}
-                    orgslug={orgslug}
-                    courseUuid={course.course_uuid}
-                    thumbnailImage={course.thumbnail_image}
-                    course={course}
-                    trailData={trailData}
-                  />
+                  isManagement ? (
+                    <div className="mx-auto my-16 max-w-2xl rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center text-blue-950">
+                      <h1 className="text-xl font-semibold">Предпросмотр курса завершён</h1>
+                      <p className="mt-2 text-sm text-blue-800">Сертификат и learner-прогресс для управляющего аккаунта не создаются.</p>
+                      <Link
+                        href={getUriWithOrg(orgslug, '') + `/course/${courseuuid}`}
+                        className="mt-5 inline-flex rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Вернуться к курсу
+                      </Link>
+                    </div>
+                  ) : (
+                    <CourseEndView
+                      courseName={course.name}
+                      orgslug={orgslug}
+                      courseUuid={course.course_uuid}
+                      thumbnailImage={course.thumbnail_image}
+                      course={course}
+                      trailData={trailData}
+                    />
+                  )
                 ) : (
                   <div className="space-y-4 pt-0 relative">
                     <div className="pt-2 pb-3 sm:pb-6">
@@ -844,14 +881,16 @@ function ActivityClient(props: ActivityClientProps) {
                           )}
                         </div>
 
-                        <ActivityIndicators
-                          course_uuid={courseuuid}
-                          current_activity={activityid}
-                          orgslug={orgslug}
-                          course={course}
-                          enableNavigation={true}
-                          trailData={trailData}
-                        />
+                        {!isManagement && (
+                          <ActivityIndicators
+                            course_uuid={courseuuid}
+                            current_activity={activityid}
+                            orgslug={orgslug}
+                            course={course}
+                            enableNavigation={true}
+                            trailData={trailData}
+                          />
+                        )}
 
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center w-full gap-3">
                           <div className="flex flex-1 items-center space-x-3 min-w-0">
@@ -1008,7 +1047,7 @@ function ActivityClient(props: ActivityClientProps) {
                       ) : null}
 
                       {/* Activity Actions below the content box */}
-                      {activity && activity.published == true && activity.content.paid_access != false && (
+                      {!isManagement && activity && activity.published == true && activity.content.paid_access != false && (
                         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mt-4 w-full gap-2 sm:gap-0">
                           <div className="order-1 sm:order-none">
                             <PreviousActivityButton
@@ -1026,6 +1065,7 @@ function ActivityClient(props: ActivityClientProps) {
                               assignment={assignment}
                               showNavigation={false}
                               trailData={trailData}
+                              isManagement={isManagement}
                             />
                             <NextActivityButton
                               course={course}
@@ -1037,7 +1077,7 @@ function ActivityClient(props: ActivityClientProps) {
                       )}
 
                       {/* Fixed Activity Secondary Bar */}
-                      {activity && activity.published == true && activity.content.paid_access != false && (
+                      {!isManagement && activity && activity.published == true && activity.content.paid_access != false && (
                         <FixedActivitySecondaryBar
                           course={course}
                           currentActivityId={activityid}

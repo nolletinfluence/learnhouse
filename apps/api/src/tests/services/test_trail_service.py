@@ -6,12 +6,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
+from sqlmodel import select
 
 from src.db.courses.activities import Activity, ActivitySubTypeEnum, ActivityTypeEnum
 from src.db.courses.courses import Course
 from src.db.trail_runs import TrailRun
 from src.db.trail_steps import TrailStep
 from src.db.trails import Trail, TrailCreate
+from src.db.user_organizations import UserOrganization
 from src.db.users import AnonymousUser
 from src.services.trail.trail import (
     _build_trail_read,
@@ -116,10 +118,66 @@ async def _make_bogus_activity(db, org, *, activity_uuid, course_id):
 
 class TestTrailService:
     @pytest.mark.asyncio
-    async def test_build_trail_read_handles_empty_and_populated_runs(
-        self, db, org, course, activity, admin_user
+    @pytest.mark.parametrize("management_role", ["admin", "maintainer", "superadmin"])
+    async def test_management_identity_cannot_create_or_mutate_learner_state(
+        self,
+        db,
+        org,
+        course,
+        admin_user,
+        mock_request,
+        management_role,
     ):
-        trail = await _make_trail(db, org, admin_user)
+        identity = admin_user
+        if management_role == "maintainer":
+            membership = (await db.execute(
+                select(UserOrganization).where(
+                    UserOrganization.user_id == admin_user.id,
+                    UserOrganization.org_id == org.id,
+                )
+            )).scalars().one()
+            membership.role_id = 2
+            db.add(membership)
+            await db.commit()
+        elif management_role == "superadmin":
+            identity = admin_user.model_copy(update={"is_superadmin": True})
+
+        calls = (
+            lambda: create_user_trail(
+                mock_request,
+                identity,
+                TrailCreate(org_id=org.id, user_id=identity.id),
+                db,
+            ),
+            lambda: get_user_trail_with_orgid(
+                mock_request,
+                identity,
+                org.id,
+                db,
+            ),
+            lambda: add_course_to_trail(
+                mock_request,
+                identity,
+                course.course_uuid,
+                db,
+            ),
+        )
+
+        for call in calls:
+            with pytest.raises(HTTPException) as exc_info:
+                await call()
+            assert exc_info.value.status_code == 403
+            assert exc_info.value.detail["code"] == "MANAGEMENT_IDENTITY_CANNOT_LEARN"
+
+        assert (await db.execute(select(Trail))).scalars().all() == []
+        assert (await db.execute(select(TrailRun))).scalars().all() == []
+        assert (await db.execute(select(TrailStep))).scalars().all() == []
+
+    @pytest.mark.asyncio
+    async def test_build_trail_read_handles_empty_and_populated_runs(
+        self, db, org, course, activity, regular_user
+    ):
+        trail = await _make_trail(db, org, regular_user)
         extra_course = await _make_course(
             db,
             org,
@@ -127,8 +185,8 @@ class TestTrailService:
             course_uuid="course_extra",
             name="Extra Course",
         )
-        trail_run = await _make_trail_run(db, trail, course, admin_user)
-        await _make_trail_step(db, trail, trail_run, activity, extra_course, admin_user)
+        trail_run = await _make_trail_run(db, trail, course, regular_user)
+        await _make_trail_step(db, trail, trail_run, activity, extra_course, regular_user)
 
         trail_payload = {
             "id": trail.id,
@@ -145,7 +203,7 @@ class TestTrailService:
             trail_like,
             [trail_run],
             db,
-            user_id=admin_user.id,
+            user_id=regular_user.id,
             with_course_info=False,
         )
 
@@ -156,29 +214,29 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_check_trail_presence_creates_trail_and_gets_existing_trail(
-        self, db, org, admin_user, mock_request
+        self, db, org, regular_user, mock_request
     ):
         created = await check_trail_presence(
             org_id=org.id,
-            user_id=admin_user.id,
+            user_id=regular_user.id,
             request=mock_request,
-            user=admin_user,
+            user=regular_user,
             db_session=db,
         )
         existing = await check_trail_presence(
             org_id=org.id,
-            user_id=admin_user.id,
+            user_id=regular_user.id,
             request=mock_request,
-            user=admin_user,
+            user=regular_user,
             db_session=db,
         )
-        trail_read = await get_user_trails(mock_request, admin_user, db)
+        trail_read = await get_user_trails(mock_request, regular_user, db)
 
         with pytest.raises(HTTPException) as exc_info:
             await create_user_trail(
                 mock_request,
-                admin_user,
-                TrailCreate(org_id=org.id, user_id=admin_user.id),
+                regular_user,
+                TrailCreate(org_id=org.id, user_id=regular_user.id),
                 db,
             )
 
@@ -189,14 +247,14 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_get_user_trails_and_anonymous_guard(
-        self, db, org, admin_user, mock_request
+        self, db, org, regular_user, mock_request
     ):
         with pytest.raises(HTTPException) as missing_exc:
-            await get_user_trails(mock_request, admin_user, db)
+            await get_user_trails(mock_request, regular_user, db)
 
-        trail = await _make_trail(db, org, admin_user)
+        trail = await _make_trail(db, org, regular_user)
         trail_read = await get_user_trail_with_orgid(
-            mock_request, admin_user, org.id, db
+            mock_request, regular_user, org.id, db
         )
 
         with pytest.raises(HTTPException) as anonymous_exc:
@@ -210,7 +268,7 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_add_activity_to_trail_creates_records_and_tracks_once(
-        self, db, org, admin_user, mock_request, activity
+        self, db, org, regular_user, mock_request, activity
     ):
         with patch(
             "src.services.trail.trail.track",
@@ -225,13 +283,13 @@ class TestTrailService:
         ):
             first = await add_activity_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 activity.activity_uuid,
                 db,
             )
             second = await add_activity_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 activity.activity_uuid,
                 db,
             )
@@ -246,12 +304,12 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_add_activity_to_trail_rejects_missing_activity_and_course(
-        self, db, org, admin_user, mock_request
+        self, db, org, regular_user, mock_request
     ):
         with pytest.raises(HTTPException) as missing_activity_exc:
             await add_activity_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 "missing-activity",
                 db,
             )
@@ -261,7 +319,7 @@ class TestTrailService:
         with pytest.raises(HTTPException) as missing_course_exc:
             await add_activity_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 "bogus-activity",
                 db,
             )
@@ -271,12 +329,12 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_remove_activity_from_trail_deletes_step_and_checks_guards(
-        self, db, org, admin_user, mock_request, activity, course
+        self, db, org, regular_user, mock_request, activity, course
     ):
         with pytest.raises(HTTPException) as missing_activity_exc:
             await remove_activity_from_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 "missing-activity",
                 db,
             )
@@ -288,18 +346,18 @@ class TestTrailService:
         with pytest.raises(HTTPException) as missing_course_exc:
             await remove_activity_from_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 bogus_activity.activity_uuid,
                 db,
             )
 
-        trail = await _make_trail(db, org, admin_user)
-        trail_run = await _make_trail_run(db, trail, course, admin_user)
-        await _make_trail_step(db, trail, trail_run, activity, course, admin_user)
+        trail = await _make_trail(db, org, regular_user)
+        trail_run = await _make_trail_run(db, trail, course, regular_user)
+        await _make_trail_step(db, trail, trail_run, activity, course, regular_user)
 
         removed = await remove_activity_from_trail(
             mock_request,
-            admin_user,
+            regular_user,
             activity.activity_uuid,
             db,
         )
@@ -314,9 +372,9 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_add_course_to_trail_creates_run_and_rejects_duplicates(
-        self, db, org, admin_user, mock_request
+        self, db, org, regular_user, mock_request
     ):
-        trail = await _make_trail(db, org, admin_user)
+        trail = await _make_trail(db, org, regular_user)
         course_a = await _make_course(
             db,
             org,
@@ -331,12 +389,12 @@ class TestTrailService:
             course_uuid="course_b",
             name="Course B",
         )
-        await _make_trail_run(db, trail, course_b, admin_user)
+        await _make_trail_run(db, trail, course_b, regular_user)
 
         with pytest.raises(HTTPException) as missing_course_exc:
             await add_course_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 "missing-course",
                 db,
             )
@@ -344,7 +402,7 @@ class TestTrailService:
         with pytest.raises(HTTPException) as duplicate_exc:
             await add_course_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 course_b.course_uuid,
                 db,
             )
@@ -358,7 +416,7 @@ class TestTrailService:
         ) as mock_webhooks:
             result = await add_course_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 course_a.course_uuid,
                 db,
             )
@@ -371,7 +429,7 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_add_course_to_trail_rejects_missing_trail(
-        self, db, org, admin_user, mock_request
+        self, db, org, regular_user, mock_request
     ):
         course = await _make_course(
             db,
@@ -384,7 +442,7 @@ class TestTrailService:
         with pytest.raises(HTTPException) as exc_info:
             await add_course_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 course.course_uuid,
                 db,
             )
@@ -393,12 +451,12 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_remove_course_from_trail_deletes_course_steps_and_checks_missing_trail(
-        self, db, org, admin_user, mock_request, activity, course
+        self, db, org, regular_user, mock_request, activity, course
     ):
         with pytest.raises(HTTPException) as missing_course_exc:
             await remove_course_from_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 "missing-course",
                 db,
             )
@@ -406,20 +464,20 @@ class TestTrailService:
         with pytest.raises(HTTPException) as missing_trail_exc:
             await remove_course_from_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 course.course_uuid,
                 db,
             )
 
-        trail = await _make_trail(db, org, admin_user)
-        trail_run = await _make_trail_run(db, trail, course, admin_user)
+        trail = await _make_trail(db, org, regular_user)
+        trail_run = await _make_trail_run(db, trail, course, regular_user)
         # One completion step per (run, activity, user) — enforced by a UNIQUE
         # constraint. A single step is enough to verify removal deletes it.
-        await _make_trail_step(db, trail, trail_run, activity, course, admin_user)
+        await _make_trail_step(db, trail, trail_run, activity, course, regular_user)
 
         removed = await remove_course_from_trail(
             mock_request,
-            admin_user,
+            regular_user,
             course.course_uuid,
             db,
         )
@@ -436,13 +494,13 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_remove_activity_from_trail_raises_when_no_trail(
-        self, db, org, admin_user, mock_request, activity, course
+        self, db, org, regular_user, mock_request, activity, course
     ):
         # Line 370: user has no Trail row yet -- activity and course both exist
         with pytest.raises(HTTPException) as exc_info:
             await remove_activity_from_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 activity.activity_uuid,
                 db,
             )
@@ -489,7 +547,7 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_add_activity_to_trail_swallows_certificate_exception(
-        self, db, org, admin_user, mock_request, activity
+        self, db, org, regular_user, mock_request, activity
     ):
         # Lines 316-318: exception from check_course_completion_and_create_certificate
         # must not propagate -- add_activity_to_trail should still return successfully.
@@ -509,7 +567,7 @@ class TestTrailService:
         ):
             result = await add_activity_to_trail(
                 mock_request,
-                admin_user,
+                regular_user,
                 activity.activity_uuid,
                 db,
             )

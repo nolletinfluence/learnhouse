@@ -28,6 +28,36 @@ import CourseCommunitySection from '@components/Objects/Communities/CourseCommun
 import CourseShare from '@components/Objects/Courses/CourseShare/CourseShare'
 import { JsonLd } from '@components/SEO/JsonLd'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
+import {
+  courseExperiencePolicy,
+  useManagementIdentity,
+} from '@components/Hooks/useManagementIdentity'
+
+function ManagementPreviewCard({ course, courseuuid, orgslug }: any) {
+  const experience = courseExperiencePolicy(true)
+  const firstActivity = course?.chapters?.[0]?.activities?.[0]
+  const previewHref = firstActivity
+    ? getUriWithOrg(orgslug, '') +
+      `/course/${courseuuid}/activity/${firstActivity.activity_uuid.replace('activity_', '')}?preview=1`
+    : getUriWithOrg(orgslug, '') + `/course/${courseuuid}`
+
+  return (
+    <div className="bg-white shadow-md shadow-gray-300/25 outline outline-1 outline-neutral-200/40 rounded-lg overflow-hidden p-4">
+      <div className="space-y-3">
+        <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-sm text-blue-900">
+          Управленческий просмотр без зачисления и записи прогресса.
+        </div>
+        <Link
+          href={previewHref}
+          className="w-full py-3 rounded-lg bg-neutral-900 text-white font-semibold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
+        >
+          <BookCopy size={18} />
+          {experience.primaryActionLabel}
+        </Link>
+      </div>
+    </div>
+  )
+}
 
 const CourseClient = (props: any) => {
   const { t } = useTranslation()
@@ -44,6 +74,8 @@ const CourseClient = (props: any) => {
   const session = useLHSession() as any;
   const access_token = session?.data?.tokens?.access_token;
   const queryClient = useQueryClient()
+  const { isManagement } = useManagementIdentity()
+  const experience = courseExperiencePolicy(isManagement)
 
   const { data: clientCourseData, error: courseError, isLoading: courseLoading } = useQuery({
     queryKey: queryKeys.courses.meta(courseuuid),
@@ -69,7 +101,9 @@ const CourseClient = (props: any) => {
   }, [courseId, courseUuidForTracking, track])
 
   // Fetch trail data — shared cache with useTrail hook used elsewhere
-  const { data: trailData } = useTrail(org?.id);
+  const { data: trailData } = useTrail(org?.id, {
+    enabled: experience.trailEnabled,
+  });
 
   // Must be before any early returns (React rules of hooks)
   useEffect(() => {
@@ -480,7 +514,7 @@ const CourseClient = (props: any) => {
                     }
                   );
                   return run;
-                })() && (
+                })() && !isManagement && (
                   <ActivityIndicators
                     course_uuid={course.course_uuid}
                     orgslug={orgslug}
@@ -498,7 +532,11 @@ const CourseClient = (props: any) => {
 
               <div className='course_metadata_right w-full md:w-1/4 space-y-4'>
                 {/* Actions Box */}
-                <CoursesActions courseuuid={courseuuid} orgslug={orgslug} course={course} trailData={trailData} />
+                {isManagement ? (
+                  <ManagementPreviewCard course={course} courseuuid={courseuuid} orgslug={orgslug} />
+                ) : (
+                  <CoursesActions courseuuid={courseuuid} orgslug={orgslug} course={course} trailData={trailData} />
+                )}
                 
                 {/* Authors & Updates Box */}
                 <div className="bg-white shadow-md shadow-gray-300/25 outline outline-1 outline-neutral-200/40 rounded-lg overflow-hidden p-4">
@@ -604,7 +642,7 @@ const CourseClient = (props: any) => {
                       <div className={`transition-all duration-200 ${isExpanded ? 'block' : 'hidden'}`}>
                         <div className="">
                           {chapter.activities.map((activity: any) => {
-                            const locked = !!activity.is_locked
+                            const locked = !isManagement && !!activity.is_locked
                             const RowInner = (
                               <div className="flex space-x-3 items-center">
                                 <div className="flex items-center">
@@ -666,7 +704,7 @@ const CourseClient = (props: any) => {
                                 key={activity.activity_uuid}
                                 href={
                                   getUriWithOrg(orgslug, '') +
-                                  `/course/${courseuuid}/activity/${activity.activity_uuid.replace('activity_', '')}`
+                                  `/course/${courseuuid}/activity/${activity.activity_uuid.replace('activity_', '')}${isManagement ? '?preview=1' : ''}`
                                 }
                                 rel="noopener noreferrer"
                                 prefetch={false}
@@ -693,7 +731,11 @@ const CourseClient = (props: any) => {
 
           {/* Mobile Actions Box */}
           {isMobile && (
-            <CourseActionsMobile courseuuid={courseuuid} orgslug={orgslug} course={course} trailData={trailData} />
+            isManagement ? (
+              <ManagementPreviewCard course={course} courseuuid={courseuuid} orgslug={orgslug} />
+            ) : (
+              <CourseActionsMobile courseuuid={courseuuid} orgslug={orgslug} course={course} trailData={trailData} />
+            )
           )}
         </>
       )}

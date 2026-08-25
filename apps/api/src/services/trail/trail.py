@@ -22,6 +22,7 @@ from src.services.audit.audit import record_audit_event
 from src.db.user_audit_events import UserAuditEventType
 from src.services.webhooks.dispatch import dispatch_webhooks
 from src.security.rbac import check_resource_access, AccessAction
+from src.services.trail.access import ensure_learner_identity
 
 
 async def _build_trail_read(
@@ -113,6 +114,8 @@ async def create_user_trail(
             detail="Anonymous users cannot access this endpoint",
         )
 
+    await ensure_learner_identity(user, trail_object.org_id, db_session)
+
     statement = select(Trail).where(
         Trail.org_id == trail_object.org_id, Trail.user_id == user.id
     )
@@ -158,6 +161,8 @@ async def get_user_trails(
             status_code=status.HTTP_404_NOT_FOUND, detail="Trail not found"
         )
 
+    await ensure_learner_identity(user, trail.org_id, db_session)
+
     statement = select(TrailRun).where(TrailRun.trail_id == trail.id)
     trail_runs_raw = (await db_session.execute(statement)).scalars().all()
 
@@ -171,6 +176,8 @@ async def check_trail_presence(
     user: PublicUser,
     db_session: AsyncSession,
 ):
+    await ensure_learner_identity(user, org_id, db_session)
+
     statement = select(Trail).where(Trail.org_id == org_id, Trail.user_id == user_id)
     trail = (await db_session.execute(statement)).scalars().first()
 
@@ -198,6 +205,8 @@ async def get_user_trail_with_orgid(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Anonymous users cannot access this endpoint",
         )
+
+    await ensure_learner_identity(user, org_id, db_session)
 
     trail = await check_trail_presence(
         org_id=org_id,
@@ -241,6 +250,8 @@ async def add_activity_to_trail(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
         )
+
+    await ensure_learner_identity(user, course.org_id, db_session)
 
     await check_resource_access(
         request, db_session, user, course.course_uuid, AccessAction.READ
@@ -417,6 +428,8 @@ async def remove_activity_from_trail(
             status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
         )
 
+    await ensure_learner_identity(user, course.org_id, db_session)
+
     statement = select(Trail).where(
         Trail.org_id == course.org_id, Trail.user_id == user.id
     )
@@ -469,6 +482,8 @@ async def add_course_to_trail(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
         )
+
+    await ensure_learner_identity(user, course.org_id, db_session)
 
     await check_resource_access(
         request, db_session, user, course.course_uuid, AccessAction.READ
@@ -561,6 +576,8 @@ async def remove_course_from_trail(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
         )
+
+    await ensure_learner_identity(user, course.org_id, db_session)
 
     statement = select(Trail).where(
         Trail.org_id == course.org_id, Trail.user_id == user.id

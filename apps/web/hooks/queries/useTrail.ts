@@ -11,14 +11,17 @@ async function fetchTrail(orgId: number, accessToken?: string) {
   return apiFetch(url, accessToken)
 }
 
-export function useTrail(orgId: number | undefined) {
+export function useTrail(
+  orgId: number | undefined,
+  { enabled = true }: { enabled?: boolean } = {}
+) {
   const session = useLHSession() as any
   const accessToken = session?.data?.tokens?.access_token as string | undefined
 
   return useQuery({
     queryKey: queryKeys.trail.org(orgId!),
     queryFn: () => fetchTrail(orgId!, accessToken),
-    enabled: !!orgId,
+    enabled: !!orgId && enabled,
     staleTime: 30_000,
   })
 }
