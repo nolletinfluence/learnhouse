@@ -1,9 +1,18 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  BESTDEVS_LMS_NAME,
+  BESTDEVS_ORGANIZATION_NAME,
   resolveBestDevsAdminUrl,
   resolveBestDevsLandingUrl,
 } from '../lib/bestdevs-brand.ts'
+
+describe('BestDevs LMS product identity', () => {
+  test('exposes the canonical product and tenant names', () => {
+    expect(BESTDEVS_LMS_NAME).toBe('BestDevs LMS')
+    expect(BESTDEVS_ORGANIZATION_NAME).toBe('BestDevs')
+  })
+})
 
 describe('BestDevs platform links', () => {
   test('use configured URLs without trailing slashes', () => {

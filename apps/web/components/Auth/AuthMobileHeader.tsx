@@ -5,6 +5,7 @@ import Link from 'next/link'
 import learnhouseIcon from 'public/learnhouse_bigicon_1.png'
 import { getOrgLogoMediaDirectory, getOrgAuthBackgroundMediaDirectory } from '@services/media/media'
 import { getUriWithOrg } from '@services/config/config'
+import { BESTDEVS_LMS_NAME } from '@lib/bestdevs-brand'
 
 interface AuthMobileHeaderProps {
   org: any
@@ -72,7 +73,7 @@ export default function AuthMobileHeader({ org }: AuthMobileHeaderProps) {
               width={40}
               height={40}
               src={learnhouseIcon}
-              alt="LearnHouse"
+              alt={BESTDEVS_LMS_NAME}
               className="object-contain"
             />
           )}
@@ -80,7 +81,7 @@ export default function AuthMobileHeader({ org }: AuthMobileHeaderProps) {
       </Link>
 
       <span className="relative z-10 font-semibold text-white text-lg truncate">
-        {org?.name || 'LearnHouse'}
+        {org?.name || BESTDEVS_LMS_NAME}
       </span>
 
       {/* Unsplash attribution (required by Unsplash API guidelines) */}

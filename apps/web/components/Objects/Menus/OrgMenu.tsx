@@ -561,7 +561,7 @@ const LearnHouseLogo = ({ logoFilter }: { logoFilter: string }) => {
   return (
     <Image
       src="/lrn-text.svg"
-      alt="LearnHouse logo"
+      alt="BestDevs LMS logo"
       width={133}
       height={40}
       style={{ height: 'auto', filter: logoFilter }}

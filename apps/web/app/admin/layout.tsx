@@ -3,6 +3,7 @@ import AdminProviders from './providers'
 import React from 'react'
 import { fetchInstanceMode, isSuperadminSurfaceBlocked } from '@lib/eeGate'
 import EERequiredScreen from '@components/Security/EERequiredScreen'
+import { BESTDEVS_LMS_NAME } from '@lib/bestdevs-brand'
 
 // The gate is resolved per request. An ISR-cached result would outlive a
 // licence change, and this layout is what decides whether /admin exists.
@@ -10,8 +11,8 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | LearnHouse Admin',
-    default: 'LearnHouse Admin',
+    template: `%s | ${BESTDEVS_LMS_NAME} Admin`,
+    default: `${BESTDEVS_LMS_NAME} Admin`,
   },
 }
 

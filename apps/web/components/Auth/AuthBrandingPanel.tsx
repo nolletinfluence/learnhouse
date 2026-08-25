@@ -7,6 +7,7 @@ import { getOrgLogoMediaDirectory, getOrgAuthBackgroundMediaDirectory } from '@s
 import { getUriWithOrg } from '@services/config/config'
 import { cn } from '@/lib/utils'
 import { usePlan } from '@components/Hooks/usePlan'
+import { BESTDEVS_LMS_NAME } from '@lib/bestdevs-brand'
 
 interface AuthBrandingPanelProps {
   org: any
@@ -31,7 +32,7 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
   const UNSPLASH_UTM = '?utm_source=LearnHouse&utm_medium=referral'
   const withUtm = (url: string) => (url ? `${url}${UNSPLASH_UTM}` : '')
 
-  // Check if org has enterprise plan - hide LearnHouse branding for enterprise users
+  // Check if org has enterprise plan - hide BestDevs LMS branding for enterprise users
   // In OSS mode, always show branding regardless of plan
   const plan = usePlan()
   const isEnterprise = plan === 'enterprise'
@@ -75,7 +76,7 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
 
   const displayMessage = welcome_message || welcomeText || ''
   // No-org platform copy (defaults mirror the platform login illustration).
-  const noOrgTitle = title || 'Welcome back to LearnHouse.'
+  const noOrgTitle = title || `Welcome back to ${BESTDEVS_LMS_NAME}.`
   const noOrgSubtitle =
     subtitle || 'Pick up where you left off — your courses, students, and tools are waiting.'
   // Treat the no-org illustration like a photo background: dark scrim, no
@@ -141,14 +142,14 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
 
         {/* Content */}
         <div className="relative z-10 flex flex-col h-full p-10">
-          {/* Top bar with LearnHouse lrn.svg logo - hidden for enterprise users
+          {/* Top bar with BestDevs LMS lrn.svg logo - hidden for enterprise users
               and for the no-org apex panel (platform shows no logo on the image). */}
           {!isEnterprise && !noOrg && (
             <div className="login-topbar">
               <Link prefetch href="https://learnhouse.app" target="_blank">
                 <img
                   src="/lrn.svg"
-                  alt="LearnHouse"
+                  alt={BESTDEVS_LMS_NAME}
                   width={30}
                   height={30}
                   className={cn(
@@ -194,7 +195,7 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
                           width={96}
                           height={96}
                           src={learnhouseIcon}
-                          alt="LearnHouse"
+                          alt={BESTDEVS_LMS_NAME}
                           className="object-contain"
                         />
                       )}
@@ -203,7 +204,7 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
 
                   {/* Text content */}
                   <div className="space-y-1">
-                    <h1 className="font-black text-3xl tracking-tight">{org?.name || 'LearnHouse'}</h1>
+                    <h1 className="font-black text-3xl tracking-tight">{org?.name || BESTDEVS_LMS_NAME}</h1>
                     {displayMessage && (
                       <p className={cn(
                         "text-lg max-w-sm leading-relaxed",

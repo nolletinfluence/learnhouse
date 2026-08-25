@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveGoogleOAuthConfig } from '../../../../../lib/google-oauth-config'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,27 +13,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate redirect_uri before forwarding it to Google: it must be a well-
-    // formed http(s) URL pointing at our own callback path. Google additionally
-    // enforces it against the registered URIs, but validating here rejects
-    // malformed / scheme-injection values early (RFC 6749 §4.1.3).
-    try {
-      const ru = new URL(redirect_uri)
-      if ((ru.protocol !== 'http:' && ru.protocol !== 'https:') || ru.pathname !== '/auth/callback/google') {
-        return NextResponse.json({ error: 'Invalid redirect_uri' }, { status: 400 })
-      }
-    } catch {
-      return NextResponse.json({ error: 'Invalid redirect_uri' }, { status: 400 })
-    }
+    const config = resolveGoogleOAuthConfig(process.env, request.nextUrl.origin)
+    const clientSecret = config.readClientSecret()
 
-    const clientId = process.env.LEARNHOUSE_GOOGLE_CLIENT_ID
-    const clientSecret = process.env.LEARNHOUSE_GOOGLE_CLIENT_SECRET
-
-    if (!clientId || !clientSecret) {
+    if (!config.configured || !config.clientId || !clientSecret) {
       return NextResponse.json(
         { error: 'Google OAuth not configured' },
-        { status: 500 }
+        { status: 503 }
       )
+    }
+
+    if (redirect_uri !== config.callbackUri) {
+      return NextResponse.json({ error: 'Invalid redirect_uri' }, { status: 400 })
     }
 
     // Exchange code for tokens with Google
@@ -43,7 +35,7 @@ export async function POST(request: NextRequest) {
       },
       body: new URLSearchParams({
         code,
-        client_id: clientId,
+        client_id: config.clientId,
         client_secret: clientSecret,
         redirect_uri,
         grant_type: 'authorization_code',

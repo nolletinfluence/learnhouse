@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 import { changeLanguage } from '@/lib/i18n'
 import { CopyrightFooter } from '@components/Footers/LegalFooters'
+import { BESTDEVS_LMS_NAME } from '@lib/bestdevs-brand'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -104,7 +105,7 @@ function HomeClient() {
               { }
               <img
                 src="/lrn.svg"
-                alt="LearnHouse"
+                alt={BESTDEVS_LMS_NAME}
                 width={44}
                 height={44}
                 className="opacity-90"
@@ -253,12 +254,12 @@ function HomeClient() {
                 className="mt-10 flex items-center gap-1.5 text-[11px] text-black/30 hover:text-black/60 transition-colors"
               >
                 <span>{t('common.powered_by', { defaultValue: 'Powered by' })}</span>
-                <span className="font-semibold tracking-tight text-black/50 group-hover:text-black/70">LearnHouse</span>
+                <span className="font-semibold tracking-tight text-black/50 group-hover:text-black/70">{BESTDEVS_LMS_NAME}</span>
               </a>
             ) : (
               <div className="mt-10 flex items-center gap-1.5 text-[11px] text-black/30">
                 <span>{t('common.powered_by', { defaultValue: 'Powered by' })}</span>
-                <span className="font-semibold tracking-tight text-black/50">LearnHouse</span>
+                <span className="font-semibold tracking-tight text-black/50">{BESTDEVS_LMS_NAME}</span>
               </div>
             )}
             <CopyrightFooter year={new Date().getFullYear()} className="mt-4 pt-0" />

@@ -573,7 +573,7 @@ const CertificatePreview: React.FC<CertificatePreviewProps> = ({
                 )}
               </div>
               <div className={`text-xs ${theme.secondary} font-medium`} dir="auto">
-                {org?.name || 'LearnHouse'}
+                {org?.name || 'BestDevs LMS'}
               </div>
             </div>
 
@@ -594,4 +594,4 @@ const CertificatePreview: React.FC<CertificatePreviewProps> = ({
   );
 };
 
-export default CertificatePreview; 
+export default CertificatePreview;

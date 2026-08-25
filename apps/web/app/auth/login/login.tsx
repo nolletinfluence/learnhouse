@@ -47,8 +47,28 @@ const LoginClient = (props: LoginClientProps) => {
   const magicLoginAllowed = allowedMethods.has('magic_login')
   const googleAllowed = allowedMethods.has('google')
   const ssoAllowed = allowedMethods.has('sso')
+  const [googleConfiguration, setGoogleConfiguration] = useState<'checking' | 'configured' | 'unconfigured'>('checking')
+  const googleConfigured = googleConfiguration === 'configured'
   // SSO counts only once it is actually configured for the org (ssoEnabled).
-  const hasAlternativeMethods = googleAllowed || magicLoginAllowed || (ssoAllowed && ssoEnabled)
+  const hasAlternativeMethods = (googleAllowed && googleConfigured) || magicLoginAllowed || (ssoAllowed && ssoEnabled)
+
+  useEffect(() => {
+    if (!googleAllowed) {
+      setGoogleConfiguration('unconfigured')
+      return
+    }
+
+    const controller = new AbortController()
+    fetch('/api/auth/google/authorize', { signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() : { configured: false })
+      .then((status) => setGoogleConfiguration(status.configured === true ? 'configured' : 'unconfigured'))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setGoogleConfiguration('unconfigured')
+      })
+
+    return () => controller.abort()
+  }, [googleAllowed])
 
   // A signed-in user has nothing to do on /login → bounce to the hub. The proxy
   // does this best-effort, but pages must self-handle it too (mirrors signup.tsx).
@@ -203,6 +223,7 @@ const LoginClient = (props: LoginClientProps) => {
   }, [mfaCode, useBackupCode, mfaSubmitting, mfaToken]) // eslint-disable-line
 
   const handleGoogleSignIn = () => {
+    if (!googleConfigured) return
     track(AnalyticsEvent.LoginGoogleClicked)
     // Store org context in cookies before OAuth redirect
     if (props.org?.slug) {
@@ -439,7 +460,7 @@ const LoginClient = (props: LoginClientProps) => {
     <AuthLayout
       org={props.org}
       welcomeText={t('auth.login_to')}
-      title={t('auth.image_title_login', { defaultValue: 'Welcome back to LearnHouse.' })}
+      title={t('auth.image_title_login', { defaultValue: 'Welcome back to BestDevs LMS.' })}
       subtitle={t('auth.image_subtitle_login', {
         defaultValue: 'Pick up where you left off — your courses, students, and tools are waiting.',
       })}
@@ -823,11 +844,11 @@ const LoginClient = (props: LoginClientProps) => {
                 {googleAllowed && (
                 <button
                   onClick={handleGoogleSignIn}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !googleConfigured}
                   className="flex justify-center items-center w-full bg-white hover:bg-neutral-50 text-black space-x-3 font-medium p-3 rounded-lg border border-neutral-200 transition-all text-sm disabled:opacity-50"
                 >
                   <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" alt="" className="w-4 h-4" />
-                  <span>{t('auth.sign_in_with_google')}</span>
+                  <span>{googleConfiguration === 'unconfigured' ? t('auth.google_not_configured', { defaultValue: 'Google sign-in is not configured' }) : t('auth.sign_in_with_google')}</span>
                 </button>
                 )}
 
