@@ -153,8 +153,14 @@ class TestAdminRouter:
                 {
                     "course_uuid": "course_1",
                     "name": "Frontend",
+                    "description": None,
+                    "about": None,
+                    "learnings": None,
+                    "tags": None,
+                    "thumbnail_image": None,
                     "published": False,
                     "public": False,
+                    "created_at": "2026-08-19T10:00:00Z",
                     "updated_at": "2026-08-20T10:00:00Z",
                 }
             ],
@@ -166,8 +172,14 @@ class TestAdminRouter:
             {
                 "course_uuid": "course_1",
                 "name": "Frontend",
+                "description": None,
+                "about": None,
+                "learnings": None,
+                "tags": None,
+                "thumbnail_image": None,
                 "published": False,
                 "public": False,
+                "created_at": "2026-08-19T10:00:00Z",
                 "updated_at": "2026-08-20T10:00:00Z",
             }
         ]
@@ -283,10 +295,14 @@ class TestAdminRouter:
             return_value={
                 "course_uuid": "course_1",
                 "user_id": 2,
+                "status": "STATUS_IN_PROGRESS",
                 "total_activities": 10,
                 "completed_activities": 3,
                 "completion_percentage": 30.0,
                 "completed_activity_ids": [1, 2, 3],
+                "last_activity_at": None,
+                "pending_assignments": 1,
+                "pending_grading": 0,
             },
         ):
             response = await client.get("/api/v1/admin/acme/progress/2/course_1")
