@@ -6,7 +6,7 @@ Uses an in-memory SQLite database with real SQLModel tables.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 from sqlmodel import SQLModel, select
 from sqlalchemy import JSON
@@ -1745,6 +1745,11 @@ class TestIssueMagicLink:
         # URL should use frontend origin and include the /api/v1 prefix
         assert result["url"] == "https://myorg.example.com/api/v1/admin/test-org/auth/magic-consume?token=magic_jwt_abc"
         assert "expires_at" in result
+
+        expires_at = datetime.fromisoformat(result["expires_at"])
+        remaining = (expires_at - datetime.now(timezone.utc)).total_seconds()
+        assert expires_at.utcoffset() is not None
+        assert 295 <= remaining <= 300
 
         call_kwargs = mock_create.call_args.kwargs
         assert call_kwargs["data"]["purpose"] == "magic_link"

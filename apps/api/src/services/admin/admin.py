@@ -5,7 +5,7 @@ Provides headless API operations using API token authentication.
 All functions require an APITokenUser and operate within the token's org scope.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import uuid4
 from fastapi import HTTPException, Request, status
@@ -1543,7 +1543,7 @@ async def issue_magic_link(
     base = get_base_url_from_request(request).rstrip("/")
     url = f"{base}/api/v1/admin/{org_slug}/auth/magic-consume?token={token}"
 
-    expires_at = (datetime.now() + expires_delta).isoformat()
+    expires_at = (datetime.now(timezone.utc) + expires_delta).isoformat()
 
     return {
         "url": url,
