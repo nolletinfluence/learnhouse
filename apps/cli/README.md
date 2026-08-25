@@ -65,7 +65,7 @@ When those host ports are already used by another local stack, override them
 without changing the container ports:
 
 ```powershell
-$env:LEARNHOUSE_DEV_POSTGRES_PORT = "55432"
+$env:LEARNHOUSE_DEV_POSTGRES_PORT = "15432"
 $env:LEARNHOUSE_DEV_REDIS_PORT = "56379"
 npx learnhouse dev
 ```
