@@ -267,7 +267,10 @@ async def list_organization_courses(
     db_session: AsyncSession,
     page: int = 1,
     limit: int = 100,
+    media_base_url: str = "",
 ) -> List[dict]:
+    from src.services.media.urls import build_course_thumbnail_url
+
     _require_token_right(token_user, "courses", "action_read")
     organization = await _resolve_org_slug(org_slug, token_user, db_session)
     offset = (page - 1) * limit
@@ -287,6 +290,12 @@ async def list_organization_courses(
             "learnings": course.learnings,
             "tags": course.tags,
             "thumbnail_image": course.thumbnail_image,
+            "thumbnail_url": build_course_thumbnail_url(
+                media_base_url,
+                organization.org_uuid,
+                course.course_uuid,
+                course.thumbnail_image,
+            ),
             "published": course.published,
             "public": course.public,
             "created_at": course.creation_date,

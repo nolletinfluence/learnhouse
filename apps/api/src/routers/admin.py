@@ -58,6 +58,7 @@ from src.services.admin.admin import (
     unenroll_user,
     update_user_profile,
 )
+from src.services.email.utils import get_media_base_url
 
 
 router = APIRouter()
@@ -90,6 +91,7 @@ class AdminCourseListItem(BaseModel):
     learnings: str | None
     tags: str | None
     thumbnail_image: str | None
+    thumbnail_url: str | None
     published: bool
     public: bool
     created_at: str
@@ -447,13 +449,21 @@ async def api_admin_issue_token(
 @router.get("/{org_slug}/courses", response_model=list[AdminCourseListItem])
 async def api_admin_list_courses(
     org_slug: str,
+    request: Request,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=100, ge=1, le=100),
     current_user=Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> list[AdminCourseListItem]:
     token_user = _require_api_token(current_user)
-    courses = await list_organization_courses(token_user, org_slug, db_session, page, limit)
+    courses = await list_organization_courses(
+        token_user,
+        org_slug,
+        db_session,
+        page,
+        limit,
+        get_media_base_url(request),
+    )
     return [AdminCourseListItem(**course) for course in courses]
 
 

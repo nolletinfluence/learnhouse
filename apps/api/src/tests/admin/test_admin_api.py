@@ -2785,6 +2785,7 @@ class TestOrganizationCourseCatalog:
             "learnings": None,
             "tags": None,
             "thumbnail_image": "",
+            "thumbnail_url": None,
             "published": False,
             "public": False,
             "created_at": "2026-08-20T09:00:00Z",
@@ -2800,7 +2801,7 @@ class TestOrganizationCourseCatalog:
             about="Backend engineering",
             learnings="API\nPostgreSQL",
             tags="backend,go",
-            thumbnail_image="https://cdn.example.test/course.webp",
+            thumbnail_image="course image.webp",
             public=True,
             published=True,
             open_to_contributors=False,
@@ -2816,7 +2817,12 @@ class TestOrganizationCourseCatalog:
             new_callable=AsyncMock,
             return_value="pro",
         ):
-            result = await list_organization_courses(token_user, "test-org", db)
+            result = await list_organization_courses(
+                token_user,
+                "test-org",
+                db,
+                media_base_url="https://media.bestdevs.kg/",
+            )
 
         assert result[0] == {
             "course_uuid": "course_metadata",
@@ -2825,7 +2831,11 @@ class TestOrganizationCourseCatalog:
             "about": "Backend engineering",
             "learnings": "API\nPostgreSQL",
             "tags": "backend,go",
-            "thumbnail_image": "https://cdn.example.test/course.webp",
+            "thumbnail_image": "course image.webp",
+            "thumbnail_url": (
+                "https://media.bestdevs.kg/content/orgs/"
+                f"{org.org_uuid}/courses/course_metadata/thumbnails/course%20image.webp"
+            ),
             "published": True,
             "public": True,
             "created_at": "2026-08-20T09:00:00Z",
