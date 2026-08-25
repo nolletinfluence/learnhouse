@@ -1,5 +1,10 @@
 'use client'
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
+
+import {
+  getOnboardingStore,
+  type OnboardingState,
+} from '@components/Hooks/onboardingStore'
 
 export type OnboardingStep = {
   id: string
@@ -18,18 +23,6 @@ export type OnboardingStep = {
   requiredPlan?: string
   skipped?: boolean
 }
-
-type OnboardingState = {
-  completedSteps: string[]
-  skippedSteps: string[]
-  minimized: boolean
-  expanded: boolean
-  showAllSteps: boolean
-  dismissed: boolean
-  welcomeSeen: boolean
-}
-
-const STORAGE_KEY = 'lh_onboarding'
 
 // Outcome-framed onboarding: 6 milestones that ladder toward the north-star —
 // your first enrolled learner — then retention. Each title is the WIN; the
@@ -89,67 +82,20 @@ const DEFAULT_STEPS: Omit<OnboardingStep, 'completed'>[] = [
 // Raw step definitions (incl. completion-path regexes) for the headless tracker.
 export const ONBOARDING_STEP_DEFS = DEFAULT_STEPS
 
-function loadState(): OnboardingState {
-  if (typeof window === 'undefined') {
-    return { completedSteps: [], skippedSteps: [], minimized: false, expanded: false, showAllSteps: false, dismissed: false, welcomeSeen: false }
-  }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      return {
-        completedSteps: parsed.completedSteps || [],
-        skippedSteps: parsed.skippedSteps || [],
-        minimized: parsed.minimized || false,
-        expanded: parsed.expanded || false,
-        showAllSteps: parsed.showAllSteps || false,
-        dismissed: parsed.dismissed || false,
-        welcomeSeen: parsed.welcomeSeen || false,
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return { completedSteps: [], skippedSteps: [], minimized: false, expanded: false, showAllSteps: false, dismissed: false, welcomeSeen: false }
-}
-
-function saveState(state: OnboardingState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-    window.dispatchEvent(new Event('lh_onboarding_change'))
-  } catch {
-    /* ignore */
-  }
-}
-
 export function useOnboarding() {
-  const [state, setState] = useState<OnboardingState>(loadState)
+  const store = getOnboardingStore()
+  const state = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getServerSnapshot
+  )
 
   const applyLocalChange = useCallback(
     (updater: (_prev: OnboardingState) => OnboardingState) => {
-      setState((prev) => {
-        const next = updater(prev)
-        if (next !== prev) {
-          saveState(next)
-        }
-        return next
-      })
+      store.update(updater)
     },
-    []
+    [store]
   )
-
-  // Listen for changes from other instances of this hook
-  useEffect(() => {
-    const handler = () => {
-      setState((prev) => {
-        const loaded = loadState()
-        if (JSON.stringify(loaded) === JSON.stringify(prev)) return prev
-        return loaded
-      })
-    }
-    window.addEventListener('lh_onboarding_change', handler)
-    return () => window.removeEventListener('lh_onboarding_change', handler)
-  }, [])
 
   const steps: OnboardingStep[] = DEFAULT_STEPS.map((s) => ({
     ...s,
