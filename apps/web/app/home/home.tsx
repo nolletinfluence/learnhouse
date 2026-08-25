@@ -5,7 +5,11 @@ import { useLHAnalytics } from '@services/analytics/useLHAnalytics'
 import { AnalyticsEvent } from '@services/analytics/events'
 import DemoEntryCard from '@components/Objects/Demo/DemoEntryCard'
 import UserAvatar from '@components/Objects/UserAvatar'
-import { getAPIUrl, getUriWithOrg, getLEARNHOUSE_PLATFORM_URL_VAL } from '@services/config/config'
+import { getAPIUrl, getUriWithOrg, getLEARNHOUSE_PLATFORM_URL_VAL, getTenancy } from '@services/config/config'
+import {
+  canCreateOrganization,
+  canManageOrganizationMembership,
+} from '@services/tenancy/productPolicy'
 import { apiFetch } from '@services/utils/ts/requests'
 import { signOut } from '@components/Contexts/AuthContext'
 import { getOrgLogoMediaDirectory } from '@services/media/media'
@@ -48,6 +52,9 @@ function HomeClient() {
   const isAuthenticated = session?.status === 'authenticated'
   const isLoading = session?.status === 'loading'
   const platformUrl = getLEARNHOUSE_PLATFORM_URL_VAL()
+  const tenancy = getTenancy()
+  const canCreateOrg = canCreateOrganization(tenancy)
+  const canManageMembership = canManageOrganizationMembership(tenancy)
 
   const { data: orgs, isLoading: orgsLoading } = useQuery({
     queryKey: ['orgs', 'user'],
@@ -62,14 +69,14 @@ function HomeClient() {
     }
   }, [isLoading, isAuthenticated, router])
 
-  // A brand-new (org-less) user has no orgs yet — send them straight to create
-  // their first org rather than a confusing empty hub. Mirrors the platform's
-  // post-signup onboarding hop.
   useEffect(() => {
-    if (isAuthenticated && Array.isArray(orgs) && orgs.length === 0) {
+    if (!isAuthenticated || !Array.isArray(orgs)) return
+    if (!canCreateOrg && orgs.length > 0) {
+      router.replace(getUriWithOrg(orgs[0].slug, '/'))
+    } else if (canCreateOrg && orgs.length === 0) {
       router.replace('/new')
     }
-  }, [isAuthenticated, orgs, router])
+  }, [canCreateOrg, isAuthenticated, orgs, router])
 
   return (
     <div className="fixed inset-0 z-[100] bg-white overflow-y-auto">
@@ -215,11 +222,15 @@ function HomeClient() {
               {isAuthenticated &&
                 orgs &&
                 orgs.map((org: any) => (
-                  <OrgRow key={org.id ?? org.slug} org={org} access_token={access_token} />
+                  <OrgRow
+                    key={org.id ?? org.slug}
+                    org={org}
+                    access_token={access_token}
+                    allowMembershipManagement={canManageMembership}
+                  />
                 ))}
 
-              {/* Create organization — prominent entry into the hub */}
-              {isAuthenticated && orgs && (
+              {canCreateOrg && isAuthenticated && orgs && (
                 <Link
                   href="/new"
                   className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gray-900 text-white rounded-2xl font-semibold text-sm nice-shadow hover:bg-gray-800 transition-colors"
@@ -258,7 +269,15 @@ function HomeClient() {
   )
 }
 
-function OrgRow({ org, access_token }: { org: any; access_token: string }) {
+function OrgRow({
+  org,
+  access_token,
+  allowMembershipManagement,
+}: {
+  org: any
+  access_token: string
+  allowMembershipManagement: boolean
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const orgSession = useLHSession() as any
@@ -390,8 +409,8 @@ function OrgRow({ org, access_token }: { org: any; access_token: string }) {
               <span>{t('common.settings', { defaultValue: 'Settings' })}</span>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {canManageOrg ? (
+          {allowMembershipManagement && <DropdownMenuSeparator />}
+          {allowMembershipManagement && (canManageOrg ? (
             // Admins can delete the whole organization.
             <DropdownMenuItem
               onSelect={(e) => {
@@ -418,7 +437,7 @@ function OrgRow({ org, access_token }: { org: any; access_token: string }) {
               <LogOut size={14} />
               <span>{t('common.leave_organization', { defaultValue: 'Leave organization' })}</span>
             </DropdownMenuItem>
-          )}
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
 

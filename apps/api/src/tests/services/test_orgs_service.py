@@ -211,7 +211,7 @@ class TestCreateOrg:
 
     @pytest.mark.asyncio
     @patch("src.services.orgs.orgs.is_multi_org_allowed", return_value=False)
-    async def test_create_org_requires_enterprise_for_second_org(
+    async def test_single_tenancy_rejects_a_second_organization(
         self, mock_multi_org, mock_request, db, org, admin_user
     ):
         new_org = OrganizationCreate(
@@ -225,6 +225,10 @@ class TestCreateOrg:
 
         assert exc_info.value.status_code == 403
         assert "Enterprise Edition" in exc_info.value.detail
+        organizations = (await db.execute(select(Organization))).scalars().all()
+        assert [(item.name, item.slug) for item in organizations] == [
+            (org.name, org.slug)
+        ]
 
     @pytest.mark.asyncio
     @patch("src.services.orgs.orgs.is_multi_org_allowed", return_value=True)
