@@ -1165,15 +1165,66 @@ describe('dev command guards', () => {
     await expect(devCommand({})).rejects.toBeInstanceOf(ProcessExit)
   })
 
+  it('uses non-interactive admin credentials from the development environment', async () => {
+    const root = fakeRepo(true)
+    for (const d of ['apps/web/node_modules', 'apps/collab/node_modules', 'apps/api/.venv']) {
+      fs.mkdirSync(path.join(root, d), { recursive: true })
+    }
+    process.chdir(root)
+    const previousEmail = process.env.LEARNHOUSE_DEV_ADMIN_EMAIL
+    const previousPassword = process.env.LEARNHOUSE_DEV_ADMIN_PASSWORD
+    const previousOrgName = process.env.LEARNHOUSE_DEV_ORG_NAME
+    const previousOrgSlug = process.env.LEARNHOUSE_DEV_ORG_SLUG
+    const previousDefaultLocale = process.env.LEARNHOUSE_DEV_DEFAULT_LOCALE
+    process.env.LEARNHOUSE_DEV_ADMIN_EMAIL = 'bootstrap@bestdevs.local'
+    process.env.LEARNHOUSE_DEV_ADMIN_PASSWORD = 'synthetic-bootstrap-password'
+    delete process.env.LEARNHOUSE_DEV_ORG_NAME
+    delete process.env.LEARNHOUSE_DEV_ORG_SLUG
+    delete process.env.LEARNHOUSE_DEV_DEFAULT_LOCALE
+    const cp = await import('node:child_process')
+    const spawnMock = cp.spawn as unknown as ReturnType<typeof vi.fn>
+    spawnMock.mockClear()
+    const sigintBefore = process.listenerCount('SIGINT')
+    try {
+      const promise = devCommand({})
+      promise.catch(() => {})
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      expect(spawnMock).toHaveBeenCalledTimes(3)
+      for (const call of spawnMock.mock.calls) {
+        expect(call[2]?.env?.LEARNHOUSE_INITIAL_ADMIN_EMAIL).toBe('bootstrap@bestdevs.local')
+        expect(call[2]?.env?.LEARNHOUSE_INITIAL_ADMIN_PASSWORD).toBe('synthetic-bootstrap-password')
+        expect(call[2]?.env?.LEARNHOUSE_INITIAL_ORG_NAME).toBe('BestDevs')
+        expect(call[2]?.env?.LEARNHOUSE_INITIAL_ORG_SLUG).toBe('bestdevs')
+        expect(call[2]?.env?.NEXT_PUBLIC_LEARNHOUSE_DEFAULT_ORG).toBe('bestdevs')
+        expect(call[2]?.env?.NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE).toBe('ru')
+      }
+    } finally {
+      if (previousEmail === undefined) delete process.env.LEARNHOUSE_DEV_ADMIN_EMAIL
+      else process.env.LEARNHOUSE_DEV_ADMIN_EMAIL = previousEmail
+      if (previousPassword === undefined) delete process.env.LEARNHOUSE_DEV_ADMIN_PASSWORD
+      else process.env.LEARNHOUSE_DEV_ADMIN_PASSWORD = previousPassword
+      if (previousOrgName === undefined) delete process.env.LEARNHOUSE_DEV_ORG_NAME
+      else process.env.LEARNHOUSE_DEV_ORG_NAME = previousOrgName
+      if (previousOrgSlug === undefined) delete process.env.LEARNHOUSE_DEV_ORG_SLUG
+      else process.env.LEARNHOUSE_DEV_ORG_SLUG = previousOrgSlug
+      if (previousDefaultLocale === undefined) delete process.env.LEARNHOUSE_DEV_DEFAULT_LOCALE
+      else process.env.LEARNHOUSE_DEV_DEFAULT_LOCALE = previousDefaultLocale
+      for (const h of process.listeners('SIGINT').slice(sigintBefore)) process.removeListener('SIGINT', h as never)
+      for (const h of process.listeners('SIGTERM')) process.removeListener('SIGTERM', h as never)
+    }
+  })
+
   it('treats infra as down when the docker inspect probe throws', async () => {
     const root = fakeRepo(true)
     for (const d of ['apps/web/node_modules', 'apps/collab/node_modules', 'apps/api/.venv']) {
       fs.mkdirSync(path.join(root, d), { recursive: true })
     }
     process.chdir(root)
-    execSyncMock.mockImplementation(((cmd: string) => {
-      if (cmd.includes('docker inspect')) throw new Error('daemon gone') // isContainerRunning catch → false (133)
-      return Buffer.from('')
+    const cp = await import('node:child_process')
+    const spawnSyncMock = cp.spawnSync as unknown as ReturnType<typeof vi.fn>
+    spawnSyncMock.mockImplementation(((command: string, args?: string[]) => {
+      if (command === 'docker' && args?.[0] === 'inspect') throw new Error('daemon gone')
+      return { status: 0, stdout: Buffer.from(''), stderr: Buffer.from('') }
     }) as never)
     const sigintBefore = process.listenerCount('SIGINT')
     try {
@@ -1451,12 +1502,13 @@ describe('dev command guards', () => {
       fs.mkdirSync(path.join(root, d), { recursive: true })
     }
     process.chdir(root)
-    // isContainerRunning(db/redis) → 'true' → isInfraRunning() true → reuse path.
-    execSyncMock.mockImplementation(((cmd: string) =>
-      cmd.includes('State.Running') ? Buffer.from('true') : Buffer.from('')) as never)
-
     const cp = await import('node:child_process')
     const spawnMock = cp.spawn as unknown as ReturnType<typeof vi.fn>
+    const spawnSyncMock = cp.spawnSync as unknown as ReturnType<typeof vi.fn>
+    spawnSyncMock.mockImplementation(((command: string, args?: string[]) =>
+      command === 'docker' && args?.[0] === 'inspect'
+        ? { status: 0, stdout: 'true\n', stderr: '' }
+        : { status: 0, stdout: Buffer.from(''), stderr: Buffer.from('') }) as never)
     spawnMock.mockClear()
     const sigintBefore = process.listenerCount('SIGINT')
     try {

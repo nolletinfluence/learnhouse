@@ -2431,17 +2431,21 @@ describe('docker.ts command builders', () => {
 })
 
 describe('docker.ts isContainerRunning (real impl)', () => {
-  it('runs docker inspect and maps "true" → true, else false', async () => {
-    const execSync = (await import('node:child_process')).execSync as unknown as ReturnType<typeof vi.fn>
-    execSync.mockReset()
+  it('runs docker inspect without a shell and maps the container state', async () => {
     const real = await vi.importActual<typeof import('../src/services/docker.js')>('../src/services/docker.js')
-    execSync.mockReturnValue(Buffer.from('true\n'))
-    expect(real.isContainerRunning('learnhouse-app-x')).toBe(true)
-    expect(execSync.mock.calls.at(-1)?.[0]).toBe("docker inspect -f '{{.State.Running}}' learnhouse-app-x")
-    execSync.mockReturnValue(Buffer.from('false\n'))
-    expect(real.isContainerRunning('x')).toBe(false)
-    execSync.mockImplementation(() => { throw new Error('no container') })
-    expect(real.isContainerRunning('x')).toBe(false)
+    const inspect = vi.fn(() => ({ status: 0, stdout: 'true\n', stderr: '' }))
+    expect(real.isContainerRunning('learnhouse-app-x', inspect)).toBe(true)
+    expect(inspect).toHaveBeenCalledWith(
+      'docker',
+      ['inspect', '--format', '{{.State.Running}}', 'learnhouse-app-x'],
+      { encoding: 'utf8', shell: false },
+    )
+    inspect.mockReturnValue({ status: 0, stdout: 'false\n', stderr: '' })
+    expect(real.isContainerRunning('x', inspect)).toBe(false)
+    inspect.mockReturnValue({ status: 1, stdout: '', stderr: 'missing' })
+    expect(real.isContainerRunning('x', inspect)).toBe(false)
+    inspect.mockImplementation(() => { throw new Error('daemon unavailable') })
+    expect(real.isContainerRunning('x', inspect)).toBe(false)
   })
 })
 

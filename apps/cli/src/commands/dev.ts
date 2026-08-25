@@ -3,7 +3,7 @@ import * as p from '../utils/prompt.js'
 import pc from 'picocolors'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
-import { isDockerInstalled, isDockerRunning } from '../services/docker.js'
+import { isContainerRunning, isDockerInstalled, isDockerRunning } from '../services/docker.js'
 import { checkDevEnv } from '../services/env-check.js'
 
 const PROJECT_NAME = 'learnhouse-dev'
@@ -170,18 +170,6 @@ function prefixStream(proc: ChildProcess, label: string, color: (s: string) => s
   proc.stderr?.on('data', handleData)
 }
 
-function isContainerRunning(name: string): boolean {
-  try {
-    const state = execSync(
-      `docker inspect --format '{{.State.Running}}' ${name}`,
-      { stdio: 'pipe' }
-    ).toString().trim()
-    return state === 'true'
-  } catch {
-    return false
-  }
-}
-
 function isInfraRunning(): boolean {
   return isContainerRunning('learnhouse-db-dev') && isContainerRunning('learnhouse-redis-dev')
 }
@@ -285,8 +273,8 @@ export async function devCommand(opts: { ee?: boolean; adminEmail?: string; admi
   }
 
   // Resolve admin credentials: CLI flags take priority, then interactive prompts (first setup only)
-  let adminEmail = opts.adminEmail
-  let adminPassword = opts.adminPassword
+  let adminEmail = opts.adminEmail ?? process.env.LEARNHOUSE_DEV_ADMIN_EMAIL
+  let adminPassword = opts.adminPassword ?? process.env.LEARNHOUSE_DEV_ADMIN_PASSWORD
 
   if (!alreadyRunning) {
     if (!adminEmail) {

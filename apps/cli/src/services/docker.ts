@@ -218,13 +218,23 @@ export function dockerExecFromFile(containerName: string, command: string, input
   })
 }
 
-export function isContainerRunning(containerName: string): boolean {
+type ContainerInspector = (
+  command: string,
+  args: string[],
+  options: { encoding: 'utf8'; shell: false },
+) => { status: number | null; stdout: string }
+
+export function isContainerRunning(
+  containerName: string,
+  inspect: ContainerInspector = spawnSync as unknown as ContainerInspector,
+): boolean {
   try {
-    const output = execSync(
-      `docker inspect -f '{{.State.Running}}' ${containerName}`,
-      { stdio: 'pipe' },
-    ).toString().trim()
-    return output === 'true'
+    const result = inspect(
+      'docker',
+      ['inspect', '--format', '{{.State.Running}}', containerName],
+      { encoding: 'utf8', shell: false },
+    )
+    return result.status === 0 && String(result.stdout).trim() === 'true'
   } catch {
     return false
   }
