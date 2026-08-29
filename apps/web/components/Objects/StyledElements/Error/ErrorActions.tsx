@@ -1,5 +1,5 @@
 'use client'
-import { getPlatformUrl, getUriWithoutOrg } from '@services/config/config'
+import { getUriWithoutOrg } from '@services/config/config'
 import { signOut } from '@components/Contexts/AuthContext'
 import { openFeedbackDialog, isReportingAvailable } from '@lib/errors/report'
 import type { ResolutionKind } from '@lib/errors/types'
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import React, { useState } from 'react'
+import { resolveBestDevsApplyUrl } from '@lib/bestdevs-brand'
 
 type Variant = 'primary' | 'neutral' | 'danger' | 'ghost'
 
@@ -100,7 +101,7 @@ export default function ErrorActions({ resolutions, reset, eventId, loginNext }:
   const loginHref = loginNext
     ? `/login?next=${encodeURIComponent(loginNext)}`
     : '/login'
-  const supportHref = getPlatformUrl('/contact') || 'mailto:support@learnhouse.io'
+  const supportHref = resolveBestDevsApplyUrl()
 
   return (
     <div className="flex flex-wrap justify-center gap-3">

@@ -316,15 +316,14 @@ export default function AuthBrandingTab() {
                 <div className="absolute inset-0 bg-black/30" />
               )}
 
-              {/* Top lrn logo - hidden for enterprise users */}
               {!isEnterprise && (
                 <div className="relative z-10">
                   <div
                     className={cn(
                       "w-4 h-4 bg-contain bg-no-repeat",
-                      textColor === 'light' ? "opacity-60 invert" : "opacity-40"
+                      textColor === 'light' ? "opacity-80" : "opacity-60"
                     )}
-                    style={{ backgroundImage: "url(/lrn.svg)" }}
+                    style={{ backgroundImage: "url(/bestdevs-logo.png)" }}
                   />
                 </div>
               )}

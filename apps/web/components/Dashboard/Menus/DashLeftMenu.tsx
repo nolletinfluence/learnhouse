@@ -17,7 +17,6 @@ import {
   CaretDown,
   PencilSimple,
   ChatsCircle,
-  Book,
   ChatCircleDots,
   Headphones,
   ChartBar,
@@ -44,7 +43,6 @@ import {
   Lightning,
 } from '@phosphor-icons/react'
 import { motion } from 'motion/react'
-import { DiscordIcon } from '@components/Objects/Icons/DiscordIcon'
 import CommandPaletteTrigger from '@components/Dashboard/CommandPalette/CommandPaletteTrigger'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -85,6 +83,7 @@ import useAdminStatus from '@components/Hooks/useAdminStatus'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
 import OnboardingSidebarBox from '@components/Dashboard/Onboarding/OnboardingSidebarBox'
 import { useOnboarding } from '@components/Hooks/useOnboarding'
+import { resolveBestDevsLandingUrl } from '@lib/bestdevs-brand'
 
 // Scattered night-sky starfield for the free-plan upgrade box. Fixed positions
 // (top/left %) so the constellation is stable across renders; `north` is the
@@ -261,9 +260,9 @@ function DashLeftMenu() {
             />
           ) : (
             <img
-              src="/lrn-dash.svg"
-              alt="Learnhouse logo"
-              className="h-8 w-8"
+              src="/bestdevs-icon.png"
+              alt="BestDevs LMS"
+              className="h-8 w-8 rounded-lg"
             />
           )}
           {!isCollapsed && (
@@ -1109,35 +1108,13 @@ function DashLeftMenu() {
                 <HoverMenuSeparator />
                 <HoverMenuItem asChild>
                   <a
-                    href="https://docs.learnhouse.app"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer transition-colors"
-                  >
-                    <Book size={16} weight="fill" />
-                    <span>{t('common.help_menu.documentation')}</span>
-                  </a>
-                </HoverMenuItem>
-                <HoverMenuItem asChild>
-                  <a
-                    href="https://learnhouse.app"
+                    href={resolveBestDevsLandingUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer transition-colors"
                   >
                     <Globe size={16} weight="fill" />
                     <span>{t('common.help_menu.website')}</span>
-                  </a>
-                </HoverMenuItem>
-                <HoverMenuItem asChild>
-                  <a
-                    href="https://discord.gg/learnhouse"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer transition-colors"
-                  >
-                    <DiscordIcon size={16} />
-                    <span>{t('common.help_menu.discord')}</span>
                   </a>
                 </HoverMenuItem>
                 <HoverMenuSeparator />

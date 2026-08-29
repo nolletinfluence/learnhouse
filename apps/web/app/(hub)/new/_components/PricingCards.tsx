@@ -14,6 +14,7 @@
 import React from 'react'
 import { motion } from 'motion/react'
 import { Check, GraduationCap, Presentation } from '@phosphor-icons/react'
+import { resolveBestDevsApplyUrl } from '@lib/bestdevs-brand'
 import {
   GENERAL_PLANS,
   PERSONAL_PLANS,
@@ -342,7 +343,7 @@ export default function PricingCards({
                         renderEnterpriseCta()
                       ) : (
                         <a
-                          href="https://learnhouse.app/contact?subject=business"
+                          href={resolveBestDevsApplyUrl()}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-block mt-6 px-5 py-2.5 text-[14px] font-bold bg-white text-black rounded-lg hover:bg-white/90 transition-colors"

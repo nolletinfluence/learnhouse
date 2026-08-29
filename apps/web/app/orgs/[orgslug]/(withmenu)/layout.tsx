@@ -16,6 +16,7 @@ import { PageViewTracker } from '@components/Analytics/PageViewTracker'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { usePlan } from '@components/Hooks/usePlan'
 import { getGoogleFontUrl, DEFAULT_FONT } from '@/lib/fonts'
+import { resolveBestDevsLandingUrl } from '@lib/bestdevs-brand'
 
 // Helper to convert hex to rgba
 const hexToRgba = (hex: string, alpha: number): string => {
@@ -39,9 +40,9 @@ function OrgFooter() {
       <div className="flex flex-col items-center justify-center space-y-4">
         {footerText && <p className="text-sm text-gray-500">{footerText}</p>}
         {showWatermark && (
-          <Link href="https://learnhouse.app" target="_blank" rel="noopener noreferrer">
+          <Link href={resolveBestDevsLandingUrl()} target="_blank" rel="noopener noreferrer">
             <Image
-              src="/lrn.svg"
+              src="/bestdevs-icon.png"
               alt="BestDevs LMS"
               width={24}
               height={24}

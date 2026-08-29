@@ -1,5 +1,6 @@
 'use client'
 import React, { useState } from 'react'
+import { resolveBestDevsApplyUrl } from '@lib/bestdevs-brand'
 import { useTranslation } from 'react-i18next'
 import Image from 'next/image'
 import { useOrg } from '@components/Contexts/OrgContext'
@@ -381,7 +382,7 @@ const OrgEditAutomations: React.FC = () => {
                 Manage Zaps
               </a>
               <a
-                href="https://zapier.com/apps/learnhouse/integrations"
+                href={resolveBestDevsApplyUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
               >

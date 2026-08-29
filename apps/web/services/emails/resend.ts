@@ -28,7 +28,7 @@ export function isEmailEnabled(): boolean {
 }
 
 const DEFAULT_FROM =
-  process.env.RESEND_FROM_EMAIL || 'LearnHouse <hello@emails.learnhouse.app>'
+  process.env.RESEND_FROM_EMAIL || 'BestDevs LMS <hello@bestdevs.kg>'
 
 export interface SendResult {
   ok: boolean

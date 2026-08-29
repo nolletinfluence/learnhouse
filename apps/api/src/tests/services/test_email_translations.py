@@ -37,12 +37,13 @@ class TestT:
         assert t("fr", "invitation.heading") == "Vous êtes invité !"
 
     def test_falls_back_to_english_for_unknown_lang(self):
-        assert t("klingon", "invitation.heading") == EMAIL_TRANSLATIONS["en"]["invitation.heading"]
+        expected = EMAIL_TRANSLATIONS["en"]["invitation.heading"].replace("LearnHouse", "BestDevs LMS")
+        assert t("klingon", "invitation.heading") == expected
 
     def test_falls_back_to_english_when_key_missing_in_locale(self):
         # Insert a locale that's missing a specific key, then look it up;
         # we expect the English bundle's value back.
-        assert t("fr", "academy_link_text") == EMAIL_TRANSLATIONS["fr"]["academy_link_text"]
+        assert t("fr", "academy_link_text") == "BestDevs LMS"
 
     def test_returns_key_itself_when_key_unknown_everywhere(self):
         # No locale has this key — t() must not raise.
@@ -65,6 +66,11 @@ class TestT:
         # the English fallback for a "supported" locale.
         for code in SUPPORTED_LANGUAGES:
             assert code in EMAIL_TRANSLATIONS, f"missing translation bundle: {code}"
+
+    def test_rendered_translations_do_not_expose_legacy_brand(self):
+        for code, bundle in EMAIL_TRANSLATIONS.items():
+            for key in bundle:
+                assert "learnhouse" not in t(code, key).lower(), f"legacy brand in {code}:{key}"
 
 
 class TestSupportedUILanguages:

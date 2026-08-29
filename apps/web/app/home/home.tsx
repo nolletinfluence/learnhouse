@@ -104,7 +104,7 @@ function HomeClient() {
             <div className="flex flex-col items-center mb-10">
               { }
               <img
-                src="/lrn.svg"
+                src="/bestdevs-icon.png"
                 alt={BESTDEVS_LMS_NAME}
                 width={44}
                 height={44}

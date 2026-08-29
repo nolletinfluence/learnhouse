@@ -418,7 +418,7 @@ async def api_handle_assignment_task_submissions(
 
     Sessions write their own submission. An API token with ``assignments.create``
     may submit on behalf of a learner by passing ``on_behalf_of_user_id`` (the
-    learner's LearnHouse user id; the learner must belong to the token's org).
+    learner's BestDevs LMS user id; the learner must belong to the token's org).
     """
     return await handle_assignment_task_submission(
         request,

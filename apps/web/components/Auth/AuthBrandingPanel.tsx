@@ -1,13 +1,12 @@
 'use client'
 import React from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
-import learnhouseIcon from 'public/learnhouse_bigicon_1.png'
 import { getOrgLogoMediaDirectory, getOrgAuthBackgroundMediaDirectory } from '@services/media/media'
 import { getUriWithOrg } from '@services/config/config'
 import { cn } from '@/lib/utils'
 import { usePlan } from '@components/Hooks/usePlan'
-import { BESTDEVS_LMS_NAME } from '@lib/bestdevs-brand'
+import { BESTDEVS_LMS_NAME, resolveBestDevsLandingUrl } from '@lib/bestdevs-brand'
+import { BestDevsLogo } from '@components/Brand/BestDevsLogo'
 
 interface AuthBrandingPanelProps {
   org: any
@@ -29,7 +28,7 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
     unsplash_photographer_url = '',
     unsplash_photo_url = '',
   } = authBranding
-  const UNSPLASH_UTM = '?utm_source=LearnHouse&utm_medium=referral'
+  const UNSPLASH_UTM = '?utm_source=BestDevs_LMS&utm_medium=referral'
   const withUtm = (url: string) => (url ? `${url}${UNSPLASH_UTM}` : '')
 
   // Check if org has enterprise plan - hide BestDevs LMS branding for enterprise users
@@ -142,19 +141,13 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
 
         {/* Content */}
         <div className="relative z-10 flex flex-col h-full p-10">
-          {/* Top bar with BestDevs LMS lrn.svg logo - hidden for enterprise users
-              and for the no-org apex panel (platform shows no logo on the image). */}
           {!isEnterprise && !noOrg && (
             <div className="login-topbar">
-              <Link prefetch href="https://learnhouse.app" target="_blank">
-                <img
-                  src="/lrn.svg"
-                  alt={BESTDEVS_LMS_NAME}
-                  width={30}
-                  height={30}
+              <Link prefetch href={resolveBestDevsLandingUrl()} target="_blank">
+                <BestDevsLogo
                   className={cn(
-                    "transition-opacity hover:opacity-100",
-                    text_color === 'light' ? "opacity-60 invert" : "opacity-40"
+                    'h-[30px] w-[30px] rounded-md transition-opacity hover:opacity-100',
+                    text_color === 'light' ? 'opacity-80' : 'opacity-60'
                   )}
                 />
               </Link>
@@ -190,14 +183,7 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
                           className="w-full h-full object-contain p-3"
                         />
                       ) : (
-                        <Image
-                          quality={100}
-                          width={96}
-                          height={96}
-                          src={learnhouseIcon}
-                          alt={BESTDEVS_LMS_NAME}
-                          className="object-contain"
-                        />
+                        <BestDevsLogo className="h-full w-full object-contain" />
                       )}
                     </div>
                   </Link>

@@ -168,7 +168,7 @@ function EmbedActivityClient({ activityId, courseuuid, orgslug, bgcolor }: Embed
         <div className="bg-white rounded-2xl nice-shadow p-8 max-w-md w-full text-center">
           <div className="mb-6">
             <Image
-              src="/learnhouse_bigicon.png"
+              src="/bestdevs-icon.png"
               alt="BestDevs LMS"
               width={64}
               height={64}
@@ -277,7 +277,7 @@ function PoweredByBadge({ activityUrl }: { activityUrl: string }) {
         className="bg-white/80 backdrop-blur-lg rounded-2xl p-2 light-shadow block cursor-pointer"
       >
         <Image
-          src="/lrn.svg"
+          src="/bestdevs-icon.png"
           alt="BestDevs LMS"
           width={20}
           height={20}

@@ -7,9 +7,8 @@ import { motion } from 'motion/react'
 import toast from 'react-hot-toast'
 import { verifyStripeConnection } from '@services/payments/providers/stripe'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
-import Image from 'next/image'
-import learnhouseIcon from 'public/learnhouse_bigicon_1.png'
 import { useTranslation } from 'react-i18next'
+import { BestDevsLogo } from '@components/Brand/BestDevsLogo'
 
 function StripeConnectCallbackInner() {
   const { t } = useTranslation()
@@ -69,13 +68,7 @@ function StripeConnectCallbackInner() {
     <div className="h-screen w-full bg-[#f8f8f8] flex items-center justify-center">
       <div className="flex flex-col items-center">
         <div className="mb-10">
-          <Image
-            quality={100}
-            width={50}
-            height={50}
-            src={learnhouseIcon}
-            alt=""
-          />
+          <BestDevsLogo className="h-[50px] w-[50px] rounded-xl" />
         </div>
 
         <motion.div

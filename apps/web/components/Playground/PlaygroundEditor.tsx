@@ -68,7 +68,7 @@ const EditorLearnHouseLogo = () => {
         animate={animation.animate}
         transition={animation.transition}
       >
-        <Image src="/lrn.svg" alt="BestDevs LMS" width={14} height={14} className="invert" />
+        <Image src="/bestdevs-icon.png" alt="BestDevs LMS" width={14} height={14} className="rounded" />
       </motion.div>
     </div>
   )

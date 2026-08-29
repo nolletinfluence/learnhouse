@@ -1,6 +1,7 @@
 'use client'
 import React from 'react'
 import { Check, GraduationCap, Presentation } from 'lucide-react'
+import { resolveBestDevsApplyUrl } from '@lib/bestdevs-brand'
 import {
   GENERAL_PLANS,
   PERSONAL_PLANS,
@@ -254,7 +255,7 @@ export default function PricingGrid({
                         {ENTERPRISE_PLAN.tagline}
                       </p>
                       <a
-                        href="https://learnhouse.app/contact?subject=business"
+                        href={resolveBestDevsApplyUrl()}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-block mt-6 px-5 py-2.5 text-[14px] font-bold bg-white text-black rounded-lg hover:bg-white/90 transition-colors"

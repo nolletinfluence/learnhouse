@@ -48,7 +48,8 @@ import DemoEntryCard from '@components/Objects/Demo/DemoEntryCard'
 import { createNewOrganization } from '@services/organizations/orgs'
 import { useLHAnalytics } from '@services/analytics/useLHAnalytics'
 import { AnalyticsEvent } from '@services/analytics/events'
-import { getAPIUrl, getUriWithOrg } from '@services/config/config'
+import { getAPIUrl, getLEARNHOUSE_DOMAIN_VAL, getUriWithOrg } from '@services/config/config'
+import { stripPort } from '@services/utils/ts/hostUtils'
 import { apiFetch } from '@services/utils/ts/requests'
 import {
   DropdownMenu,
@@ -608,7 +609,7 @@ function CreateOrgForm({
                 />
               </Form.Control>
               <span className="px-4 py-3 bg-gray-50 text-black/25 border-s border-gray-100 shrink-0 text-[13px] font-medium select-none">
-                .learnhouse.io
+                .{stripPort(getLEARNHOUSE_DOMAIN_VAL())}
               </span>
             </div>
             {formik.errors.slug === 'test_hint' && <TestHint t={t} />}
@@ -977,7 +978,7 @@ export default function CreateNewOrgPage() {
             <div className="flex justify-center">
               <Link href="/home">
                 { }
-                <img src="/lrn.svg" alt="BestDevs LMS" width={40} height={40} className="opacity-90" />
+                <img src="/bestdevs-icon.png" alt="BestDevs LMS" width={40} height={40} className="rounded-lg opacity-90" />
               </Link>
             </div>
             <div className="flex justify-end">

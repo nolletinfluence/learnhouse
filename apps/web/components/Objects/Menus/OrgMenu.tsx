@@ -1,7 +1,6 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 import CopilotBubble from '@components/Copilot/CopilotBubble'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query/keys'
@@ -18,7 +17,6 @@ import { useTranslation } from 'react-i18next'
 import useAdminStatus from '@components/Hooks/useAdminStatus'
 import {
   Question,
-  Book,
   Globe,
   ChatCircleDots,
   ChatCircle,
@@ -26,7 +24,6 @@ import {
   ChalkboardSimple,
   Signpost,
 } from '@phosphor-icons/react'
-import { DiscordIcon } from '@components/Objects/Icons/DiscordIcon'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +45,8 @@ import {
   TooltipTrigger,
 } from '@components/ui/tooltip'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
+import { BestDevsLogo } from '@components/Brand/BestDevsLogo'
+import { BESTDEVS_LMS_NAME, resolveBestDevsLandingUrl } from '@lib/bestdevs-brand'
 
 export const OrgMenu = (props: any) => {
   const orgslug = props.orgslug
@@ -159,12 +158,17 @@ export const OrgMenu = (props: any) => {
                   {org?.logo_image ? (
                     <img
                       src={`${getOrgLogoMediaDirectory(org.org_uuid, org?.logo_image)}`}
-                      alt="Learnhouse"
+                      alt={org?.name || BESTDEVS_LMS_NAME}
                       style={{ width: 'auto', height: '100%' }}
                       className="rounded-md"
                     />
                   ) : (
-                    <LearnHouseLogo logoFilter={colors.logoFilter} />
+                    <BestDevsLogo
+                      showName
+                      className="h-8 w-8 rounded-md bg-black p-1"
+                      wrapperClassName="flex items-center gap-2"
+                      nameClassName={`font-bold ${colors.text}`}
+                    />
                   )}
                 </div>
               </Link>
@@ -315,35 +319,13 @@ export const OrgMenu = (props: any) => {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <a
-                        href="https://docs.learnhouse.app"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2"
-                      >
-                        <Book size={16} weight="fill" />
-                        <span>{t('common.help_menu.documentation')}</span>
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <a
-                        href="https://learnhouse.app"
+                        href={resolveBestDevsLandingUrl()}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2"
                       >
                         <Globe size={16} weight="fill" />
                         <span>{t('common.help_menu.website')}</span>
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <a
-                        href="https://discord.gg/learnhouse"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2"
-                      >
-                        <DiscordIcon size={16} />
-                        <span>{t('common.help_menu.discord')}</span>
                       </a>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -554,17 +536,5 @@ const CopilotMenuButton = ({
         </button>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-
-const LearnHouseLogo = ({ logoFilter }: { logoFilter: string }) => {
-  return (
-    <Image
-      src="/lrn-text.svg"
-      alt="BestDevs LMS logo"
-      width={133}
-      height={40}
-      style={{ height: 'auto', filter: logoFilter }}
-    />
   )
 }

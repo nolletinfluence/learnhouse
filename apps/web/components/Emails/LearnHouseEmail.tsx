@@ -11,12 +11,7 @@ import {
   Text,
 } from '@react-email/components'
 import * as React from 'react'
-
-// Shared transactional email layout (React Email). One flexible template drives
-// every message — welcome, purchase, plan change, payment failed, etc. — via an
-// accent color plus optional card / transition / bullet blocks. Ported from the
-// platform repo's templates/shared.tsx and kept provider-agnostic (rendered to
-// HTML by services/emails/resend.ts).
+import { BESTDEVS_LMS_NAME, resolveBestDevsLogoUrl } from '@lib/bestdevs-brand'
 
 export interface InfoCard {
   label: string
@@ -42,11 +37,8 @@ export interface LearnHouseEmailProps {
   bulletPoints?: string[]
   card?: InfoCard
   transition?: TransitionCard
-  /** Optional call-to-action. */
   cta?: { label: string; href: string }
 }
-
-const LOGO_URL = 'https://www.learnhouse.io/learnhouse-dark.svg'
 
 export function LearnHouseEmail({
   accentColor,
@@ -64,11 +56,17 @@ export function LearnHouseEmail({
       <Preview>{subtitle}</Preview>
       <Body style={{ backgroundColor: '#f5f5f5', fontFamily: 'Inter, Helvetica, Arial, sans-serif', margin: 0, padding: '24px 0' }}>
         <Container style={{ backgroundColor: '#ffffff', borderRadius: 16, overflow: 'hidden', maxWidth: 560, margin: '0 auto', border: '1px solid #eee' }}>
-          {/* Accent bar */}
           <div style={{ height: 6, backgroundColor: accentColor }} />
 
           <Section style={{ padding: '32px 40px 8px' }}>
-            <Img src={LOGO_URL} alt="BestDevs LMS" height={28} style={{ marginBottom: 24 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 24px' }}>
+              <span style={{ display: 'inline-block', backgroundColor: '#0f0f10', borderRadius: 10, padding: 7 }}>
+                <Img src={resolveBestDevsLogoUrl()} alt="" width="26" height="26" style={{ display: 'block' }} />
+              </span>
+              <Text style={{ fontSize: 20, fontWeight: 900, color: '#171717', letterSpacing: -0.5, margin: 0 }}>
+                {BESTDEVS_LMS_NAME}
+              </Text>
+            </div>
             <Heading style={{ fontSize: 24, fontWeight: 800, color: '#171717', margin: '0 0 8px', lineHeight: 1.25 }}>
               {heading}
             </Heading>

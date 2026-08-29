@@ -364,7 +364,7 @@ class TestImportHelpers:
             (
                 {"manifest.json": json.dumps({"format": "wrong", "courses": []}).encode()},
                 400,
-                "Invalid package: Not a LearnHouse course export",
+                "Invalid package: Not a BestDevs LMS course export",
             ),
             (
                 {

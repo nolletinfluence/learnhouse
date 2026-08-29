@@ -183,7 +183,7 @@ async def api_export_courses_batch(
     response_model=ImportAnalysisResponse,
     summary="Analyze a course import package",
     description=(
-        "Upload and analyze a LearnHouse course export ZIP. Validates the package, "
+        "Upload and analyze a BestDevs LMS course export ZIP. Validates the package, "
         "extracts its contents, and returns a list of courses available for import "
         "along with a temp_id to use with the subsequent import endpoint."
     ),
@@ -660,7 +660,7 @@ async def api_clone_course(
     summary="Export course as ZIP",
     description=(
         "Export a single course and all its content (chapters, activities, blocks, "
-        "and files) as a ZIP archive following the LearnHouse export format."
+        "and files) as a ZIP archive following the BestDevs LMS export format."
     ),
     responses={
         200: {"description": "ZIP archive containing the exported course", "content": {"application/zip": {}}},

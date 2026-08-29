@@ -662,65 +662,6 @@ export default function OnboardingBar() {
                                       </div>
                                     )}
 
-                                  {/* Teach the world — BestDevs LMS University link */}
-                                  {step.id === 'teach_the_world' &&
-                                    !step.completed && (
-                                      <div className="relative px-3 pb-3 space-y-2">
-                                        <a
-                                          href="https://university.learnhouse.io"
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white nice-shadow hover:bg-gray-50 transition-colors"
-                                        >
-                                          <img
-                                            src="/UNI_LOGO.png"
-                                            alt="BestDevs LMS University"
-                                            className="h-9 w-auto shrink-0 rounded"
-                                          />
-                                          <div className="min-w-0">
-                                            <p className="text-xs font-semibold text-gray-700">
-                                              {t('onboarding.steps.teach_the_world.university')}
-                                            </p>
-                                            <p className="text-[11px] text-gray-400">
-                                              {t('onboarding.steps.teach_the_world.university_desc')}
-                                            </p>
-                                          </div>
-                                          <span className="text-gray-300 shrink-0 ms-auto">→</span>
-                                        </a>
-                                        <a
-                                          href="https://classroom.learnhouse.io"
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white nice-shadow hover:bg-gray-50 transition-colors"
-                                        >
-                                          <img
-                                            src="/theclassroom.png"
-                                            alt="The Classroom"
-                                            className="h-9 w-auto shrink-0 rounded"
-                                          />
-                                          <div className="min-w-0">
-                                            <p className="text-xs font-semibold text-gray-700">
-                                              {t('onboarding.steps.teach_the_world.classroom')}
-                                            </p>
-                                            <p className="text-[11px] text-gray-400">
-                                              {t('onboarding.steps.teach_the_world.classroom_desc')}
-                                            </p>
-                                          </div>
-                                          <span className="text-gray-300 shrink-0 ms-auto">→</span>
-                                        </a>
-                                        <button
-                                          onClick={() => {
-                                            track(AnalyticsEvent.OnboardingStepCompleted, { step_id: 'teach_the_world' })
-                                            completeStep('teach_the_world')
-                                            setShowFarewell(true)
-                                          }}
-                                          className="w-full flex items-center justify-center gap-2 py-2.5 mt-1 text-xs font-semibold text-white bg-black nice-shadow rounded-lg hover:bg-gray-800 transition-colors"
-                                        >
-                                          <Check size={14} weight="bold" />
-                                          {t('onboarding.done')}
-                                        </button>
-                                      </div>
-                                    )}
                                 </div>
                               </motion.div>
                             )
