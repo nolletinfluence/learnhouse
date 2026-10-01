@@ -1,18 +1,26 @@
-// Behaviour tests for the Stripe webhook receiver.
-//
-// Each case here corresponds to a way a paid checkout has previously failed to
-// upgrade an org: an event type that stopped being handled, a subscription that
-// Stripe had not materialized yet, or a retry answered "duplicate" after the
-// first delivery failed. All of them ack'd with a 200, so Stripe considered the
-// upgrade delivered and never retried.
-//
-// All fixtures are synthetic.
-
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 
 mock.module("server-only", () => ({}));
 
-// --- test doubles -----------------------------------------------------------
+const originalModules = new Map();
+for (const name of [
+  "next/headers",
+  "@services/billing/orgPlan",
+  "@services/billing/packs",
+  "@services/billing/activeUserBilling",
+  "@services/billing/emails",
+  "@services/billing/stripe",
+]) {
+  originalModules.set(name, { ...await import(name) });
+}
+
+afterAll(() => {
+  for (const [name, exports] of originalModules) {
+    mock.module(name, () => exports);
+  }
+});
+
+let originalWebhookSecret;
 
 const planWrites = [];
 let sessionRetrieveQueue = [];
@@ -47,9 +55,6 @@ mock.module("@services/billing/emails", () => ({
   sendPaymentFailedMail: async () => ({}),
 }));
 
-// The route derives the plan from the price id via planForPriceId; map one
-// invented price to `pro` so resolution succeeds without touching real env.
-// stripeClient is the shared lazy SDK client the route uses.
 let currentEvent = null;
 mock.module("@services/billing/stripe", () => ({
   planForPriceId: async (priceId) =>
@@ -76,8 +81,6 @@ mock.module("@services/billing/stripe", () => ({
 
 const { POST } = await import("../app/api/billing/webhook/route.ts");
 
-// --- helpers ----------------------------------------------------------------
-
 let eventCounter = 0;
 function nextEventId() {
   eventCounter += 1;
@@ -101,6 +104,7 @@ async function deliver(event) {
 }
 
 beforeEach(() => {
+  originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   planWrites.length = 0;
   sessionRetrieveQueue = [];
   sessionRetrieveCalls = 0;
@@ -110,9 +114,9 @@ beforeEach(() => {
 
 afterEach(() => {
   currentEvent = null;
+  if (originalWebhookSecret === undefined) delete process.env.STRIPE_WEBHOOK_SECRET;
+  else process.env.STRIPE_WEBHOOK_SECRET = originalWebhookSecret;
 });
-
-// --- tests ------------------------------------------------------------------
 
 describe("signature verification", () => {
   test("an unsigned or mis-signed payload is rejected without touching the plan", async () => {
@@ -136,8 +140,6 @@ describe("checkout.session.completed", () => {
   });
 
   test("retries a briefly-deferred subscription instead of dropping the upgrade", async () => {
-    // Stripe's basil API defers subscription creation until payment completes,
-    // so the expanded subscription is legitimately null on the first read.
     sessionRetrieveQueue = [
       { customer_details: {}, subscription: null },
       { customer_details: {}, subscription: subscriptionFixture() },
@@ -159,14 +161,11 @@ describe("checkout.session.completed", () => {
       type: "checkout.session.completed",
       data: { object: { id: "cs_test", payment_status: "paid" } },
     });
-    // A 200 here would end Stripe's retries and strand a paid org on free.
     expect(res.status).toBe(500);
     expect(planWrites).toHaveLength(0);
   });
 
   test("asks Stripe to redeliver when the price maps to no known plan", async () => {
-    // This is a missing STRIPE_PRICE_* env, not a foreign checkout — the
-    // session carries our org_id, so the upgrade is owed.
     sessionRetrieveQueue = [
       {
         customer_details: {},
@@ -186,8 +185,6 @@ describe("checkout.session.completed", () => {
   });
 
   test("acks a foreign checkout carrying no org_id", async () => {
-    // This Stripe account is shared with other products, whose checkouts land
-    // here too. Retrying them forever would eventually disable the endpoint.
     sessionRetrieveQueue = [
       { customer_details: {}, subscription: subscriptionFixture({ metadata: { label: "other-product" } }) },
     ];
@@ -250,9 +247,6 @@ describe("idempotency", () => {
   });
 
   test("a redelivery after a FAILED delivery is reprocessed, not called a duplicate", async () => {
-    // The failure mode this pins: marking an event before processing, without
-    // clearing it on failure, made Stripe's retry return a "duplicate" 200 and
-    // permanently drop the upgrade.
     const event = {
       id: nextEventId(),
       type: "checkout.session.completed",

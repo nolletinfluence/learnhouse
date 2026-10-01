@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import * as brand from '../lib/bestdevs-brand.ts'
 
@@ -10,6 +10,17 @@ const {
   resolveBestDevsPrivacyUrl,
   resolveBestDevsTermsUrl,
 } = brand
+
+let originalWindow
+
+beforeEach(() => {
+  originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+})
+
+afterEach(() => {
+  if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow)
+  else Reflect.deleteProperty(globalThis, 'window')
+})
 
 describe('BestDevs LMS product identity', () => {
   test('exposes the canonical product and tenant names', () => {
@@ -39,14 +50,17 @@ describe('BestDevs platform links', () => {
   })
 
   test('read browser runtime configuration', () => {
-    globalThis.window = {
-      __RUNTIME_CONFIG__: {
-        NEXT_PUBLIC_BESTDEVS_LANDING_URL: 'https://runtime.bestdevs.dev/',
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      writable: true,
+      value: {
+        __RUNTIME_CONFIG__: {
+          NEXT_PUBLIC_BESTDEVS_LANDING_URL: 'https://runtime.bestdevs.dev/',
+        },
       },
-    }
+    })
 
     expect(resolveBestDevsLandingUrl()).toBe('https://runtime.bestdevs.dev')
-    delete globalThis.window
   })
 
   test('only exposes legal links when explicitly configured', () => {

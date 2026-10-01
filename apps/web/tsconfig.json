@@ -6,6 +6,10 @@
       "dom.iterable",
       "esnext"
     ],
+    "types": [
+      "node",
+      "bun-types/test"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -22,31 +26,33 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",
     "paths": {
+      "*": [
+        "./*"
+      ],
       "@components/*": [
-        "components/*"
+        "./components/*"
       ],
       "@public/*": [
-        "public/*"
+        "./public/*"
       ],
       "@images/*": [
-        "public/img/*"
+        "./public/img/*"
       ],
       "@styles/*": [
-        "styles/*"
+        "./styles/*"
       ],
       "@services/*": [
-        "services/*"
+        "./services/*"
       ],
       "@editor/*": [
-        "components/Objects/Editor/*"
+        "./components/Objects/Editor/*"
       ],
       "@hooks/*": [
-        "components/Hooks/*"
+        "./components/Hooks/*"
       ],
       "@lib/*": [
-        "lib/*"
+        "./lib/*"
       ],
       "@/*": [
         "./*"

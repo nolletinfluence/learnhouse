@@ -1,5 +1,16 @@
 import assert from 'node:assert/strict'
-import { beforeEach, describe, test } from 'node:test'
+import { after, afterEach, beforeEach, describe, test } from 'node:test'
+
+const browserGlobalNames = ['window', 'document', 'navigator'] as const
+const originalGlobals = new Map(browserGlobalNames.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]))
+
+function restoreBrowserState() {
+  for (const name of browserGlobalNames) {
+    const descriptor = originalGlobals.get(name)
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor)
+    else Reflect.deleteProperty(globalThis, name)
+  }
+}
 
 type BrowserState = {
   stored?: string | null
@@ -39,10 +50,12 @@ function installBrowserState({
 }
 
 installBrowserState()
+after(restoreBrowserState)
 const { detectPreferredLocale } = await import('../lib/i18n')
 
 describe('BestDevs locale preference defaults', () => {
   beforeEach(() => installBrowserState())
+  afterEach(restoreBrowserState)
 
   test('a clean session uses Russian instead of the browser language', () => {
     assert.equal(detectPreferredLocale(), 'ru')

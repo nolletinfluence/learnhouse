@@ -1,22 +1,39 @@
 import assert from 'node:assert/strict'
-import { afterEach, describe, test } from 'node:test'
+import { after, afterEach, describe, test } from 'node:test'
 import { Window } from 'happy-dom'
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
+const browserGlobalNames = ['window', 'document', 'navigator', 'localStorage', 'IS_REACT_ACT_ENVIRONMENT'] as const
+const originalGlobals = new Map(browserGlobalNames.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]))
+let activeBrowser: Window | undefined
+
+function restoreBrowserState() {
+  activeBrowser?.close()
+  activeBrowser = undefined
+  for (const name of browserGlobalNames) {
+    const descriptor = originalGlobals.get(name)
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor)
+    else Reflect.deleteProperty(globalThis, name)
+  }
+}
+
 function installBrowserState({ stored, cookie, query = '' }: { stored?: string; cookie?: string; query?: string } = {}) {
+  activeBrowser?.close()
   const browser = new Window({ url: `http://localhost/${query}` })
+  activeBrowser = browser
   if (stored) browser.localStorage.setItem('i18nextLng', stored)
   if (cookie) browser.document.cookie = `i18next=${cookie}; path=/`
-  Object.defineProperty(globalThis, 'window', { configurable: true, value: browser })
-  Object.defineProperty(globalThis, 'document', { configurable: true, value: browser.document })
-  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: browser.navigator })
-  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: browser.localStorage })
+  Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: browser })
+  Object.defineProperty(globalThis, 'document', { configurable: true, writable: true, value: browser.document })
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, writable: true, value: browser.navigator })
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: browser.localStorage })
+  Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, writable: true, value: true })
   return browser
 }
 
 installBrowserState()
-Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true })
+after(restoreBrowserState)
 
 const { default: i18n, changeLanguage } = await import('../lib/i18n')
 const { default: I18nProvider } = await import('../components/Contexts/I18nContext')
@@ -65,6 +82,7 @@ async function mountOrganizationDefault(language: string) {
 afterEach(async () => {
   if (activeRoot) await act(async () => activeRoot?.unmount())
   activeRoot = undefined
+  restoreBrowserState()
 })
 
 describe('I18nProvider and OrgLanguageSync preference precedence', () => {
