@@ -30,7 +30,7 @@ function TrailCourseElement(props: TrailCourseElementProps) {
   const course = props.course
   const router = useRouter()
   const course_total_steps = props.run.course_total_steps
-  const course_completed_steps = props.run.steps.length
+  const course_completed_steps = props.run.steps.filter((step: any) => step.complete && step.teacher_verified).length
   const orgID = org?.id
   const course_progress = course_total_steps > 0
     ? Math.round((course_completed_steps / course_total_steps) * 100)
@@ -120,12 +120,14 @@ function TrailCourseElement(props: TrailCourseElementProps) {
               </div>
             </div>
             <div className="course_actions grow flex flex-row-reverse">
+{/*
               <button
                 onClick={() => quitCourse(course.course_uuid)}
                 className="bg-red-200 text-red-700 hover:bg-red-300  rounded-full text-xs h-5 px-2 font-bold"
               >
                 {t('courses.quit_course')}
               </button>
+*/}
             </div>
           </div>
         </div>

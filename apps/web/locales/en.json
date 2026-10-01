@@ -1,4 +1,5 @@
 {
+  "school": {"calendar": "Calendar", "applications": "Course applications"},
   "common": {
     "hello": "Hello",
     "home": "Home",

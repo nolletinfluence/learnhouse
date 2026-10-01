@@ -4,13 +4,12 @@ Central feature resolution logic (v2 config).
 4-layer resolution: deployment mode → plan config → overrides → purchased packs → admin toggles.
 """
 
-from src.core.deployment_mode import get_deployment_mode, EE_ONLY_FEATURES
+from src.core.deployment_mode import EE_ONLY_FEATURES, get_deployment_mode
 from src.security.features_utils.plans import (
     FEATURE_PLAN_REQUIREMENTS,
     get_plan_feature_config,
     is_paying_plan,
 )
-
 
 # Features that are always on (no admin toggle — cannot be disabled)
 ALWAYS_ON_FEATURES = {"courses", "usergroups", "assignments"}
@@ -115,6 +114,8 @@ def resolve_feature(feature: str, config: dict, org_id: int = 0, _extras: dict |
       never have their plan features toggled off).
     - limit=0 means unlimited.
     """
+    if feature == "ai":
+        return {"enabled": False, "available": False, "limit": 0, "required_plan": None}
     mode = get_deployment_mode()
     required_plan = FEATURE_PLAN_REQUIREMENTS.get(feature)
 

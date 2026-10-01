@@ -42,7 +42,7 @@ export function useCourseRights(courseuuid: string) {
   const access_token = session?.data?.tokens?.access_token
 
   const { data: rights, error, isLoading } = useQuery<CourseRights>({
-    queryKey: queryKeys.courses.rights(courseuuid),
+    queryKey: [...queryKeys.courses.rights(courseuuid), session?.data?.user?.id],
     queryFn: () => getCourseRights(courseuuid, access_token),
     enabled: !!courseuuid && !!access_token,
     staleTime: 60_000,

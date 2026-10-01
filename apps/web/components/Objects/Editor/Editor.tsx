@@ -487,6 +487,7 @@ function Editor(props: EditorProps) {
               </div>
             </div>
             <div className="activity-editor-users-section space-x-2">
+              {/*
               <div>
                 <div className="transition-all ease-linear text-teal-100 rounded-md hover:cursor-pointer">
                   {isButtonAvailable && canUseAI && (
@@ -545,6 +546,7 @@ function Editor(props: EditorProps) {
                   opacity: '0.5',
                 }}
               />
+              */}
               <div className="activity-editor-left-options space-x-2 ">
                 {/* Version History Button */}
                 {canUseVersioning ? (
@@ -665,11 +667,12 @@ function Editor(props: EditorProps) {
           style={{ position: 'relative', margin: '0 40px' }}
         >
           <div className="activity-editor-content-wrapper" style={{ flex: 1, margin: 0, marginTop: '97px' }}>
-            <AIEditorToolkit activity={props.activity} editor={editor} />
+            {/* <AIEditorToolkit activity={props.activity} editor={editor} /> */}
             <EditorContent editor={editor} />
           </div>
 
           {/* AI Editor Side Panel */}
+          {/*
           {editorReady && canUseAI && (
             <AIEditorSidePanel
               editor={editor}
@@ -677,6 +680,7 @@ function Editor(props: EditorProps) {
               course={props.course}
             />
           )}
+          */}
         </motion.div>
       </CourseProvider>
     </div>

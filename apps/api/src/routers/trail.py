@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Request
+
 from src.core.events.database import get_db_session
 from src.db.trails import TrailCreate, TrailRead
 from src.security.auth import get_current_user
@@ -8,12 +9,11 @@ from src.services.trail.trail import (
     add_activity_to_trail,
     add_course_to_trail,
     create_user_trail,
-    get_user_trails,
     get_user_trail_with_orgid,
-    remove_course_from_trail,
+    get_user_trails,
     remove_activity_from_trail,
+    remove_course_from_trail,
 )
-
 
 router = APIRouter(dependencies=[Depends(require_courses_feature)])
 
@@ -92,8 +92,7 @@ async def api_get_trail_by_org_id(
 
 @router.post(
     "/add_course/{course_uuid}",
-    response_model=TrailRead,
-    summary="Add course to trail",
+    summary="Request enrollment approval",
     description="Attach a course to the current user's learning trail.",
     responses={
         200: {"description": "Course added to trail.", "model": TrailRead},
@@ -107,7 +106,7 @@ async def api_add_course_to_trail(
     course_uuid: str,
     user=Depends(get_current_user),
     db_session=Depends(get_db_session),
-) -> TrailRead:
+):
     """
     Add Course to trail
     """

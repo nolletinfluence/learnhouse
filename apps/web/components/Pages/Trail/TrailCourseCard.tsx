@@ -37,7 +37,7 @@ function TrailCourseCard(props: TrailCourseCardProps) {
   const course = props.course
   const router = useRouter()
   const course_total_steps = props.run.course_total_steps
-  const course_completed_steps = props.run.steps.length
+  const course_completed_steps = props.run.steps.filter((step: any) => step.complete && step.teacher_verified).length
   const orgID = org?.id
   const course_progress = course_total_steps > 0
     ? Math.round((course_completed_steps / course_total_steps) * 100)
@@ -95,7 +95,8 @@ function TrailCourseCard(props: TrailCourseCardProps) {
 
   return (
     <div className="group relative flex flex-col bg-white rounded-xl nice-shadow overflow-hidden w-full transition-all duration-300 hover:scale-[1.01]" onMouseEnter={handleMouseEnter}>
-      {/* Dropdown Menu */}
+{/*
+
       <div className="absolute top-2 end-2 z-20">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -122,7 +123,8 @@ function TrailCourseCard(props: TrailCourseCardProps) {
         </DropdownMenu>
       </div>
 
-      {/* Thumbnail */}
+
+*/}
       <Link
         href={courseLink}
         className="block relative aspect-video overflow-hidden bg-gray-50"

@@ -1,35 +1,24 @@
 from datetime import datetime
-from typing import List, Optional
 from uuid import uuid4
-from sqlmodel import select, func, delete as sql_delete
-from sqlmodel.ext.asyncio.session import AsyncSession
-from src.db.courses.chapter_activities import ChapterActivity
+
 from fastapi import HTTPException, Request, status
+from sqlmodel import func, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from src.db.courses.activities import Activity
 from src.db.courses.courses import Course
-from src.db.trail_runs import TrailRun, TrailRunRead
+from src.db.trail_runs import StatusEnum, TrailRun, TrailRunRead
 from src.db.trail_steps import TrailStep
 from src.db.trails import Trail, TrailCreate, TrailRead
 from src.db.users import AnonymousUser, PublicUser
-from src.services.courses.certifications import (
-    check_course_completion_and_create_certificate,
-    is_course_fully_completed,
-    sync_trailrun_status,
-)
-from src.services.analytics.analytics import track
-from src.services.analytics import events as analytics_events
-from src.services.audit.audit import record_audit_event
-from src.db.user_audit_events import UserAuditEventType
-from src.services.webhooks.dispatch import dispatch_webhooks
-from src.security.rbac import check_resource_access, AccessAction
 from src.services.trail.access import ensure_learner_identity
 
 
 async def _build_trail_read(
     trail: Trail,
-    trail_runs_raw: List[TrailRun],
+    trail_runs_raw: list[TrailRun],
     db_session: AsyncSession,
-    user_id: Optional[int] = None,
+    user_id: int | None = None,
     with_course_info: bool = True,
 ) -> TrailRead:
     """Build a TrailRead with all nested data using batch queries instead of N+1 loops."""
@@ -51,14 +40,15 @@ async def _build_trail_read(
     course_total_steps_map: dict[int, int] = {}
     if with_course_info and course_ids:
         step_counts = (await db_session.execute(
-            select(ChapterActivity.course_id, func.count(ChapterActivity.id))  # type: ignore
-            .where(ChapterActivity.course_id.in_(course_ids))  # type: ignore
-            .group_by(ChapterActivity.course_id)
+            select(Activity.course_id, func.count(Activity.id))
+            .where(Activity.course_id.in_(course_ids), Activity.published == True)
+            .group_by(Activity.course_id)
         )).all()
         course_total_steps_map = {row[0]: row[1] for row in step_counts}
 
     # Batch fetch all trail steps for these trail runs
-    steps_statement = select(TrailStep).where(
+    steps_statement = select(TrailStep).join(Activity, Activity.id == TrailStep.activity_id).where(
+        Activity.published == True,
         TrailStep.trailrun_id.in_(trail_run_ids)  # type: ignore
     )
     if user_id is not None:
@@ -93,10 +83,18 @@ async def _build_trail_read(
         # Attach steps with course data (expunge to avoid dirty-tracking the data override)
         for step in steps_by_run.get(tr.id, []):
             db_session.expunge(step)
+            step.complete = step.complete and step.teacher_verified
             step_course = course_map.get(step.course_id)
-            step.data = {"course": step_course.model_dump() if step_course else None}
+            step.data = {**(step.data or {}), "course": step_course.model_dump() if step_course else None}
             run.steps.append(step)
 
+        if with_course_info and run.status != StatusEnum.STATUS_PAUSED:
+            completed = sum(step.complete for step in run.steps)
+            run.status = (
+                StatusEnum.STATUS_COMPLETED
+                if run.course_total_steps > 0 and completed == run.course_total_steps
+                else StatusEnum.STATUS_IN_PROGRESS
+            )
         trail_runs.append(run)
 
     return TrailRead(**trail.model_dump(), runs=trail_runs)
@@ -132,6 +130,7 @@ async def create_user_trail(
     trail.creation_date = str(datetime.now())
     trail.update_date = str(datetime.now())
     trail.org_id = trail_object.org_id
+    trail.user_id = user.id
     trail.trail_uuid = str(f"trail_{uuid4()}")
 
     # create trail
@@ -163,7 +162,7 @@ async def get_user_trails(
 
     await ensure_learner_identity(user, trail.org_id, db_session)
 
-    statement = select(TrailRun).where(TrailRun.trail_id == trail.id)
+    statement = select(TrailRun).where(TrailRun.trail_id == trail.id, TrailRun.status != StatusEnum.STATUS_CANCELLED)
     trail_runs_raw = (await db_session.execute(statement)).scalars().all()
 
     return await _build_trail_read(trail, list(trail_runs_raw), db_session)
@@ -216,7 +215,7 @@ async def get_user_trail_with_orgid(
         db_session=db_session,
     )
 
-    statement = select(TrailRun).where(TrailRun.trail_id == trail.id)
+    statement = select(TrailRun).where(TrailRun.trail_id == trail.id, TrailRun.status != StatusEnum.STATUS_CANCELLED)
     trail_runs_raw = (await db_session.execute(statement)).scalars().all()
 
     return await _build_trail_read(trail, list(trail_runs_raw), db_session)
@@ -228,176 +227,8 @@ async def add_activity_to_trail(
     activity_uuid: str,
     db_session: AsyncSession,
 ) -> TrailRead:
-    if isinstance(user, AnonymousUser):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Anonymous users cannot access this endpoint",
-        )
+    raise HTTPException(status_code=403, detail="Lesson completion is recorded by mentor attendance")
 
-    # Look for the activity
-    statement = select(Activity).where(Activity.activity_uuid == activity_uuid)
-    activity = (await db_session.execute(statement)).scalars().first()
-
-    if not activity:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found"
-        )
-
-    statement = select(Course).where(Course.id == activity.course_id)
-    course = (await db_session.execute(statement)).scalars().first()
-
-    if not course:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
-        )
-
-    await ensure_learner_identity(user, course.org_id, db_session)
-
-    await check_resource_access(
-        request, db_session, user, course.course_uuid, AccessAction.READ
-    )
-
-    trail = await check_trail_presence(
-        org_id=course.org_id,
-        user_id=user.id,
-        request=request,
-        user=user,
-        db_session=db_session,
-    )
-
-    statement = select(TrailRun).where(
-        TrailRun.trail_id == trail.id, TrailRun.course_id == course.id, TrailRun.user_id == user.id
-    )
-    trailrun = (await db_session.execute(statement)).scalars().first()
-
-    if not trailrun:
-        trailrun = TrailRun(
-            trail_id=trail.id if trail.id is not None else 0,
-            course_id=course.id if course.id is not None else 0,
-            org_id=course.org_id,
-            user_id=user.id,
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db_session.add(trailrun)
-        await db_session.commit()
-        await db_session.refresh(trailrun)
-
-    statement = select(TrailStep).where(
-        TrailStep.trailrun_id == trailrun.id, TrailStep.activity_id == activity.id, TrailStep.user_id == user.id
-    )
-    trailstep = (await db_session.execute(statement)).scalars().first()
-
-    is_new_completion = trailstep is None
-    if is_new_completion:
-        trailstep = TrailStep(
-            trailrun_id=trailrun.id if trailrun.id is not None else 0,
-            activity_id=activity.id if activity.id is not None else 0,
-            course_id=course.id if course.id is not None else 0,
-            trail_id=trail.id if trail.id is not None else 0,
-            org_id=course.org_id,
-            complete=True,
-            teacher_verified=False,
-            grade="",
-            user_id=user.id,
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db_session.add(trailstep)
-        await db_session.commit()
-        await db_session.refresh(trailstep)
-
-    # Only track on first completion — avoid duplicates on re-visits
-    if is_new_completion:
-        await track(
-            event_name=analytics_events.ACTIVITY_COMPLETED,
-            org_id=course.org_id,
-            user_id=user.id,
-            properties={
-                "activity_uuid": activity_uuid,
-                "course_uuid": course.course_uuid,
-                "activity_type": activity.activity_type if activity.activity_type else "",
-            },
-        )
-        await record_audit_event(
-            event_type=UserAuditEventType.ACTIVITY_COMPLETED,
-            user_id=user.id,
-            org_id=course.org_id,
-            target_uuid=activity_uuid,
-            metadata={
-                "course_uuid": course.course_uuid,
-                "course_name": course.name,
-                "activity_type": activity.activity_type or "",
-            },
-        )
-        await dispatch_webhooks(
-            event_name=analytics_events.ACTIVITY_COMPLETED,
-            org_id=course.org_id,
-            data={
-                "user": {"user_uuid": user.user_uuid, "email": user.email, "username": user.username},
-                "activity": {"activity_uuid": activity_uuid, "activity_type": activity.activity_type or ""},
-                "course": {"course_uuid": course.course_uuid, "name": course.name},
-            },
-        )
-
-    # Fire COURSE_COMPLETED when this specific activity completion pushed the
-    # course over the finish line. Two conditions:
-    #   1. This call actually added a new TrailStep (is_new_completion) — so
-    #      it represents a real transition, not a re-visit of an already-done
-    #      activity.
-    #   2. All activities in the course now have completed TrailSteps.
-    #
-    # We intentionally do NOT use ``check_course_completion_and_create_certificate``'s
-    # return value here because it only reports True when a new certificate
-    # row is created — courses without a configured certification would never
-    # fire this webhook otherwise. See that function's docstring for context.
-    course_was_completed = False
-    if is_new_completion and course and course.id:
-        course_was_completed = await is_course_fully_completed(user.id, course.id, db_session)
-
-    # Always run the certificate side effect when the course is complete,
-    # regardless of whether a cert is configured (the function no-ops if none).
-    if course_was_completed and course and course.id:
-        try:
-            await check_course_completion_and_create_certificate(
-                request, user.id, course.id, db_session
-            )
-        except Exception:
-            # Certificate creation must not block the webhook dispatch.
-            pass
-
-        # Flip the enrollment row to COMPLETED so analytics/enrollment counts
-        # match reality. Kept OUTSIDE the certificate try/except above so a
-        # cert failure never leaves a completed course stuck "in progress".
-        await sync_trailrun_status(user.id, course.id, db_session)
-
-    if course_was_completed:
-        await track(
-            event_name=analytics_events.COURSE_COMPLETED,
-            org_id=course.org_id,
-            user_id=user.id,
-            properties={"course_uuid": course.course_uuid},
-        )
-        await record_audit_event(
-            event_type=UserAuditEventType.COURSE_COMPLETED,
-            user_id=user.id,
-            org_id=course.org_id,
-            target_uuid=course.course_uuid,
-            metadata={"course_name": course.name},
-        )
-        await dispatch_webhooks(
-            event_name=analytics_events.COURSE_COMPLETED,
-            org_id=course.org_id,
-            data={
-                "user": {"user_uuid": user.user_uuid, "email": user.email, "username": user.username},
-                "course": {"course_uuid": course.course_uuid, "name": course.name},
-            },
-        )
-
-    statement = select(TrailRun).where(TrailRun.trail_id == trail.id, TrailRun.user_id == user.id)
-    trail_runs_raw = (await db_session.execute(statement)).scalars().all()
-
-    return await _build_trail_read(trail, list(trail_runs_raw), db_session, user_id=user.id)
 
 async def remove_activity_from_trail(
     request: Request,
@@ -405,62 +236,7 @@ async def remove_activity_from_trail(
     activity_uuid: str,
     db_session: AsyncSession,
 ) -> TrailRead:
-    if isinstance(user, AnonymousUser):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Anonymous users cannot access this endpoint",
-        )
-
-    # Look for the activity
-    statement = select(Activity).where(Activity.activity_uuid == activity_uuid)
-    activity = (await db_session.execute(statement)).scalars().first()
-
-    if not activity:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found"
-        )
-
-    statement = select(Course).where(Course.id == activity.course_id)
-    course = (await db_session.execute(statement)).scalars().first()
-
-    if not course:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
-        )
-
-    await ensure_learner_identity(user, course.org_id, db_session)
-
-    statement = select(Trail).where(
-        Trail.org_id == course.org_id, Trail.user_id == user.id
-    )
-    trail = (await db_session.execute(statement)).scalars().first()
-
-    if not trail:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trail not found"
-        )
-
-    # Delete the trail step for this activity
-    statement = select(TrailStep).where(
-        TrailStep.activity_id == activity.id,
-        TrailStep.user_id == user.id,
-        TrailStep.trail_id == trail.id
-    )
-    trail_step = (await db_session.execute(statement)).scalars().first()
-
-    if trail_step:
-        await db_session.delete(trail_step)
-        await db_session.commit()
-        # Completion may have been lost — demote the enrollment back to
-        # in-progress so counts stay accurate.
-        if course.id:
-            await sync_trailrun_status(user.id, course.id, db_session)
-
-    # Get updated trail data
-    statement = select(TrailRun).where(TrailRun.trail_id == trail.id, TrailRun.user_id == user.id)
-    trail_runs_raw = (await db_session.execute(statement)).scalars().all()
-
-    return await _build_trail_read(trail, list(trail_runs_raw), db_session, user_id=user.id)
+    raise HTTPException(status_code=403, detail="Only a mentor can correct lesson attendance")
 
 
 async def add_course_to_trail(
@@ -469,92 +245,8 @@ async def add_course_to_trail(
     course_uuid: str,
     db_session: AsyncSession,
 ) -> TrailRead:
-    if isinstance(user, AnonymousUser):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Anonymous users cannot access this endpoint",
-        )
-
-    statement = select(Course).where(Course.course_uuid == course_uuid)
-    course = (await db_session.execute(statement)).scalars().first()
-
-    if not course:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
-        )
-
-    await ensure_learner_identity(user, course.org_id, db_session)
-
-    await check_resource_access(
-        request, db_session, user, course.course_uuid, AccessAction.READ
-    )
-
-    # check if run already exists
-    statement = select(TrailRun).where(
-        TrailRun.course_id == course.id, TrailRun.user_id == user.id
-    )
-    trailrun = (await db_session.execute(statement)).scalars().first()
-
-    if trailrun:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="TrailRun already exists"
-        )
-
-    statement = select(Trail).where(
-        Trail.org_id == course.org_id, Trail.user_id == user.id
-    )
-    trail = (await db_session.execute(statement)).scalars().first()
-
-    if not trail:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trail not found"
-        )
-
-    statement = select(TrailRun).where(
-        TrailRun.trail_id == trail.id, TrailRun.course_id == course.id, TrailRun.user_id == user.id
-    )
-    trail_run = (await db_session.execute(statement)).scalars().first()
-
-    if not trail_run:
-        trail_run = TrailRun(
-            trail_id=trail.id if trail.id is not None else 0,
-            course_id=course.id if course.id is not None else 0,
-            org_id=course.org_id,
-            user_id=user.id,
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db_session.add(trail_run)
-        await db_session.commit()
-        await db_session.refresh(trail_run)
-
-    # Track course enrollment
-    await track(
-        event_name=analytics_events.COURSE_ENROLLED,
-        org_id=course.org_id,
-        user_id=user.id,
-        properties={"course_uuid": course.course_uuid},
-    )
-    await record_audit_event(
-        event_type=UserAuditEventType.COURSE_ENROLLED,
-        user_id=user.id,
-        org_id=course.org_id,
-        target_uuid=course.course_uuid,
-        metadata={"course_name": course.name},
-    )
-    await dispatch_webhooks(
-        event_name=analytics_events.COURSE_ENROLLED,
-        org_id=course.org_id,
-        data={
-            "user": {"user_uuid": user.user_uuid, "email": user.email, "username": user.username},
-            "course": {"course_uuid": course.course_uuid, "name": course.name},
-        },
-    )
-
-    statement = select(TrailRun).where(TrailRun.trail_id == trail.id, TrailRun.user_id == user.id)
-    trail_runs_raw = (await db_session.execute(statement)).scalars().all()
-
-    return await _build_trail_read(trail, list(trail_runs_raw), db_session, user_id=user.id)
+    from src.services.courses.learning import request_enrollment
+    return await request_enrollment(request, course_uuid, user, db_session)
 
 
 async def remove_course_from_trail(
@@ -563,53 +255,4 @@ async def remove_course_from_trail(
     course_uuid: str,
     db_session: AsyncSession,
 ) -> TrailRead:
-    if isinstance(user, AnonymousUser):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Anonymous users cannot access this endpoint",
-        )
-
-    statement = select(Course).where(Course.course_uuid == course_uuid)
-    course = (await db_session.execute(statement)).scalars().first()
-
-    if not course:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
-        )
-
-    await ensure_learner_identity(user, course.org_id, db_session)
-
-    statement = select(Trail).where(
-        Trail.org_id == course.org_id, Trail.user_id == user.id
-    )
-    trail = (await db_session.execute(statement)).scalars().first()
-
-    if not trail:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Trail not found"
-        )
-
-    statement = select(TrailRun).where(
-        TrailRun.trail_id == trail.id, TrailRun.course_id == course.id, TrailRun.user_id == user.id
-    )
-    trail_run = (await db_session.execute(statement)).scalars().first()
-
-    if trail_run:
-        await db_session.delete(trail_run)
-
-    # Delete all trail steps for this course in a single statement.
-    # Both the TrailRun delete and the TrailStep delete are committed together
-    # so a failure cannot leave orphaned (and still "complete") TrailSteps that
-    # would resurrect the course's completion state if it is re-added later.
-    await db_session.execute(
-        sql_delete(TrailStep).where(
-            TrailStep.course_id == course.id,
-            TrailStep.user_id == user.id,
-        )
-    )
-    await db_session.commit()
-
-    statement = select(TrailRun).where(TrailRun.trail_id == trail.id, TrailRun.user_id == user.id)
-    trail_runs_raw = (await db_session.execute(statement)).scalars().all()
-
-    return await _build_trail_read(trail, list(trail_runs_raw), db_session, user_id=user.id)
+    raise HTTPException(status_code=403, detail="Only an administrator can remove a course enrollment")

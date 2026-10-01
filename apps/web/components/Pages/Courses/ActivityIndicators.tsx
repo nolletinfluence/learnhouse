@@ -341,7 +341,7 @@ function ActivityIndicators(props: Props) {
 
     if (run) {
       return run.steps.find(
-        (step: any) => step.activity_id === activity.id && step.complete === true
+        (step: any) => step.activity_id === activity.id && step.complete === true && step.teacher_verified === true
       );
     }
     return false;

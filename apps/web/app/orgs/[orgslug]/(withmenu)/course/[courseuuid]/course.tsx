@@ -1,4 +1,5 @@
 'use client'
+import { automaticCourseSEO } from '@/lib/seo/course'
 import Link from 'next/link'
 import React, { useEffect, useState, Suspense } from 'react'
 import { getUriWithOrg } from '@services/config/config'
@@ -24,7 +25,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query/keys'
 import { getActivityWithAuthHeader } from '@services/courses/activities'
 import { useTranslation } from 'react-i18next'
-import CourseCommunitySection from '@components/Objects/Communities/CourseCommunitySection'
+// import CourseCommunitySection from '@components/Pages/Courses/CourseCommunitySection'
+import StudentJournal from '@components/Pages/Courses/StudentJournal'
 import CourseShare from '@components/Objects/Courses/CourseShare/CourseShare'
 import { JsonLd } from '@components/SEO/JsonLd'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
@@ -47,6 +49,7 @@ function ManagementPreviewCard({ course, courseuuid, orgslug }: any) {
         <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-sm text-blue-900">
           Управленческий просмотр без зачисления и записи прогресса.
         </div>
+        <Link href={getUriWithOrg(orgslug, `/dash/courses/course/${courseuuid.replace(/^course_/, '')}/content`)} className="flex items-center justify-center rounded-xl bg-lime-300 p-3 font-semibold">Редактировать курс</Link>
         <Link
           href={previewHref}
           className="w-full py-3 rounded-lg bg-neutral-900 text-white font-semibold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
@@ -74,18 +77,19 @@ const CourseClient = (props: any) => {
   const session = useLHSession() as any;
   const access_token = session?.data?.tokens?.access_token;
   const queryClient = useQueryClient()
-  const { isManagement } = useManagementIdentity()
-  const experience = courseExperiencePolicy(isManagement)
+  const { isManagement: isGlobalManagement } = useManagementIdentity()
 
   const { data: clientCourseData, error: courseError, isLoading: courseLoading } = useQuery({
-    queryKey: queryKeys.courses.meta(courseuuid),
+    queryKey: [...queryKeys.courses.meta(courseuuid), session?.data?.user?.id ?? "guest"],
     queryFn: () => getCourseMetadata(courseuuid, {}, access_token, { slim: true }),
-    enabled: !!courseuuid && !serverError,
+    enabled: !!courseuuid && session?.status !== "loading",
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
 
-  const course = initialCourse || clientCourseData;
+  const course = clientCourseData || initialCourse;
+  const isManagement = isGlobalManagement || course?.learning_access === "staff"
+  const experience = courseExperiencePolicy(isManagement)
 
   const { track } = useLHAnalytics('learner')
 
@@ -197,7 +201,7 @@ const CourseClient = (props: any) => {
   }
 
   // Determine the active error (server-side or client-side)
-  const activeError = serverError || courseError
+  const activeError = courseError || (!courseLoading && !clientCourseData ? serverError : null)
 
   // Show error if course fetch failed
   if (!course && activeError) {
@@ -315,7 +319,7 @@ const CourseClient = (props: any) => {
       return cleanRunCourseUuid === cleanCourseUuid
     })
     if (!run || !Array.isArray(run.steps)) return false
-    return !!run.steps.find((step: any) => step.activity_id == activity.id)
+    return !!run.steps.find((step: any) => step.activity_id == activity.id && step.complete && step.teacher_verified)
   }
 
   const isActivityCurrent = (activity: any) => {
@@ -337,16 +341,16 @@ const CourseClient = (props: any) => {
   // Generate JSON-LD structured data for SEO
   const generateJsonLd = () => {
     if (!course || !org) return null
-    const seo = course.seo || {}
+    const seo = automaticCourseSEO(course, org.name)
 
     // Check if JSON-LD is enabled (defaults to true if not set)
-    if (seo.enable_jsonld === false) return null
+    if (!seo.index) return null
 
     const jsonLd = {
       '@context': 'https://schema.org',
       '@type': 'Course',
-      name: seo.title || course.name,
-      description: seo.description || course.description || '',
+      name: course.name,
+      description: seo.description,
       provider: {
         '@type': 'Organization',
         name: org.name,
@@ -539,11 +543,13 @@ const CourseClient = (props: any) => {
                 )}
                 
                 {/* Authors & Updates Box */}
+                {/*
                 <div className="bg-white shadow-md shadow-gray-300/25 outline outline-1 outline-neutral-200/40 rounded-lg overflow-hidden p-4">
                   <CourseProvider courseuuid={course.course_uuid}>
                     <CourseAuthors authors={course.authors} />
                   </CourseProvider>
                 </div>
+                */}
               </div>
             </div>
 
@@ -593,7 +599,7 @@ const CourseClient = (props: any) => {
               )
             })()}
 
-            <div className="w-full my-5 mb-10">
+            {(isManagement || course.learning_access === 'enrolled') && <div className="w-full my-5 mb-10">
               <h2 className="py-5 text-xl md:text-2xl font-bold">{t('courses.course_lessons')}</h2>
               <div className="bg-white shadow-md shadow-gray-300/25 outline outline-1 outline-neutral-200/40 rounded-lg overflow-hidden">
                 {(course.chapters ?? []).map((chapter: any, idx: number) => {
@@ -721,11 +727,12 @@ const CourseClient = (props: any) => {
                   )
                 })}
               </div>
-            </div>
+            </div>}
 
             {/* Community Section */}
             <Suspense fallback={<div className="animate-pulse h-48 bg-gray-100 rounded-lg mt-4" />}>
-              <CourseCommunitySection courseUuid={course.course_uuid} orgslug={orgslug} />
+              {/* <CourseCommunitySection courseUuid={course.course_uuid} orgslug={orgslug} /> */}
+              {course.learning_access === "enrolled" && <StudentJournal course={course} />}
             </Suspense>
           </GeneralWrapperStyled>
 

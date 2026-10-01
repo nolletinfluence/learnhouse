@@ -60,7 +60,15 @@ export function OrgProvider({
   }, [session?.data?.roles, session?.data?.user?.is_superadmin, org?.id, session.status])
 
   const contextValue = useMemo<OrgContextValue>(() => ({
-    org,
+    org: org ? {
+      ...org,
+      config: { ...org.config, config: {
+        ...org.config?.config,
+        resolved_features: { ...org.config?.config?.resolved_features, ai: { enabled: false, available: false } },
+        features: { ...org.config?.config?.features, ai: { enabled: false, copilot_enabled: false } },
+        admin_toggles: { ...org.config?.config?.admin_toggles, ai: { disabled: true, copilot_enabled: false } },
+      } },
+    } : org,
     isUserPartOfTheOrg,
     orgslug,
   }), [org, isUserPartOfTheOrg, orgslug])

@@ -17,20 +17,29 @@ Access Rules:
 """
 
 import logging
-from typing import Union, Optional
+
 from fastapi import HTTPException, Request, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from src.db.users import AnonymousUser, PublicUser, APITokenUser
-from src.db.resource_authors import ResourceAuthor, ResourceAuthorshipEnum, ResourceAuthorshipStatusEnum
+from src.db.resource_authors import (
+    ResourceAuthor,
+    ResourceAuthorshipEnum,
+    ResourceAuthorshipStatusEnum,
+)
 from src.db.usergroup_resources import UserGroupResource
 from src.db.usergroup_user import UserGroupUser
-from src.security.rbac.types import AccessAction, AccessContext, AccessDecision, ResourceConfig
-from src.security.rbac.config import get_resource_config, RESOURCE_CONFIGS
+from src.db.users import AnonymousUser, APITokenUser, PublicUser
+from src.security.rbac.config import RESOURCE_CONFIGS, get_resource_config
 from src.security.rbac.rbac import (
-    authorization_verify_based_on_roles,
     authorization_verify_based_on_org_admin_status,
+    authorization_verify_based_on_roles,
+)
+from src.security.rbac.types import (
+    AccessAction,
+    AccessContext,
+    AccessDecision,
+    ResourceConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,7 +65,7 @@ class ResourceAccessChecker:
         self,
         request: Request,
         db_session: AsyncSession,
-        current_user: Union[PublicUser, AnonymousUser, APITokenUser],
+        current_user: PublicUser | AnonymousUser | APITokenUser,
     ):
         self.request = request
         self.db_session = db_session
@@ -69,7 +78,7 @@ class ResourceAccessChecker:
         self._admin_cache: dict[str, bool] = {}
         self._public_published_cache: dict[str, tuple[bool, bool]] = {}
         self._usergroup_cache: dict[tuple[str, bool], bool] = {}
-        self._parent_uuid_cache: dict[str, Optional[str]] = {}
+        self._parent_uuid_cache: dict[str, str | None] = {}
 
     async def check_access(
         self,
@@ -124,6 +133,25 @@ class ResourceAccessChecker:
                 action=action.value,
                 context=context.value,
             )
+
+        if action == AccessAction.READ and resource_uuid.startswith(("activity_", "chapter_")):
+            from src.db.courses.activities import Activity
+            from src.db.courses.chapters import Chapter
+            from src.db.courses.courses import Course
+            from src.services.courses.learning_access import (
+                require_course_learning_access,
+                require_lesson_learning_access,
+            )
+            model = Activity if resource_uuid.startswith("activity_") else Chapter
+            uuid_field = model.activity_uuid if model is Activity else model.chapter_uuid
+            row = (await self.db_session.execute(select(Course, model).join(model, model.course_id == Course.id)
+                      .where(uuid_field == resource_uuid))).first()
+            if row is not None:
+                course, child = row
+                if model is Activity:
+                    await require_lesson_learning_access(course, child, self.current_user, self.db_session)
+                else:
+                    await require_course_learning_access(course, self.current_user, self.db_session)
 
         # For child resources, delegate access check to the parent resource
         # This handles chapters -> courses, episodes -> podcasts, etc.
@@ -275,6 +303,14 @@ class ResourceAccessChecker:
         """Check public view read access with full rule chain."""
         user_id = self._get_user_id()
         is_public, is_published = await self._is_public_and_published(resource_uuid, config)
+
+        if resource_uuid.startswith("course_") and is_published:
+            from src.db.courses.courses import Course
+            from src.services.courses.learning_access import course_learning_access
+            course = (await self.db_session.execute(select(Course).where(Course.course_uuid == resource_uuid))).scalars().first()
+            if course and await course_learning_access(course, self.current_user, self.db_session) == "enrolled":
+                return AccessDecision(allowed=True, reason="Approved course enrollment", resource_uuid=resource_uuid,
+                                      user_id=user_id, action="read")
 
         logger.info(f"[ACCESS_CHECK] resource_uuid={resource_uuid}, user_id={user_id}, is_public={is_public}, is_published={is_published}")
 
@@ -638,7 +674,7 @@ class ResourceAccessChecker:
         self,
         resource_uuid: str,
         config: ResourceConfig,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Resolve the parent resource UUID for child resources.
 
@@ -687,7 +723,7 @@ class ResourceAccessChecker:
         self,
         parent_id: int,
         parent_config: ResourceConfig,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Look up parent resource UUID by its ID."""
         if parent_config.resource_type == "courses":
             from src.db.courses.courses import Course
@@ -807,8 +843,8 @@ class ResourceAccessChecker:
         if not org_id:
             return
 
-        from src.services.orgs.mfa_policy import enforce_org_mfa_policy
         from src.services.orgs.auth_policy import enforce_org_auth_policy
+        from src.services.orgs.mfa_policy import enforce_org_mfa_policy
 
         await enforce_org_mfa_policy(self.db_session, user_id, org_id)
         await enforce_org_auth_policy(self.db_session, user_id, org_id)
@@ -979,8 +1015,8 @@ class ResourceAccessChecker:
 def _get_request_checker(
     request: Request,
     db_session: AsyncSession,
-    current_user: Union[PublicUser, AnonymousUser, APITokenUser],
-) -> "ResourceAccessChecker":
+    current_user: PublicUser | AnonymousUser | APITokenUser,
+) -> ResourceAccessChecker:
     """
     Return a ResourceAccessChecker scoped to the current request, reusing the
     same instance (and its memoization caches) across every RBAC call within
@@ -1007,7 +1043,7 @@ def _get_request_checker(
 async def check_resource_access(
     request: Request,
     db_session: AsyncSession,
-    current_user: Union[PublicUser, AnonymousUser, APITokenUser],
+    current_user: PublicUser | AnonymousUser | APITokenUser,
     resource_uuid: str,
     action: AccessAction,
     context: AccessContext = AccessContext.PUBLIC_VIEW,

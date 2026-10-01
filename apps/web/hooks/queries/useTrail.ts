@@ -19,9 +19,9 @@ export function useTrail(
   const accessToken = session?.data?.tokens?.access_token as string | undefined
 
   return useQuery({
-    queryKey: queryKeys.trail.org(orgId!),
+    queryKey: [...queryKeys.trail.org(orgId!), session?.data?.user?.id],
     queryFn: () => fetchTrail(orgId!, accessToken),
-    enabled: !!orgId && enabled,
+    enabled: !!orgId && !!accessToken && enabled,
     staleTime: 30_000,
   })
 }

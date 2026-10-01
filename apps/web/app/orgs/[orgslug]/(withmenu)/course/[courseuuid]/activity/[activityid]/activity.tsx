@@ -566,9 +566,9 @@ function ActivityClient(props: ActivityClientProps) {
             flush unsaved task answers before grading (avoids silent 0%). */}
         <AssignmentDirtyTasksProvider>
         <Suspense fallback={<LoadingFallback />}>
-          <AIChatBotProvider>
+          {/* <AIChatBotProvider> */}
             <Suspense fallback={null}>
-              <AISidePanelContentWrapper>
+              {/* <AISidePanelContentWrapper> */}
             {isFocusMode ? (
               <AnimatePresence>
                 <motion.div
@@ -782,7 +782,7 @@ function ActivityClient(props: ActivityClientProps) {
                                 nextActivity
                                   ? `${t('common.next')}: ${nextActivity.name}`
                                   : isLastActivity
-                                    ? t('course.finish_course', 'Finish course')
+                                    ? 'Итоги курса'
                                     : t('activities.no_next_activity')
                               }
                             >
@@ -792,7 +792,7 @@ function ActivityClient(props: ActivityClientProps) {
                                   {nextActivity
                                     ? nextActivity.name
                                     : isLastActivity
-                                      ? t('course.finish_course', 'Finish course')
+                                      ? 'Итоги курса'
                                       : t('activities.no_next_activity')}
                                 </span>
                               </div>
@@ -982,7 +982,7 @@ function ActivityClient(props: ActivityClientProps) {
                               <AuthenticatedClientElement checkMethod="authentication">
                                 {activity.activity_type != 'TYPE_ASSIGNMENT' && (
                                   <>
-                                    <AIActivityAsk activity={activity} />
+
                                     <ActivityChapterDropdown
                                       course={course}
                                       currentActivityId={activity.activity_uuid ? activity.activity_uuid.replace('activity_', '') : activityid.replace('activity_', '')}
@@ -1039,7 +1039,7 @@ function ActivityClient(props: ActivityClientProps) {
                                 {activityContent}
                               </div>
                               <Suspense fallback={null}>
-                                <AISidePanelInline activity={activity} />
+
                               </Suspense>
                             </div>
                           )}
@@ -1091,10 +1091,16 @@ function ActivityClient(props: ActivityClientProps) {
                 )}
               </GeneralWrapperStyled>
             )}
-              </AISidePanelContentWrapper>
+              {/* </AISidePanelContentWrapper> */}
             </Suspense>
-          </AIChatBotProvider>
+          {/* </AIChatBotProvider> */}
         </Suspense>
+{/*
+<AIActivityAsk activity={activity} />
+*/}
+{/*
+<AISidePanelInline activity={activity} />
+*/}
         </AssignmentDirtyTasksProvider>
       </CourseProvider>
     </>
@@ -1108,296 +1114,10 @@ export function MarkStatus(props: {
   orgslug: string,
   trailData: any
 }) {
-  const { t } = useTranslation()
-  const router = useRouter()
-  const session = useLHSession() as any;
-  const org = useOrg() as any;
-  const { isUserPartOfTheOrg } = useOrgMembership();
-  const queryClient = useQueryClient();
-  const { track } = useLHAnalytics('learner');
-  const _isMobile = useMediaQuery('(max-width: 768px)')
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [showMarkedTooltip, setShowMarkedTooltip] = React.useState(false);
-  const [showUnmarkedTooltip, setShowUnmarkedTooltip] = React.useState(false);
-
-
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const markedTooltipCount = localStorage.getItem('activity_marked_tooltip_count');
-      const unmarkedTooltipCount = localStorage.getItem('activity_unmarked_tooltip_count');
-      
-      if (!markedTooltipCount || parseInt(markedTooltipCount) < 3) {
-        setShowMarkedTooltip(true);
-      }
-      if (!unmarkedTooltipCount || parseInt(unmarkedTooltipCount) < 3) {
-        setShowUnmarkedTooltip(true);
-      }
-    }
-  }, []);
-
-  const handleMarkedTooltipClose = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('activity_marked_tooltip_count', '3');
-      setShowMarkedTooltip(false);
-    }
-  };
-
-  const handleUnmarkedTooltipClose = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('activity_unmarked_tooltip_count', '3');
-      setShowUnmarkedTooltip(false);
-    }
-  };
-
-  const infoIcon = (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
-    </svg>
-  );
-
-  const areAllActivitiesCompleted = () => {
-    const run = props.trailData?.runs?.find(
-      (run: any) => run.course_uuid === props.course.course_uuid
-    );
-    if (!run) return false;
-
-    let totalActivities = 0;
-    let completedActivities = 0;
-
-    props.course.chapters.forEach((chapter: any) => {
-      chapter.activities.forEach((activity: any) => {
-        totalActivities++;
-        const isCompleted = run.steps.find(
-          (step: any) => step.activity_uuid === activity.activity_uuid && step.complete === true
-        );
-        if (isCompleted) {
-          completedActivities++;
-        }
-      });
-    });
-
-    return completedActivities >= totalActivities - 1;
-  };
-
-  const findNextActivity = () => {
-    const flat: any[] = [];
-    let currentIndex = -1;
-    props.course.chapters.forEach((chapter: any) => {
-      chapter.activities.forEach((activity: any) => {
-        flat.push(activity);
-        if (activity.id === props.activity.id) {
-          currentIndex = flat.length - 1;
-        }
-      });
-    });
-    return currentIndex >= 0 && currentIndex < flat.length - 1 ? flat[currentIndex + 1] : null;
-  };
-
-  async function markActivityAsCompleteFront() {
-    try {
-      const willCompleteAll = areAllActivitiesCompleted();
-      const nextActivity = findNextActivity();
-      setIsLoading(true);
-
-      await markActivityAsComplete(
-        props.orgslug,
-        props.course.course_uuid,
-        props.activity.activity_uuid,
-        session.data?.tokens?.access_token
-      );
-
-      await queryClient.invalidateQueries({ queryKey: queryKeys.trail.org(org?.id) });
-
-      track(AnalyticsEvent.ActivityMarkedComplete, {
-        activity_uuid: props.activity.activity_uuid,
-        course_uuid: props.course.course_uuid,
-        activity_type: props.activity.activity_type,
-        will_complete_course: willCompleteAll,
-        has_next_activity: !!nextActivity,
-      });
-      // North-star terminal event: the learner just finished the whole course.
-      if (willCompleteAll) {
-        track(AnalyticsEvent.CourseCompleted, {
-          course_uuid: props.course.course_uuid,
-        });
-      }
-
-      const cleanCourseUuid = props.course.course_uuid.replace('course_', '');
-      await queryClient.invalidateQueries({ queryKey: queryKeys.courses.meta(cleanCourseUuid) });
-      if (willCompleteAll || !nextActivity) {
-        router.push(getUriWithOrg(props.orgslug, '') + `/course/${cleanCourseUuid}/activity/end`);
-      } else {
-        const nextUuid = nextActivity.activity_uuid?.replace('activity_', '');
-        router.push(getUriWithOrg(props.orgslug, '') + `/course/${cleanCourseUuid}/activity/${nextUuid}`);
-      }
-    } catch (error) {
-      console.error('Error marking activity as complete:', error);
-      toast.error(t('activities.failed_mark_complete'));
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function unmarkActivityAsCompleteFront() {
-    try {
-      setIsLoading(true);
-      
-      await unmarkActivityAsComplete(
-        props.orgslug,
-        props.course.course_uuid,
-        props.activity.activity_uuid,
-        session.data?.tokens?.access_token
-      );
-
-      await queryClient.invalidateQueries({ queryKey: queryKeys.trail.org(org?.id) });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.courses.meta(props.course.course_uuid.replace('course_', '')) });
-    } catch (_error) {
-      toast.error(t('activities.failed_unmark_complete'));
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const isActivityCompleted = () => {
-    // Clean up course UUID by removing 'course_' prefix if it exists
-    const cleanCourseUuid = props.course.course_uuid?.replace('course_', '');
-    
-    let run = props.trailData?.runs?.find(
-      (run: any) => {
-        const cleanRunCourseUuid = run.course?.course_uuid?.replace('course_', '');
-        return cleanRunCourseUuid === cleanCourseUuid;
-      }
-    );
-
-    if (run) {
-      // Find the step that matches the current activity
-      return run.steps.find(
-        (step: any) => step.activity_id === props.activity.id && step.complete === true
-      );
-    }
-    return false;
-  }
-
-  // Don't render until we have trail data
-  if (!props.trailData) {
-    return null;
-  }
-
-  // Don't show progress tracking for non-members
-  if (!isUserPartOfTheOrg) {
-    return null;
-  }
-
-  return (
-    <>
-      {isActivityCompleted() ? (
-        <div className="flex items-center space-x-2">
-          <div className="relative">
-            <ConfirmationModal
-              confirmationButtonText={t('activities.unmark_activity')}
-              confirmationMessage={t('activities.unmark_activity_confirm')}
-              dialogTitle={t('activities.unmark_activity_title')}
-              dialogTrigger={
-                <div className="bg-teal-600 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white hover:cursor-pointer transition delay-150 duration-300 ease-in-out">
-                  <span className="text-[10px] font-bold mb-1 uppercase">{t('common.status')}</span>
-                  <div className="flex items-center space-x-2">
-                    <svg 
-                      width="17" 
-                      height="17" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <path d="M7 12l3 3 7-7" />
-                    </svg>
-                    <span className="text-xs font-bold">{t('common.complete')}</span>
-                  </div>
-                </div>
-              }
-              functionToExecute={unmarkActivityAsCompleteFront}
-              status="warning"
-            />
-            {showMarkedTooltip && (
-              <MiniInfoTooltip
-                icon={infoIcon}
-                message={t('activities.unmark_tooltip')}
-                onClose={handleMarkedTooltipClose}
-                iconColor="text-teal-600"
-                iconSize={24}
-                width="w-64"
-              />
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center space-x-2">
-          <div className="relative">
-            <div
-              className={`${isLoading ? 'opacity-90' : ''} bg-gray-800 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white hover:cursor-pointer transition-all duration-200 ${isLoading ? 'cursor-not-allowed' : 'hover:bg-gray-700'}`}
-              onClick={!isLoading ? markActivityAsCompleteFront : undefined}
-            >
-              <span className="text-[10px] font-bold mb-1 uppercase">{t('common.status')}</span>
-              <div className="flex items-center space-x-2">
-                {isLoading ? (
-                  <div className="animate-spin">
-                    <svg 
-                      width="17" 
-                      height="17" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 12a9 9 0 11-6.219-8.56" />
-                    </svg>
-                  </div>
-                ) : (
-                  <svg 
-                    width="17" 
-                    height="17" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                  </svg>
-                )}
-                <span className="text-xs font-bold min-w-[90px]">{isLoading ? t('activities.marking') : t('activities.mark_as_complete')}</span>
-              </div>
-            </div>
-            {showUnmarkedTooltip && (
-              <MiniInfoTooltip
-                icon={infoIcon}
-                message={t('activities.mark_tooltip')}
-                onClose={handleUnmarkedTooltipClose}
-                iconColor="text-gray-600"
-                iconSize={24}
-                width="w-64"
-              />
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  )
+  const step = props.trailData?.runs?.flatMap((run: any) => run.steps || [])
+    .find((entry: any) => entry.activity_id === props.activity?.id)
+  return <span className="text-xs text-neutral-500 px-3 py-2">{step?.complete && step?.teacher_verified
+    ? 'Посещение подтверждено ментором' : 'Посещение отмечает ментор'}</span>
 }
 
 function NextActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {
@@ -1456,7 +1176,7 @@ function NextActivityButton({ course, currentActivityId, orgslug }: { course: an
       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.next')}</span>
       <div className="flex items-center space-x-1">
         <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">
-          {isLastActivity ? t('course.finish_course', 'Finish course') : nextActivity.name}
+          {isLastActivity ? 'Итоги курса' : nextActivity.name}
         </span>
         <ChevronRight size={17} className="shrink-0" />
       </div>
@@ -2027,3 +1747,420 @@ function AssignmentTools(props: {
 }
 
 export default ActivityClient
+
+// export function MarkStatus(props: {
+//   activity: any
+//   activityid: string
+//   course: any
+//   orgslug: string,
+//   trailData: any
+// }) {
+//   const { t } = useTranslation()
+//   const router = useRouter()
+//   const session = useLHSession() as any;
+//   const org = useOrg() as any;
+//   const { isUserPartOfTheOrg } = useOrgMembership();
+//   const queryClient = useQueryClient();
+//   const { track } = useLHAnalytics('learner');
+//   const _isMobile = useMediaQuery('(max-width: 768px)')
+//   const [isLoading, setIsLoading] = React.useState(false);
+//   const [showMarkedTooltip, setShowMarkedTooltip] = React.useState(false);
+//   const [showUnmarkedTooltip, setShowUnmarkedTooltip] = React.useState(false);
+//
+//
+//   React.useEffect(() => {
+//     if (typeof window !== 'undefined') {
+//       const markedTooltipCount = localStorage.getItem('activity_marked_tooltip_count');
+//       const unmarkedTooltipCount = localStorage.getItem('activity_unmarked_tooltip_count');
+//
+//       if (!markedTooltipCount || parseInt(markedTooltipCount) < 3) {
+//         setShowMarkedTooltip(true);
+//       }
+//       if (!unmarkedTooltipCount || parseInt(unmarkedTooltipCount) < 3) {
+//         setShowUnmarkedTooltip(true);
+//       }
+//     }
+//   }, []);
+//
+//   const handleMarkedTooltipClose = () => {
+//     if (typeof window !== 'undefined') {
+//       localStorage.setItem('activity_marked_tooltip_count', '3');
+//       setShowMarkedTooltip(false);
+//     }
+//   };
+//
+//   const handleUnmarkedTooltipClose = () => {
+//     if (typeof window !== 'undefined') {
+//       localStorage.setItem('activity_unmarked_tooltip_count', '3');
+//       setShowUnmarkedTooltip(false);
+//     }
+//   };
+//
+//   const infoIcon = (
+//     <svg
+//       viewBox="0 0 24 24"
+//       fill="none"
+//       stroke="currentColor"
+//       strokeWidth="2"
+//       strokeLinecap="round"
+//       strokeLinejoin="round"
+//     >
+//       <circle cx="12" cy="12" r="10" />
+//       <path d="M12 16v-4" />
+//       <path d="M12 8h.01" />
+//     </svg>
+//   );
+//
+//   const areAllActivitiesCompleted = () => {
+//     const run = props.trailData?.runs?.find(
+//       (run: any) => run.course_uuid === props.course.course_uuid
+//     );
+//     if (!run) return false;
+//
+//     let totalActivities = 0;
+//     let completedActivities = 0;
+//
+//     props.course.chapters.forEach((chapter: any) => {
+//       chapter.activities.forEach((activity: any) => {
+//         totalActivities++;
+//         const isCompleted = run.steps.find(
+//           (step: any) => step.activity_uuid === activity.activity_uuid && step.complete === true
+//         );
+//         if (isCompleted) {
+//           completedActivities++;
+//         }
+//       });
+//     });
+//
+//     return completedActivities >= totalActivities - 1;
+//   };
+//
+//   const findNextActivity = () => {
+//     const flat: any[] = [];
+//     let currentIndex = -1;
+//     props.course.chapters.forEach((chapter: any) => {
+//       chapter.activities.forEach((activity: any) => {
+//         flat.push(activity);
+//         if (activity.id === props.activity.id) {
+//           currentIndex = flat.length - 1;
+//         }
+//       });
+//     });
+//     return currentIndex >= 0 && currentIndex < flat.length - 1 ? flat[currentIndex + 1] : null;
+//   };
+//
+//   async function markActivityAsCompleteFront() {
+//     try {
+//       const willCompleteAll = areAllActivitiesCompleted();
+//       const nextActivity = findNextActivity();
+//       setIsLoading(true);
+//
+//       await markActivityAsComplete(
+//         props.orgslug,
+//         props.course.course_uuid,
+//         props.activity.activity_uuid,
+//         session.data?.tokens?.access_token
+//       );
+//
+//       await queryClient.invalidateQueries({ queryKey: queryKeys.trail.org(org?.id) });
+//
+//       track(AnalyticsEvent.ActivityMarkedComplete, {
+//         activity_uuid: props.activity.activity_uuid,
+//         course_uuid: props.course.course_uuid,
+//         activity_type: props.activity.activity_type,
+//         will_complete_course: willCompleteAll,
+//         has_next_activity: !!nextActivity,
+//       });
+//       // North-star terminal event: the learner just finished the whole course.
+//       if (willCompleteAll) {
+//         track(AnalyticsEvent.CourseCompleted, {
+//           course_uuid: props.course.course_uuid,
+//         });
+//       }
+//
+//       const cleanCourseUuid = props.course.course_uuid.replace('course_', '');
+//       await queryClient.invalidateQueries({ queryKey: queryKeys.courses.meta(cleanCourseUuid) });
+//       if (willCompleteAll || !nextActivity) {
+//         router.push(getUriWithOrg(props.orgslug, '') + `/course/${cleanCourseUuid}/activity/end`);
+//       } else {
+//         const nextUuid = nextActivity.activity_uuid?.replace('activity_', '');
+//         router.push(getUriWithOrg(props.orgslug, '') + `/course/${cleanCourseUuid}/activity/${nextUuid}`);
+//       }
+//     } catch (error) {
+//       console.error('Error marking activity as complete:', error);
+//       toast.error(t('activities.failed_mark_complete'));
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   }
+//
+//   async function unmarkActivityAsCompleteFront() {
+//     try {
+//       setIsLoading(true);
+//
+//       await unmarkActivityAsComplete(
+//         props.orgslug,
+//         props.course.course_uuid,
+//         props.activity.activity_uuid,
+//         session.data?.tokens?.access_token
+//       );
+//
+//       await queryClient.invalidateQueries({ queryKey: queryKeys.trail.org(org?.id) });
+//       await queryClient.invalidateQueries({ queryKey: queryKeys.courses.meta(props.course.course_uuid.replace('course_', '')) });
+//     } catch (_error) {
+//       toast.error(t('activities.failed_unmark_complete'));
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   }
+//
+//   const isActivityCompleted = () => {
+//     // Clean up course UUID by removing 'course_' prefix if it exists
+//     const cleanCourseUuid = props.course.course_uuid?.replace('course_', '');
+//
+//     let run = props.trailData?.runs?.find(
+//       (run: any) => {
+//         const cleanRunCourseUuid = run.course?.course_uuid?.replace('course_', '');
+//         return cleanRunCourseUuid === cleanCourseUuid;
+//       }
+//     );
+//
+//     if (run) {
+//       // Find the step that matches the current activity
+//       return run.steps.find(
+//         (step: any) => step.activity_id === props.activity.id && step.complete === true
+//       );
+//     }
+//     return false;
+//   }
+//
+//   // Don't render until we have trail data
+//   if (!props.trailData) {
+//     return null;
+//   }
+//
+//   // Don't show progress tracking for non-members
+//   if (!isUserPartOfTheOrg) {
+//     return null;
+//   }
+//
+//   return (
+//     <>
+//       {isActivityCompleted() ? (
+//         <div className="flex items-center space-x-2">
+//           <div className="relative">
+//             <ConfirmationModal
+//               confirmationButtonText={t('activities.unmark_activity')}
+//               confirmationMessage={t('activities.unmark_activity_confirm')}
+//               dialogTitle={t('activities.unmark_activity_title')}
+//               dialogTrigger={
+//                 <div className="bg-teal-600 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white hover:cursor-pointer transition delay-150 duration-300 ease-in-out">
+//                   <span className="text-[10px] font-bold mb-1 uppercase">{t('common.status')}</span>
+//                   <div className="flex items-center space-x-2">
+//                     <svg
+//                       width="17"
+//                       height="17"
+//                       viewBox="0 0 24 24"
+//                       fill="none"
+//                       stroke="currentColor"
+//                       strokeWidth="2"
+//                       strokeLinecap="round"
+//                       strokeLinejoin="round"
+//                     >
+//                       <rect x="3" y="3" width="18" height="18" rx="2" />
+//                       <path d="M7 12l3 3 7-7" />
+//                     </svg>
+//                     <span className="text-xs font-bold">{t('common.complete')}</span>
+//                   </div>
+//                 </div>
+//               }
+//               functionToExecute={unmarkActivityAsCompleteFront}
+//               status="warning"
+//             />
+//             {showMarkedTooltip && (
+//               <MiniInfoTooltip
+//                 icon={infoIcon}
+//                 message={t('activities.unmark_tooltip')}
+//                 onClose={handleMarkedTooltipClose}
+//                 iconColor="text-teal-600"
+//                 iconSize={24}
+//                 width="w-64"
+//               />
+//             )}
+//           </div>
+//         </div>
+//       ) : (
+//         <div className="flex items-center space-x-2">
+//           <div className="relative">
+//             <div
+//               className={`${isLoading ? 'opacity-90' : ''} bg-gray-800 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white hover:cursor-pointer transition-all duration-200 ${isLoading ? 'cursor-not-allowed' : 'hover:bg-gray-700'}`}
+//               onClick={!isLoading ? markActivityAsCompleteFront : undefined}
+//             >
+//               <span className="text-[10px] font-bold mb-1 uppercase">{t('common.status')}</span>
+//               <div className="flex items-center space-x-2">
+//                 {isLoading ? (
+//                   <div className="animate-spin">
+//                     <svg
+//                       width="17"
+//                       height="17"
+//                       viewBox="0 0 24 24"
+//                       fill="none"
+//                       stroke="currentColor"
+//                       strokeWidth="2"
+//                       strokeLinecap="round"
+//                       strokeLinejoin="round"
+//                     >
+//                       <path d="M21 12a9 9 0 11-6.219-8.56" />
+//                     </svg>
+//                   </div>
+//                 ) : (
+//                   <svg
+//                     width="17"
+//                     height="17"
+//                     viewBox="0 0 24 24"
+//                     fill="none"
+//                     stroke="currentColor"
+//                     strokeWidth="2"
+//                     strokeLinecap="round"
+//                     strokeLinejoin="round"
+//                   >
+//                     <rect x="3" y="3" width="18" height="18" rx="2" />
+//                   </svg>
+//                 )}
+//                 <span className="text-xs font-bold min-w-[90px]">{isLoading ? t('activities.marking') : t('activities.mark_as_complete')}</span>
+//               </div>
+//             </div>
+//             {showUnmarkedTooltip && (
+//               <MiniInfoTooltip
+//                 icon={infoIcon}
+//                 message={t('activities.mark_tooltip')}
+//                 onClose={handleUnmarkedTooltipClose}
+//                 iconColor="text-gray-600"
+//                 iconSize={24}
+//                 width="w-64"
+//               />
+//             )}
+//           </div>
+//         </div>
+//       )}
+//     </>
+//   )
+// }
+//
+// function NextActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {
+//   const { t } = useTranslation();
+//   const router = useRouter();
+//   const _isMobile = useMediaQuery('(max-width: 768px)');
+//
+//   const findNextActivity = () => {
+//     let allActivities: any[] = [];
+//     let currentIndex = -1;
+//
+//     // Flatten all activities from all chapters
+//     course.chapters.forEach((chapter: any) => {
+//       chapter.activities.forEach((activity: any) => {
+//         const cleanActivityUuid = activity.activity_uuid?.replace('activity_', '');
+//         allActivities.push({
+//           ...activity,
+//           cleanUuid: cleanActivityUuid,
+//           chapterName: chapter.name
+//         });
+//
+//         // Check if this is the current activity
+//         if (activity.id === currentActivityId) {
+//           currentIndex = allActivities.length - 1;
+//         }
+//       });
+//     });
+//
+//     // Get next activity
+//     return currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null;
+//   };
+//
+//   const nextActivity = findNextActivity();
+//
+//   // On the LAST activity, Next advances to the course-end screen (which holds
+//   // the certificate) instead of disappearing. Previously the only route there
+//   // was the trophy icon on the progress bar, which learners did not find — and
+//   // it was unreachable altogether for anyone who had already marked the final
+//   // activity complete on an earlier visit.
+//   const isLastActivity = !nextActivity;
+//   const cleanCourseUuid = course.course_uuid?.replace('course_', '');
+//
+//   const navigateToActivity = () => {
+//     router.push(
+//       isLastActivity
+//         ? getUriWithOrg(orgslug, '') + `/course/${cleanCourseUuid}/activity/end`
+//         : getUriWithOrg(orgslug, '') + `/course/${cleanCourseUuid}/activity/${nextActivity.cleanUuid}`
+//     );
+//   };
+//
+//   return (
+//     <div
+//       onClick={navigateToActivity}
+//       className="bg-gray-200 rounded-md px-3 sm:px-4 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out hover:bg-gray-200"
+//     >
+//       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.next')}</span>
+//       <div className="flex items-center space-x-1">
+//         <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">
+//           {isLastActivity ? 'Итоги курса' : nextActivity.name}
+//         </span>
+//         <ChevronRight size={17} className="shrink-0" />
+//       </div>
+//     </div>
+//   );
+// }
+//
+// function PreviousActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {
+//   const { t } = useTranslation();
+//   const router = useRouter();
+//   const _isMobile = useMediaQuery('(max-width: 768px)');
+//
+//   const findPreviousActivity = () => {
+//     let allActivities: any[] = [];
+//     let currentIndex = -1;
+//
+//     // Flatten all activities from all chapters
+//     course.chapters.forEach((chapter: any) => {
+//       chapter.activities.forEach((activity: any) => {
+//         const cleanActivityUuid = activity.activity_uuid?.replace('activity_', '');
+//         allActivities.push({
+//           ...activity,
+//           cleanUuid: cleanActivityUuid,
+//           chapterName: chapter.name
+//         });
+//
+//         // Check if this is the current activity
+//         if (activity.id === currentActivityId) {
+//           currentIndex = allActivities.length - 1;
+//         }
+//       });
+//     });
+//
+//     // Get previous activity
+//     return currentIndex > 0 ? allActivities[currentIndex - 1] : null;
+//   };
+//
+//   const previousActivity = findPreviousActivity();
+//
+//   if (!previousActivity) return null;
+//
+//   const navigateToActivity = () => {
+//     const cleanCourseUuid = course.course_uuid?.replace('course_', '');
+//     router.push(getUriWithOrg(orgslug, '') + `/course/${cleanCourseUuid}/activity/${previousActivity.cleanUuid}`);
+//   };
+//
+//   return (
+//     <div
+//       onClick={navigateToActivity}
+//       className="bg-white rounded-md px-3 sm:px-4 nice-shadow flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out"
+//     >
+//       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.previous')}</span>
+//       <div className="flex items-center space-x-1">
+//         <ChevronLeft size={17} className="shrink-0" />
+//         <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">{previousActivity.name}</span>
+//       </div>
+//     </div>
+//   );
+// }
+//

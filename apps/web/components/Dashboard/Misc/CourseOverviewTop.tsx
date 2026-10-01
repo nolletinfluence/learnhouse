@@ -35,11 +35,14 @@ export function CourseOverviewTop({
   const session = useLHSession() as any
   const queryClient = useQueryClient()
   const [isPublishing, setIsPublishing] = useState(false)
+/*
   const [isIndexing, setIsIndexing] = useState(false)
   const [isIndexed, setIsIndexed] = useState(false)
 
+*/
   const courseStructure = course?.courseStructure
   const isPublished = courseStructure?.published
+/*
   const isAIEnabled = org?.config?.config?.resolved_features?.ai?.enabled ?? org?.config?.config?.features?.ai?.enabled !== false
 
   const indexCourseForAI = useCallback(async () => {
@@ -76,6 +79,7 @@ export function CourseOverviewTop({
     }
   }, [isIndexing, courseStructure, session.data?.tokens?.access_token])
 
+*/
   const togglePublishStatus = useCallback(async () => {
     if (isPublishing || !courseStructure?.course_uuid) return
     setIsPublishing(true)
@@ -224,6 +228,7 @@ export function CourseOverviewTop({
               </span>
             )}
           </button>
+{/*
           {isAIEnabled && (
             <>
               <div className="w-px self-stretch bg-neutral-200/80" />
@@ -259,6 +264,8 @@ export function CourseOverviewTop({
               </TooltipProvider>
             </>
           )}
+
+*/}
           <div className="w-px self-stretch bg-neutral-200/80" />
           <Link
             href={getUriWithOrg(org?.slug, '') + `/course/${params.courseuuid}`}

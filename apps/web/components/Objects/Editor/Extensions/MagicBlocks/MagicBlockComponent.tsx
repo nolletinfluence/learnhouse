@@ -275,6 +275,8 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
           {!htmlContent ? (
             // No content - show create button or plan restriction
             <div className="text-center py-8">
+              <p className="text-sm text-white/50">Интерактивный материал пока не добавлен.</p>
+              {/*
               {canUseAI ? (
                 <div className="inline-flex flex-col items-center gap-3">
                   <div
@@ -334,6 +336,7 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
                   </div>
                 </div>
               )}
+              */}
             </div>
           ) : (
             // Has content - show preview with edit button
@@ -386,6 +389,7 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
                     <Expand className="w-4 h-4" />
                     <span>{t('editor.blocks.common.expand')}</span>
                   </button>
+                  {/*
                   {iterationCount < 6 && (
                     <button
                       onClick={() => setIsModalOpen(true)}
@@ -395,6 +399,7 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
                       <span>{t('editor.blocks.magic_block_content.edit_left', { count: 6 - iterationCount })}</span>
                     </button>
                   )}
+                  */}
                 </div>
               </div>
             </div>
@@ -403,6 +408,7 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
       </NodeViewWrapper>
 
       {/* Generation Modal */}
+      {/*
       {accessToken && (
         <MagicBlockModal
           isOpen={isModalOpen}
@@ -418,6 +424,7 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
           initialMessages={cachedMessages}
         />
       )}
+      */}
 
       {/* Preview Modal */}
       <Modal

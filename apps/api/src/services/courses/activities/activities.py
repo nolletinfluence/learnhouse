@@ -1,30 +1,29 @@
+import logging
+from datetime import datetime
+from uuid import uuid4
+
+from fastapi import HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from src.db.courses.courses import Course
-from src.db.courses.chapters import Chapter
-from src.db.courses.activities import ActivityCreate, Activity, ActivityRead, ActivityUpdate
-from src.db.courses.chapter_activities import ChapterActivity
-from src.db.organizations import Organization, OrganizationRead
-from src.db.organization_config import OrganizationConfig
-from src.db.users import AnonymousUser, PublicUser, User
-from src.security.auth import resolve_acting_user_id
-from fastapi import HTTPException, Request
-from pydantic import BaseModel
-from uuid import uuid4
-from datetime import datetime
-
-import asyncio
-import logging
 
 from src.core.ee_hooks import check_ee_activity_paid_access
-from src.security.rbac import check_resource_access, AccessAction
-from src.services.courses.activities.versioning import create_activity_version
-from src.services.courses.locks import (
-    batch_accessible_restricted_uuids,
-    is_locked_for_user,
-    is_org_admin,
+from src.db.courses.activities import (
+    Activity,
+    ActivityCreate,
+    ActivityRead,
+    ActivityUpdate,
 )
+from src.db.courses.chapter_activities import ChapterActivity
+from src.db.courses.chapters import Chapter
+from src.db.courses.courses import Course
+from src.db.organization_config import OrganizationConfig
+from src.db.organizations import Organization, OrganizationRead
+from src.db.users import AnonymousUser, PublicUser, User
+from src.security.auth import resolve_acting_user_id
+from src.security.rbac import AccessAction, check_resource_access
+from src.services.courses.activities.versioning import create_activity_version
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +136,8 @@ async def get_activity(
     activity, course, last_modified_user = result
 
     # RBAC check
+    from src.services.courses.learning_access import require_lesson_learning_access
+    await require_lesson_learning_access(course, activity, current_user, db_session)
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
 
     # Paid access check (via EE hook with fallback to True if EE not available)
@@ -205,6 +206,8 @@ async def get_editor_bootstrap(
 
     activity, course, org, org_config, last_modified_user, parent_chapter = db_result
 
+    from src.services.courses.learning_access import require_lesson_learning_access
+    await require_lesson_learning_access(course, activity, current_user, db_session)
     await check_resource_access(
         request, db_session, current_user, course.course_uuid, AccessAction.READ
     )
@@ -251,82 +254,11 @@ async def get_editor_bootstrap(
     )
 
 
-async def _apply_activity_lock(
-    activity_read: ActivityRead,
-    activity: Activity,
-    course: Course,
-    current_user,
-    db_session: AsyncSession,
-    *,
-    parent_chapter: Chapter | None = None,
-) -> None:
-    """Enforce chapter/activity lock_type on a single-activity read.
+async def _apply_activity_lock(activity_read, activity, course, current_user, db_session, *, parent_chapter=None):
+    from src.services.courses.learning_access import require_lesson_learning_access
+    await require_lesson_learning_access(course, activity, current_user, db_session)
+    activity_read.is_locked = False
 
-    Admins/maintainers bypass. A usergroup attached at the course level also
-    unlocks every restricted chapter/activity inside that course (same
-    inheritance rule as the TOC read). For everyone else, if either the
-    activity or its parent chapter is locked, we scrub content/details and set
-    ``is_locked=True`` so the client renders a gate instead of an empty page.
-    """
-    is_anon = isinstance(current_user, AnonymousUser)
-    acting_user_id = resolve_acting_user_id(current_user)
-    admin = False if is_anon else await is_org_admin(acting_user_id, course.org_id, db_session)
-    if admin:
-        return
-
-    # Caller may have already fetched the parent chapter (e.g. via the editor
-    # bootstrap join); only run the extra query when it wasn't supplied.
-    if parent_chapter is not None:
-        parent_chapter_row = parent_chapter
-    else:
-        parent_chapter_row = (await db_session.execute(
-            select(Chapter)
-            .join(ChapterActivity, ChapterActivity.chapter_id == Chapter.id)  # type: ignore
-            .where(ChapterActivity.activity_id == activity.id)
-        )).scalars().first()
-
-    check_uuids: list[str] = [course.course_uuid]
-    if (activity.lock_type or "public") == "restricted":
-        check_uuids.append(activity.activity_uuid)
-    if parent_chapter_row and (parent_chapter_row.lock_type or "public") == "restricted":
-        check_uuids.append(parent_chapter_row.chapter_uuid)
-
-    accessible: set[str] = set()
-    if not is_anon:
-        accessible = await batch_accessible_restricted_uuids(
-            acting_user_id, check_uuids, db_session
-        )
-
-    # Course-level usergroup membership unlocks everything below it.
-    if course.course_uuid in accessible:
-        return
-
-    chapter_locked = False
-    if parent_chapter_row:
-        chapter_locked = await is_locked_for_user(
-            parent_chapter_row.lock_type,
-            parent_chapter_row.chapter_uuid,
-            course.org_id,
-            current_user,
-            db_session,
-            accessible_restricted_uuids=accessible,
-            is_admin=admin,
-        )
-
-    activity_locked = chapter_locked or await is_locked_for_user(
-        activity.lock_type,
-        activity.activity_uuid,
-        course.org_id,
-        current_user,
-        db_session,
-        accessible_restricted_uuids=accessible,
-        is_admin=admin,
-    )
-
-    if activity_locked:
-        activity_read.content = {}
-        activity_read.details = None
-        activity_read.is_locked = True
 
 async def get_activityby_id(
     request: Request,
@@ -351,9 +283,11 @@ async def get_activityby_id(
     activity, course = result
 
     # RBAC check
+    from src.services.courses.learning_access import require_lesson_learning_access
+    await require_lesson_learning_access(course, activity, current_user, db_session)
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
 
-    return ActivityRead.model_validate(activity)
+    return await get_activity(request, activity.activity_uuid, current_user, db_session)
 
 
 async def update_activity(
@@ -420,14 +354,14 @@ async def update_activity(
     await db_session.commit()
     await db_session.refresh(activity)
 
-    # Trigger background re-indexing for RAG when content changes
-    if 'content' in update_data:
-        task = asyncio.create_task(_trigger_course_embedding(activity.course_id, activity.org_id))
-        _embedding_tasks.add(task)
-        task.add_done_callback(_embedding_tasks.discard)
-        task.add_done_callback(
-            lambda t: logger.error("Embedding task failed: %s", t.exception()) if t.exception() else None
-        )
+    # # Trigger background re-indexing for RAG when content changes
+    # if 'content' in update_data:
+    # #         task = asyncio.create_task(_trigger_course_embedding(activity.course_id, activity.org_id))
+    # #         _embedding_tasks.add(task)
+    # #         task.add_done_callback(_embedding_tasks.discard)
+    # task.add_done_callback(
+    # lambda t: logger.error("Embedding task failed: %s", t.exception()) if t.exception() else None
+    # )
 
     activity = ActivityRead.model_validate(activity)
 
@@ -536,6 +470,8 @@ async def get_activities(
         )
 
     _, chapter, course = results[0]
+    from src.services.courses.learning_access import require_course_learning_access
+    await require_course_learning_access(course, current_user, db_session)
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
 
     return [ActivityRead.model_validate(activity) for activity, _, _ in results]

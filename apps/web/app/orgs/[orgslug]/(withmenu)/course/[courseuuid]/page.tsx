@@ -1,3 +1,4 @@
+import { automaticCourseSEO } from '@/lib/seo/course'
 import React from 'react'
 import CourseClient from './course'
 import { getCourseMetadata } from '@services/courses/courses'
@@ -15,92 +16,23 @@ type MetadataProps = {
 }
 
 export async function generateMetadata(props: MetadataProps): Promise<Metadata> {
-  const params = await props.params;
-  const session = await getServerSession()
-  const access_token = session?.tokens?.access_token
-
-  // Parallelize org + course metadata fetches
-  // Use revalidate: 120 to match the page component and enable Next.js fetch dedup
-  const [org, courseResult] = await Promise.all([
-    getOrganizationContextInfo(params.orgslug, {
-      revalidate: 120,
-      tags: ['organizations'],
-    }),
-    getCourseMetadata(
-      params.courseuuid,
-      { revalidate: 120, tags: ['courses'] },
-      access_token ?? undefined,
-      { slim: true }
-    ).catch(() => null),
+  const { courseuuid, orgslug } = await props.params
+  const [org, course] = await Promise.all([
+    getOrganizationContextInfo(orgslug, {}),
+    getCourseMetadata(courseuuid, {}, undefined, { slim: true }).catch(() => null),
   ])
-
-  if (!courseResult) {
-    return {
-      title: `Course — ${org?.name || 'BestDevs LMS'}`,
-      description: 'View this course on BestDevs LMS',
-    }
-  }
-  const course_meta = courseResult
-
-  // SEO - use custom SEO fields with fallbacks to existing fields
-  const seoConfig = getOrgSeoConfig(org)
-  const seo = course_meta.seo || {}
-  const defaultTitle = buildPageTitle(course_meta.name, org.name, seoConfig)
-  const defaultDescription = course_meta.description || seoConfig.default_meta_description || ''
-  const orgOgImageUrl = seoConfig.default_og_image
-    ? getOrgOgImageMediaDirectory(org?.org_uuid, seoConfig.default_og_image)
-    : null
-  const defaultImage = course_meta?.thumbnail_image
-    ? getCourseThumbnailMediaDirectory(
-        org?.org_uuid,
-        course_meta?.course_uuid,
-        course_meta?.thumbnail_image
-      )
-    : orgOgImageUrl || '/empty_thumbnail.png'
-
-  // Determine robots settings
-  const shouldIndex = !seo.robots_noindex
-  const shouldFollow = !seo.robots_nofollow
-
+  const seo = automaticCourseSEO(course, org?.name || 'BestDevs')
+  const canonical = await getServerCanonicalUrl(orgslug, `/course/${courseuuid}`)
+  const image = course?.thumbnail_image
+    ? getCourseThumbnailMediaDirectory(org.org_uuid, course.course_uuid, course.thumbnail_image)
+    : '/empty_thumbnail.png'
   return {
-    title: seo.title || defaultTitle,
-    description: seo.description || defaultDescription,
-    keywords: seo.keywords || course_meta.learnings,
-    robots: {
-      index: shouldIndex,
-      follow: shouldFollow,
-      nocache: true,
-      googleBot: {
-        index: shouldIndex,
-        follow: shouldFollow,
-        'max-image-preview': 'large',
-      },
-    },
-    alternates: {
-      canonical: seo.canonical_url || (await getServerCanonicalUrl(params.orgslug, `/course/${params.courseuuid}`)),
-    },
-    openGraph: {
-      title: seo.og_title || seo.title || defaultTitle,
-      description: seo.og_description || seo.description || defaultDescription,
-      images: [
-        {
-          url: seo.og_image || defaultImage,
-          width: 800,
-          height: 600,
-          alt: course_meta.name,
-        },
-      ],
-      type: 'article',
-      publishedTime: course_meta.creation_date ? course_meta.creation_date : '',
-      tags: course_meta.learnings ? course_meta.learnings : [],
-    },
-    twitter: {
-      card: (seo.twitter_card as 'summary' | 'summary_large_image') || 'summary_large_image',
-      title: seo.twitter_title || seo.og_title || seo.title || defaultTitle,
-      description: seo.twitter_description || seo.og_description || seo.description || defaultDescription,
-      images: [seo.og_image || defaultImage],
-      ...(seoConfig.twitter_handle && { site: seoConfig.twitter_handle }),
-    },
+    title: seo.title, description: seo.description,
+    robots: { index: seo.index, follow: seo.index },
+    alternates: { canonical },
+    openGraph: { title: seo.title, description: seo.description, url: canonical, type: 'website',
+      images: [{ url: image, width: 800, height: 600, alt: course?.name || 'BestDevs' }] },
+    twitter: { card: 'summary_large_image', title: seo.title, description: seo.description, images: [image] },
   }
 }
 

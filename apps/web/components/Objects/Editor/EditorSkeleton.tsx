@@ -42,10 +42,10 @@ export default function EditorSkeleton() {
           </div>
         </div>
         <div className="activity-editor-users-section space-x-2">
-          {/* AI button */}
+          {/*
           <div className="rounded-md px-3 py-2 bg-gray-200 animate-pulse" style={{ width: 100, height: 36 }} />
-          {/* Divider */}
           <div style={{ marginTop: 'auto', marginBottom: 'auto', color: 'grey', opacity: '0.5', padding: '0 2px' }}>|</div>
+          */}
           {/* History button */}
           <div className="flex bg-neutral-100 h-9 px-3 py-2 rounded-lg" style={{ width: 36 }}>
             <div className="w-[15px] h-[15px] bg-gray-300 rounded-sm animate-pulse m-auto" />

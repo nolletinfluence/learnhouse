@@ -119,7 +119,7 @@ export function CourseProvider({
     : queryKeys.courses.meta(cleanUuid)
 
   const { data: courseStructureData, error } = useQuery({
-    queryKey,
+    queryKey: [...queryKey, session?.data?.user?.id ?? "guest"],
     queryFn: () => getCourseMetadata(
       cleanUuid,
       {},

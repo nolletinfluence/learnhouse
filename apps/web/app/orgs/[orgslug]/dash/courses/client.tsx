@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { Breadcrumbs } from '@components/Objects/Breadcrumbs/Breadcrumbs'
 import CreateCourseModal from '@components/Objects/Modals/Course/Create/CreateCourse'
 import CourseCreationTypeSelector from '@components/Objects/Modals/Course/Create/CourseCreationTypeSelector'
@@ -46,7 +47,7 @@ function CoursesHome(params: CourseProps) {
   const [newCourseModal, setNewCourseModal] = React.useState(isCreatingCourse)
   const [importCourseModal, setImportCourseModal] = React.useState(false)
   const [importType, setImportType] = React.useState<'select' | 'scorm' | 'learnhouse'>('select')
-  const [creationType, setCreationType] = React.useState<'select' | 'scratch' | 'ai'>('select')
+  const [creationType, setCreationType] = React.useState<'select' | 'scratch' | 'ai'>('scratch')
   const [aiCourseModalOpen, setAiCourseModalOpen] = React.useState(false)
   const orgslug = params.orgslug
   const { isAdmin: isUserAdmin } = useAdminStatus()
@@ -189,7 +190,7 @@ function CoursesHome(params: CourseProps) {
 
   async function closeNewCourseModal() {
     setNewCourseModal(false)
-    setCreationType('select')
+    setCreationType('scratch')
     mutateCourses()
   }
 
@@ -210,7 +211,7 @@ function CoursesHome(params: CourseProps) {
 
   const closeAICourseModal = () => {
     setAiCourseModalOpen(false)
-    setCreationType('select')
+    setCreationType('scratch')
     mutateCourses()
   }
 
@@ -484,7 +485,7 @@ function CoursesHome(params: CourseProps) {
                 onOpenChange={(open) => {
                   if (courseLimitReached) return
                   setNewCourseModal(open)
-                  if (!open) setCreationType('select')
+                  if (!open) setCreationType('scratch')
                 }}
                 minHeight={creationType === 'select' ? 'no-min' : 'md'}
                 minWidth={creationType === 'select' ? 'md' : 'lg'}
@@ -497,13 +498,7 @@ function CoursesHome(params: CourseProps) {
                   </button>
                 }
               />
-              <AICourseCreationModal
-                isOpen={aiCourseModalOpen}
-                onClose={closeAICourseModal}
-                orgId={orgId!}
-                orgslug={orgslug}
-                accessToken={access_token}
-              />
+
             </div>
           </AuthenticatedClientElement>
         </div>
@@ -640,15 +635,15 @@ function CoursesHome(params: CourseProps) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {paginatedCourses.map((course: any) => (
-          <CourseThumbnail
-            key={course.course_uuid}
-            customLink={`/dash/courses/course/${removeCoursePrefix(course.course_uuid)}/general`}
+          <div key={course.course_uuid} className="space-y-2"><CourseThumbnail
+            customLink={`/dash/courses/course/${removeCoursePrefix(course.course_uuid)}/content`}
             course={course}
             orgslug={orgslug}
             isDashboard={true}
             isSelected={selectedCourses.has(course.course_uuid)}
             onToggleSelect={toggleCourseSelection}
           />
+          <Link href={getUriWithOrg(orgslug, `/dash/courses/course/${removeCoursePrefix(course.course_uuid)}/content`)} className="block rounded-xl bg-white border border-neutral-200 text-center p-3 text-sm font-semibold hover:bg-lime-50">Редактировать курс</Link></div>
         ))}
         {filteredCourses.length === 0 && searchQuery && (
           <div className="col-span-full flex justify-center items-center py-8">
@@ -729,3 +724,12 @@ function CoursesHome(params: CourseProps) {
 }
 
 export default CoursesHome
+/*
+<AICourseCreationModal
+                isOpen={aiCourseModalOpen}
+                onClose={closeAICourseModal}
+                orgId={orgId!}
+                orgslug={orgslug}
+                accessToken={access_token}
+              />
+*/

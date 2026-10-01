@@ -1,30 +1,24 @@
-import {
-  House,
-  BookOpen,
-  Files,
-  Users,
-  CurrencyCircleDollar,
-  Buildings,
-  ChatsCircle,
-  ChalkboardSimple,
-  Cube,
-  FolderSimple,
-  Headphones,
-  ChartBar,
-  Code,
-} from '@phosphor-icons/react'
+import { House, BookOpen, Files, Users, CalendarBlank, ClipboardText } from '@phosphor-icons/react'
 
 export interface DashboardMenuItem {
   id: string
   href: string
   icon: typeof House
   labelKey: string
-  /** Feature key used for plan-based gating. If undefined, item is always shown. */
   featureKey?: string
-  /** If true, the feature defaults to disabled (must be explicitly enabled). */
   defaultDisabled?: boolean
 }
 
+export const DASHBOARD_MENU_ITEMS: DashboardMenuItem[] = [
+  { id: 'home', href: '/dash', icon: House, labelKey: 'common.home' },
+  { id: 'courses', href: '/dash/courses', icon: BookOpen, labelKey: 'courses.courses' },
+  { id: 'calendar', href: '/dash/calendar', icon: CalendarBlank, labelKey: 'school.calendar' },
+  { id: 'applications', href: '/dash/applications', icon: ClipboardText, labelKey: 'school.applications' },
+  { id: 'assignments', href: '/dash/assignments', icon: Files, labelKey: 'common.assignments' },
+  { id: 'users', href: '/dash/users/settings/users', icon: Users, labelKey: 'common.users' },
+]
+
+/*
 export const DASHBOARD_MENU_ITEMS: DashboardMenuItem[] = [
   {
     id: 'home',
@@ -113,3 +107,5 @@ export const DASHBOARD_MENU_ITEMS: DashboardMenuItem[] = [
     labelKey: 'dashboard.developers.breadcrumb',
   },
 ]
+
+*/

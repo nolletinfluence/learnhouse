@@ -1,4 +1,5 @@
 {
+  "school": {"calendar": "Календарь", "applications": "Заявки на курсы"},
   "common": {
     "hello": "Привет",
     "home": "Главная",

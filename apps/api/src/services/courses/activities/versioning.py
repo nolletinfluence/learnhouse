@@ -1,17 +1,21 @@
+from datetime import UTC, datetime
+
+from fastapi import HTTPException, Request
+from sqlalchemy import desc
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy import desc
-from src.db.courses.activities import Activity
-from src.db.courses.activity_versions import ActivityVersion, ActivityVersionRead, ActivityStateRead
-from src.db.courses.courses import Course
-from src.db.users import User, PublicUser, AnonymousUser
-from fastapi import HTTPException, Request
-from datetime import datetime, timezone
-from typing import List, Optional
 
+from src.db.courses.activities import Activity
+from src.db.courses.activity_versions import (
+    ActivityStateRead,
+    ActivityVersion,
+    ActivityVersionRead,
+)
+from src.db.courses.courses import Course
+from src.db.users import AnonymousUser, PublicUser, User
 from src.security.auth import resolve_acting_user_id
-from src.security.rbac import check_resource_access, AccessAction
 from src.security.features_utils.usage import check_feature_access
+from src.security.rbac import AccessAction, check_resource_access
 from src.services.webhooks.dispatch import dispatch_webhooks
 
 # Maximum number of versions to keep per activity
@@ -21,7 +25,7 @@ MAX_ACTIVITY_VERSIONS = 20
 
 async def create_activity_version(
     activity: Activity,
-    user_id: Optional[int],
+    user_id: int | None,
     db_session: AsyncSession,
 ) -> ActivityVersion:
     """
@@ -35,7 +39,7 @@ async def create_activity_version(
         version_number=activity.current_version,
         content=activity.content,
         created_by_id=user_id,
-        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        created_at=datetime.now(UTC).replace(tzinfo=None),
     )
 
     db_session.add(version)
@@ -88,7 +92,7 @@ async def get_activity_versions(
     db_session: AsyncSession,
     limit: int = 20,
     offset: int = 0,
-) -> List[ActivityVersionRead]:
+) -> list[ActivityVersionRead]:
     """
     Gets the version history for an activity.
     Returns versions in descending order (newest first).
@@ -116,7 +120,7 @@ async def get_activity_versions(
             detail="Course not found",
         )
 
-    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
 
     # Get versions with user info
     statement = (
@@ -180,7 +184,7 @@ async def get_activity_version(
             detail="Course not found",
         )
 
-    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
 
     # Get specific version with user info
     statement = (
@@ -253,7 +257,7 @@ async def get_activity_state(
             detail="Course not found",
         )
 
-    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
 
     return ActivityStateRead(
         activity_uuid=activity.activity_uuid,

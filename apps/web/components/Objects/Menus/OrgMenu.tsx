@@ -11,7 +11,7 @@ import MenuLinks from './OrgMenuLinks'
 import { getOrgLogoMediaDirectory } from '@services/media/media'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
 import { useOrg } from '@components/Contexts/OrgContext'
-import { SearchBar } from '@components/Objects/Search/SearchBar'
+// import { SearchBar } from '@components/Objects/Search/SearchBar'
 import { usePathname } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 import useAdminStatus from '@components/Hooks/useAdminStatus'
@@ -179,12 +179,15 @@ export const OrgMenu = (props: any) => {
           </div>
 
           {/* Search Section */}
+          {/*
           <div className="hidden md:flex flex-1 justify-center max-w-lg px-4">
             <SearchBar orgslug={orgslug} className="w-full" primaryColor={primaryColor} />
           </div>
+          */}
 
           <div className="flex items-center space-x-2">
-            {/* Progress / Trail */}
+{/*
+
             <AuthenticatedClientElement checkMethod="authentication">
               <div className="hidden md:flex">
                 <TooltipProvider delayDuration={0}>
@@ -205,7 +208,7 @@ export const OrgMenu = (props: any) => {
                 </TooltipProvider>
               </div>
             </AuthenticatedClientElement>
-            {/* Boards */}
+
             {rf?.boards?.enabled && (
               <AuthenticatedClientElement checkMethod="authentication">
                 <div className="hidden md:flex">
@@ -228,7 +231,7 @@ export const OrgMenu = (props: any) => {
                 </div>
               </AuthenticatedClientElement>
             )}
-            {/* AI Copilot */}
+
             {rf?.ai?.enabled && config?.admin_toggles?.ai?.copilot_enabled !== false && (
               <AuthenticatedClientElement checkMethod="authentication">
                 <div className="hidden md:flex">
@@ -243,6 +246,8 @@ export const OrgMenu = (props: any) => {
                 </div>
               </AuthenticatedClientElement>
             )}
+
+*/}
             {/* Dashboard Dropdown - Only visible to admins */}
             {session?.status === 'authenticated' && rights?.dashboard?.action_access && (
               <div className="hidden md:flex">
@@ -372,9 +377,11 @@ export const OrgMenu = (props: any) => {
       >
         <div className="flex flex-col px-4 py-3 space-y-4 justify-center items-center">
           {/* Mobile Search */}
+          {/*
           <div className="w-full px-2">
             <SearchBar orgslug={orgslug} isMobile={true} />
           </div>
+          */}
           <div className='py-4'>
             <MenuLinks orgslug={orgslug} />
           </div>
@@ -393,7 +400,8 @@ export const OrgMenu = (props: any) => {
         userEmail={session?.data?.user?.email}
       />
 
-      {/* Copilot floating bubble */}
+{/*
+
       {isBubbleMode && (
         <CopilotBubble
           orgslug={orgslug}
@@ -402,6 +410,8 @@ export const OrgMenu = (props: any) => {
           sessionToLoad={bubbleSessionToLoad}
         />
       )}
+
+*/}
     </>
   )
 }

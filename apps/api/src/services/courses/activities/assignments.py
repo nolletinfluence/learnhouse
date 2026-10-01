@@ -3,8 +3,8 @@ import copy
 import logging
 import math
 import re
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Sequence
 from uuid import uuid4
 
 try:
@@ -15,9 +15,9 @@ try:
 except Exception:  # pragma: no cover - fallback if the optional dep is absent
     _regex = None
 from fastapi import HTTPException, Request, UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.exc import IntegrityError
 
 from src.db.courses.activities import Activity
 from src.db.courses.assignments import (
@@ -42,36 +42,33 @@ from src.db.courses.assignments import (
 )
 from src.db.courses.courses import Course
 from src.db.organizations import Organization
-from src.db.trail_runs import TrailRun
-from src.db.trail_steps import TrailStep
-from src.db.users import AnonymousUser, PublicUser, User, APITokenUser
+from src.db.user_audit_events import UserAuditEventType
+from src.db.users import AnonymousUser, APITokenUser, PublicUser, User
 from src.security.features_utils.usage import (
     check_limits_with_usage,
     decrease_feature_usage,
     increase_feature_usage,
 )
 from src.security.rbac import (
-    authorization_verify_based_on_roles,
-    authorization_verify_api_token_permissions,
-    check_resource_access,
     AccessAction,
+    authorization_verify_api_token_permissions,
+    authorization_verify_based_on_roles,
+    check_resource_access,
 )
+from src.services.analytics import events as analytics_events
+from src.services.analytics.analytics import track
+from src.services.audit.audit import record_audit_event
 from src.services.courses.activities.uploads.sub_file import upload_submission_file
 from src.services.courses.activities.uploads.tasks_ref_files import (
     upload_reference_file,
 )
-from src.services.trail.trail import check_trail_presence
 from src.services.courses.certifications import (
+    are_course_assignments_passed,
     check_course_completion_and_create_certificate,
     is_course_fully_completed,
     revoke_user_certificate,
     sync_trailrun_status,
-    are_course_assignments_passed,
 )
-from src.services.analytics.analytics import track
-from src.services.analytics import events as analytics_events
-from src.services.audit.audit import record_audit_event
-from src.db.user_audit_events import UserAuditEventType
 from src.services.webhooks.dispatch import dispatch_webhooks
 
 # Hard caps for regex answer-matching (defense-in-depth alongside the timeout).
@@ -126,6 +123,7 @@ async def authorize_assignment_access(
     course_uuid: str,
     access_action: AccessAction,
     token_action: str | None = None,
+    assignment_id: int | None = None,
 ) -> None:
     """Authorize an assignment operation for either a user session or an API token.
 
@@ -138,6 +136,17 @@ async def authorize_assignment_access(
     requires instructor UPDATE for a session but is a ``read`` for a token; an
     authoring token attaches reference files as part of ``create``).
     """
+    if access_action == AccessAction.READ:
+        from src.services.courses.learning_access import require_course_learning_access
+        course = (await db_session.execute(select(Course).where(Course.course_uuid == course_uuid))).scalars().first()
+        if not course:
+            raise HTTPException(404, "Course not found")
+        access = await require_course_learning_access(course, current_user, db_session)
+        if assignment_id is not None and access != "staff":
+            row = (await db_session.execute(select(Assignment, Activity).join(Activity, Activity.id == Assignment.activity_id)
+                .where(Assignment.id == assignment_id, Assignment.course_id == course.id))).first()
+            if not row or not row[0].published or not row[1].published:
+                raise HTTPException(404, "Assignment not found")
     if isinstance(current_user, APITokenUser):
         action = token_action or _ACCESS_ACTION_TO_TOKEN_ACTION[access_action]
         await authorization_verify_api_token_permissions(
@@ -1025,7 +1034,7 @@ async def read_assignment(
 
     assignment, course_uuid, activity_uuid = row
 
-    await authorize_assignment_access(request, db_session, current_user, course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     result = AssignmentRead.model_validate(assignment)
     result.course_uuid = course_uuid
@@ -1055,7 +1064,7 @@ async def read_assignment_from_activity_uuid(
 
     assignment, course_uuid, activity_uuid_val = row
 
-    await authorize_assignment_access(request, db_session, current_user, course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     result = AssignmentRead.model_validate(assignment)
     result.course_uuid = course_uuid
@@ -1301,7 +1310,7 @@ async def read_assignment_tasks(
     )
 
     # RBAC check
-    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Students must not receive the answer key in the task payload. Instructors
     # see everything; a reveal-eligible student (own submission GRADED +
@@ -1363,7 +1372,7 @@ async def read_assignment_task(
         )
 
     # RBAC check
-    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Strip the answer key unless instructor. A reveal-eligible student sees the
     # per-answer keys but never the CODE solution or hidden tests (keep_answer_keys).
@@ -1502,7 +1511,7 @@ async def put_assignment_task_submission_file(
     org = (await db_session.execute(org_statement)).scalars().first()
 
     # RBAC check - only need read permission to submit files
-    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Check if user is enrolled in the course
     if not await authorization_verify_based_on_roles(request, current_user.id, "read", course.course_uuid, db_session):
@@ -1806,6 +1815,8 @@ async def _resolve_token_submission_user(
             status_code=403,
             detail="Learner is not a member of this organization",
         )
+    from src.services.courses.learning_access import require_course_learning_access
+    await require_course_learning_access(course, PublicUser(**learner.model_dump()), db_session)
     return PublicUser(**learner.model_dump())
 
 
@@ -1945,7 +1956,7 @@ async def handle_assignment_task_submission(
         if not is_token_submit:
             # Session students need READ on the course; the token was already
             # authorized via assignments.create in _resolve_token_submission_user.
-            await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+            await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
     else:
         # SECURITY: Instructors/admins need update permission to grade
         await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
@@ -2118,7 +2129,7 @@ async def read_user_assignment_task_submissions(
         )
 
     # RBAC check
-    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Ownership check: non-instructors may only read their own submissions
     is_instructor = await _is_assignment_instructor(request, current_user, course.course_uuid, db_session)
@@ -2170,7 +2181,7 @@ async def read_user_assignment_task_submissions_me_batch(
 
     assignment, course_uuid = assignment_row
 
-    await check_resource_access(request, db_session, current_user, course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     rows = (await db_session.execute(
         select(AssignmentTask, AssignmentTaskSubmission)
@@ -2247,7 +2258,7 @@ async def read_user_assignment_task_submissions_me(
         )
 
     # RBAC check
-    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # return assignment task submission read
     return AssignmentTaskSubmissionRead.model_validate(assignment_task_submission)
@@ -2365,7 +2376,7 @@ async def update_assignment_task_submission(
     if is_instructor:
         await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
     else:
-        await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+        await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
         if assignment_task_submission.user_id != current_user.id:
             raise HTTPException(
                 status_code=403,
@@ -2531,7 +2542,7 @@ async def create_assignment_submission(
         _block_api_tokens(current_user)
         submitter = current_user
         # RBAC check
-        await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+        await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
         is_instructor = await authorization_verify_based_on_roles(
             request, current_user.id, "update", course.course_uuid, db_session
         )
@@ -2694,77 +2705,6 @@ async def create_assignment_submission(
             detail="Activity not found",
         )
 
-    # Add TrailStep
-    trail = await check_trail_presence(
-        org_id=course.org_id,
-        user_id=user.id,  # type: ignore
-        request=request,
-        user=user,  # type: ignore
-        db_session=db_session,
-    )
-
-    statement = select(TrailRun).where(
-        TrailRun.trail_id == trail.id,
-        TrailRun.course_id == course.id,
-        TrailRun.user_id == user.id,
-    )
-    trailrun = (await db_session.execute(statement)).scalars().first()
-
-    if not trailrun:
-        trailrun = TrailRun(
-            trail_id=trail.id if trail.id is not None else 0,
-            course_id=course.id if course.id is not None else 0,
-            org_id=course.org_id,
-            user_id=user.id,  # type: ignore
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db_session.add(trailrun)
-        await db_session.commit()
-        await db_session.refresh(trailrun)
-
-    statement = select(TrailStep).where(
-        TrailStep.trailrun_id == trailrun.id,
-        TrailStep.activity_id == activity.id,
-        TrailStep.user_id == user.id,
-    )
-    trailstep = (await db_session.execute(statement)).scalars().first()
-
-    # Whether this submission is what completes the activity (a brand-new step,
-    # or a step that was incomplete — e.g. after a retry). Used below to fire
-    # COURSE_COMPLETED only on a genuine transition, never on a plain resubmit of
-    # an already-complete activity.
-    is_new_activity_completion = (trailstep is None) or (not trailstep.complete)
-
-    if not trailstep:
-        trailstep = TrailStep(
-            trailrun_id=trailrun.id if trailrun.id is not None else 0,
-            activity_id=activity.id if activity.id is not None else 0,
-            course_id=course.id if course.id is not None else 0,
-            trail_id=trail.id if trail.id is not None else 0,
-            org_id=course.org_id,
-            complete=True,
-            teacher_verified=False,
-            grade="",
-            user_id=user.id, # type: ignore
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db_session.add(trailstep)
-        await db_session.commit()
-        await db_session.refresh(trailstep)
-    else:
-        # Existing trail step — either from prior progress saves, or because
-        # the student just hit "Try again" (the retry endpoint flipped it to
-        # incomplete). Re-flip it to complete now that the assignment is
-        # back in SUBMITTED state. The first-submission branch above sets
-        # complete=True; this keeps the reuse path consistent.
-        trailstep.complete = True
-        trailstep.update_date = str(datetime.now())
-        db_session.add(trailstep)
-        await db_session.commit()
-        await db_session.refresh(trailstep)
-
     # Auto-grading path: if the teacher enabled auto_grading on this assignment
     # AND every task is in AUTO_GRADABLE_TASK_TYPES (explicit allow-list —
     # FILE_SUBMISSION and OTHER are deliberately excluded), compute the grade
@@ -2796,14 +2736,6 @@ async def create_assignment_submission(
                 # Reuse the list fetched just above for the auto-gradable check.
                 assignment_tasks=assignment_tasks,
             )
-            # Ensure trailstep reflects completion (create_assignment_submission
-            # above already created it with complete=True, but if one already
-            # existed from a previous state we make sure it's marked done).
-            trailstep.complete = True
-            trailstep.update_date = str(datetime.now())
-            db_session.add(trailstep)
-            await db_session.commit()
-
     # Check if all activities in the course are completed and create certificate
     # if so. Wrapped defensively: the submission is already committed above, so a
     # certificate hiccup (race on a duplicate cert, transient DB error) must not
@@ -2827,43 +2759,6 @@ async def create_assignment_submission(
                 assignment.assignment_uuid,
                 user.id,
             )
-
-        # Fire COURSE_COMPLETED when THIS submission finished the course. Assignment
-        # activities don't go through the trail's mark-activity-done flow, so
-        # without this the event/analytics never fire when the final activity is an
-        # assignment. Gated on a genuine activity-completion transition so a plain
-        # resubmit of an already-complete activity doesn't re-fire it.
-        if is_new_activity_completion:
-            try:
-                if course_complete:
-                    await track(
-                        event_name=analytics_events.COURSE_COMPLETED,
-                        org_id=course.org_id,
-                        user_id=user.id,
-                        properties={"course_uuid": course.course_uuid},
-                    )
-                    await dispatch_webhooks(
-                        event_name=analytics_events.COURSE_COMPLETED,
-                        org_id=course.org_id,
-                        data={
-                            "user": {
-                                "user_uuid": user.user_uuid,
-                                "email": user.email,
-                                "username": user.username,
-                            },
-                            "course": {
-                                "course_uuid": course.course_uuid,
-                                "name": course.name,
-                            },
-                        },
-                    )
-            except Exception:  # pragma: no cover - defensive: dispatch errors never fail submit
-                logger.exception(
-                    "COURSE_COMPLETED dispatch failed after assignment submission "
-                    "(assignment %s, user %s); submission is saved.",
-                    assignment.assignment_uuid,
-                    user.id,
-                )
 
     # return assignment user submission read
     return AssignmentUserSubmissionRead.model_validate(assignment_user_submission)
@@ -2898,7 +2793,7 @@ async def read_assignment_submissions(
         )
 
     # RBAC check
-    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Check if user has instructor/admin privileges on this course
     is_instructor = await _is_assignment_instructor(request, current_user, course.course_uuid, db_session)
@@ -2998,7 +2893,7 @@ async def read_user_assignment_submissions(
         )
 
     # RBAC check
-    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Ownership check: non-instructors may only read their own submissions
     is_instructor = await _is_assignment_instructor(request, current_user, course.course_uuid, db_session)
@@ -3086,7 +2981,7 @@ async def update_assignment_submission(
         await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
     else:
         # Regular users need READ access and can only update their own submissions
-        await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+        await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
         if str(assignment_user_submission.user_id) != str(current_user.id):
             raise HTTPException(
                 status_code=403,
@@ -3164,24 +3059,6 @@ async def delete_assignment_submission(
     # RBAC check
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.DELETE)
 
-    # Rejecting a submission means the student is no longer "done" with this
-    # activity — reset the TrailStep so the activity is no longer complete,
-    # clear the teacher-verification flag, and drop any stored grade string.
-    # Leave the per-task AssignmentTaskSubmission rows intact so the student
-    # keeps the work they did and can edit + resubmit rather than starting
-    # from scratch.
-    trailstep_statement = select(TrailStep).where(
-        TrailStep.activity_id == assignment.activity_id,
-        TrailStep.user_id == user_id,
-    )
-    trailstep = (await db_session.execute(trailstep_statement)).scalars().first()
-    if trailstep:
-        trailstep.complete = False
-        trailstep.teacher_verified = False
-        trailstep.grade = ""
-        trailstep.update_date = str(datetime.now())
-        db_session.add(trailstep)
-
     # Delete Assignment User Submission (so the student can create a new one)
     await db_session.delete(assignment_user_submission)
     await db_session.commit()
@@ -3249,7 +3126,7 @@ async def retry_assignment_submission(
 
     # Only READ permission is required: the student is rescheduling their
     # own work, not editing the assignment configuration.
-    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Row-level lock on the user's submission so two concurrent retries can't
     # both read attempt_number=N, pass the cap check, and increment to N+1 —
@@ -3322,21 +3199,6 @@ async def retry_assignment_submission(
         )).scalars().all()
         for ts in existing_submissions:
             await db_session.delete(ts)
-
-    # Mark the activity incomplete again so the student's progress bar
-    # reflects the in-flight retry rather than the (now stale) previous
-    # completion.
-    trailstep_statement = select(TrailStep).where(
-        TrailStep.activity_id == assignment.activity_id,
-        TrailStep.user_id == int(current_user.id),
-    )
-    trailstep = (await db_session.execute(trailstep_statement)).scalars().first()
-    if trailstep:
-        trailstep.complete = False
-        trailstep.teacher_verified = False
-        trailstep.grade = ""
-        trailstep.update_date = str(datetime.now())
-        db_session.add(trailstep)
 
     # Reset the submission row in place. Keeping the same uuid means
     # downstream consumers (analytics, webhooks) don't see a "new"
@@ -3692,7 +3554,7 @@ async def get_grade_assignment_submission(
         )
 
     # RBAC check
-    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
+    await authorize_assignment_access(request, db_session, current_user, course.course_uuid, AccessAction.READ, assignment_id=assignment.id)
 
     # Ownership check: non-instructors may only read their own grade
     is_instructor = await _is_assignment_instructor(request, current_user, course.course_uuid, db_session)
@@ -3754,87 +3616,8 @@ async def get_grade_assignment_submission(
     return grade_obj
 
 
-async def mark_activity_as_done_for_user(
-    request: Request,
-    user_id: int,
-    assignment_uuid: str,
-    current_user: PublicUser | AnonymousUser | APITokenUser,
-    db_session: AsyncSession,
-):
-    _block_api_tokens(current_user)
-    # SECURITY: This function should only be accessible by course owners or instructors
-    # Get Assignment
-    statement = select(Assignment).where(Assignment.assignment_uuid == assignment_uuid)
-    assignment = (await db_session.execute(statement)).scalars().first()
-
-    if not assignment:
-        raise HTTPException(
-            status_code=404,
-            detail="Assignment not found",
-        )
-
-    # Check if activity exists
-    statement = select(Activity).where(Activity.id == assignment.activity_id)
-    activity = (await db_session.execute(statement)).scalars().first()
-
-    statement = select(Course).where(Course.id == assignment.course_id)
-    course = (await db_session.execute(statement)).scalars().first()
-
-    if not course:
-        raise HTTPException(
-            status_code=404,
-            detail="Course not found",
-        )
-
-    # SECURITY: Require course ownership or instructor role for marking activities as done
-    await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
-
-    if not activity:
-        raise HTTPException(
-            status_code=404,
-            detail="Activity not found",
-        )
-
-    # Check if user exists
-    statement = select(User).where(User.id == user_id)
-    user = (await db_session.execute(statement)).scalars().first()
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found",
-        )
-
-    # Check if user is enrolled in the course
-    trailsteps = select(TrailStep).where(
-        TrailStep.activity_id == activity.id,
-        TrailStep.user_id == user_id,
-    )
-    trailstep = (await db_session.execute(trailsteps)).scalars().first()
-
-    if not trailstep:
-        raise HTTPException(
-            status_code=404,
-            detail="User not enrolled in the course",
-        )
-
-    # Mark activity as done
-    trailstep.complete = True
-    trailstep.update_date = str(datetime.now())
-
-    # Insert TrailStep in DB
-    db_session.add(trailstep)
-    await db_session.commit()
-    await db_session.refresh(trailstep)
-
-    # Check if all activities in the course are completed and create certificate if so
-    if course and course.id:
-        await check_course_completion_and_create_certificate(
-            request, user_id, course.id, db_session
-        )
-
-    # return OK
-    return {"message": "Activity marked as done for user"}
+async def mark_activity_as_done_for_user(request, user_id, assignment_uuid, current_user, db_session):
+    raise HTTPException(403, "Lesson completion is recorded by mentor attendance")
 
 
 async def get_assignments_from_course(
@@ -3865,7 +3648,7 @@ async def get_assignments_from_course(
     # in navigation, and these direct endpoints bypassed it.
     statement = select(Assignment).where(Assignment.course_id == course.id)
     if not await _is_assignment_instructor(request, current_user, course.course_uuid, db_session):
-        statement = statement.where(Assignment.published == True)  # noqa: E712
+        statement = statement.join(Activity, Activity.id == Assignment.activity_id).where(Assignment.published == True, Activity.published == True)
     assignments = (await db_session.execute(statement)).scalars().all()
 
     # return assignments read

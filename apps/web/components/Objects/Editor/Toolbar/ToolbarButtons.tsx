@@ -629,6 +629,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
           <GitBranch size={15} weight="fill" />
         </div>
       </ToolTip>
+      {/*
       <ToolTip content={canUseAI ? t('editor.blocks.magic_block') : t('editor.blocks.magic_block_disabled')}>
         {canUseAI ? (
           <div
@@ -648,6 +649,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
           </div>
         )}
       </ToolTip>
+      */}
     </div>
   )
 })

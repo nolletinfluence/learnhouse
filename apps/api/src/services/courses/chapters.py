@@ -1,12 +1,11 @@
 from datetime import datetime
-from typing import List
 from uuid import uuid4
+
+from fastapi import HTTPException, Request, status
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from src.db.users import AnonymousUser, APITokenUser, PublicUser
-from src.security.auth import resolve_acting_user_id
-from src.db.courses.course_chapters import CourseChapter
+
 from src.db.courses.activities import Activity, ActivityRead
 from src.db.courses.chapter_activities import ChapterActivity
 from src.db.courses.chapters import (
@@ -16,15 +15,10 @@ from src.db.courses.chapters import (
     ChapterUpdate,
     ChapterUpdateOrder,
 )
+from src.db.courses.course_chapters import CourseChapter
 from src.db.courses.courses import Course
-from fastapi import HTTPException, status, Request
-from src.security.rbac import check_resource_access, AccessAction
-from src.services.courses.locks import (
-    batch_accessible_restricted_uuids,
-    is_locked_for_user,
-    is_org_admin,
-)
-
+from src.db.users import AnonymousUser, PublicUser
+from src.security.rbac import AccessAction, check_resource_access
 
 ####################################################
 # CRUD
@@ -119,6 +113,8 @@ async def get_chapter(
         )
 
     # RBAC check
+    from src.services.courses.learning_access import require_course_learning_access
+    access = await require_course_learning_access(course, current_user, db_session)
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
 
     # Get activities for this chapter
@@ -129,6 +125,8 @@ async def get_chapter(
         .distinct(Activity.id) # type: ignore
     )
 
+    if access != "staff":
+        statement = statement.where(Activity.published == True)
     activities = (await db_session.execute(statement)).scalars().all()
 
     chapter = ChapterRead(
@@ -234,8 +232,8 @@ async def get_course_chapters(
     page: int = 1,
     limit: int = 10,
     slim: bool = False,
-    course: "Course | None" = None,
-) -> List[ChapterRead]:
+    course: Course | None = None,
+) -> list[ChapterRead]:
 
     # Skip the duplicate Course lookup when the caller (e.g. get_course_meta)
     # already has the course in hand.
@@ -251,6 +249,12 @@ async def get_course_chapters(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Course does not exist"
         )
+
+    from src.services.courses.learning_access import course_learning_access
+    access = await course_learning_access(course, current_user, db_session)
+    if access not in ("staff", "enrolled"):
+        return []
+    with_unpublished_activities = with_unpublished_activities and access == "staff"
 
     statement = (
         select(Chapter)
@@ -290,6 +294,7 @@ async def get_course_chapters(
                     Activity.current_version,
                     Activity.last_modified_by_id,
                     Activity.lock_type,
+                    Activity.extra_metadata,
                     ChapterActivity.order,
                 )
                 .join(Activity, Activity.id == ChapterActivity.activity_id)  # type: ignore
@@ -319,6 +324,7 @@ async def get_course_chapters(
                     a_version,
                     a_last_modified_by,
                     a_lock_type,
+                    a_extra_metadata,
                     _order,
                 ) = row
                 key = (chapter_id_val, a_id)
@@ -342,6 +348,7 @@ async def get_course_chapters(
                         current_version=a_version,
                         last_modified_by_id=a_last_modified_by,
                         lock_type=a_lock_type,
+                        extra_metadata=a_extra_metadata,
                     )
                 )
         else:
@@ -375,90 +382,17 @@ async def get_course_chapters(
     return chapters
 
 
-async def _apply_locks_to_chapters(
-    chapters: List[ChapterRead],
-    course: "Course | None",
-    current_user: PublicUser | AnonymousUser | APITokenUser,
-    db_session: AsyncSession,
-) -> None:
-    """Compute is_locked for each chapter + activity and strip content for locked items.
-
-    Admins/maintainers bypass all locks (still see the lock_type so they can edit
-    it in the dashboard). A locked chapter cascades — all its activities become
-    locked regardless of their own lock_type. A usergroup attached at the COURSE
-    level also grants access to all restricted chapters/activities inside that
-    course (same table, keyed on ``course_uuid``), so admins don't have to
-    re-assign the same group on every chapter.
-    """
-    if not chapters or course is None:
+async def _apply_locks_to_chapters(chapters, course, current_user, db_session):
+    if course is None:
         return
-
-    is_anon = isinstance(current_user, AnonymousUser)
-    acting_user_id = resolve_acting_user_id(current_user)
-    admin = False if is_anon else await is_org_admin(acting_user_id, course.org_id, db_session)
-
-    # Admins see everything — no stripping.
-    if admin:
-        return
-
-    # Collect the uuids we need to check access on, in a single batch query:
-    # course_uuid (parent grant) + every restricted chapter_uuid + activity_uuid.
-    check_uuids: list[str] = [course.course_uuid]
+    from src.services.courses.learning_access import require_course_learning_access
+    await require_course_learning_access(course, current_user, db_session)
     for chapter in chapters:
-        if (chapter.lock_type or "public") == "restricted":
-            check_uuids.append(chapter.chapter_uuid)
+        chapter.is_locked = False
         for activity in chapter.activities:
-            if (activity.lock_type or "public") == "restricted":
-                check_uuids.append(activity.activity_uuid)
-
-    accessible: set[str] = set()
-    if not is_anon:
-        accessible = await batch_accessible_restricted_uuids(
-            acting_user_id, check_uuids, db_session
-        )
-
-    # Course-level usergroup membership unlocks everything below it.
-    course_grants_access = course.course_uuid in accessible
-
-    for chapter in chapters:
-        chapter_locked = False if course_grants_access else await is_locked_for_user(
-            chapter.lock_type,
-            chapter.chapter_uuid,
-            course.org_id,
-            current_user,
-            db_session,
-            accessible_restricted_uuids=accessible,
-            is_admin=admin,
-        )
-        chapter.is_locked = chapter_locked
-        if chapter_locked:
-            chapter.description = ""
-            chapter.thumbnail_image = ""
-
-        for activity in chapter.activities:
-            if chapter_locked:
-                activity_locked = True
-            elif course_grants_access:
-                activity_locked = False
-            else:
-                activity_locked = await is_locked_for_user(
-                    activity.lock_type,
-                    activity.activity_uuid,
-                    course.org_id,
-                    current_user,
-                    db_session,
-                    accessible_restricted_uuids=accessible,
-                    is_admin=admin,
-                )
-            activity.is_locked = activity_locked
-            if activity_locked:
-                activity.content = {}
-                activity.details = None
+            activity.is_locked = False
 
 
-# Important Note : this is legacy code that has been used because
-# the frontend is still not adapted for the new data structure, this implementation is absolutely not the best one
-# and should not be used for future features
 async def DEPRECEATED_get_course_chapters(
     request: Request,
     course_uuid: str,
@@ -474,9 +408,11 @@ async def DEPRECEATED_get_course_chapters(
         )
 
     # RBAC check
+    from src.services.courses.learning_access import require_course_learning_access
+    await require_course_learning_access(course, current_user, db_session)
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
 
-    chapters_in_db = await get_course_chapters(request, course.id, db_session, current_user)  # type: ignore
+    chapters_in_db = await get_course_chapters(request, course.id, db_session, current_user, False)  # type: ignore
 
     # activities
 
@@ -501,7 +437,7 @@ async def DEPRECEATED_get_course_chapters(
     statement = (
         select(Activity)
         .join(ChapterActivity, ChapterActivity.activity_id == Activity.id) # type: ignore
-        .where(ChapterActivity.activity_id == Activity.id)
+        .where(ChapterActivity.activity_id == Activity.id, Activity.course_id == course.id, Activity.published == True)
         .group_by(Activity.id) # type: ignore
     )
     activities_in_db = (await db_session.execute(statement)).scalars().all()
@@ -515,11 +451,11 @@ async def DEPRECEATED_get_course_chapters(
             "content": activity.content,
         }
 
-    # get chapter order
+
     statement = (
         select(Chapter)
         .join(CourseChapter, CourseChapter.chapter_id == Chapter.id) # type: ignore
-        .where(CourseChapter.chapter_id == Chapter.id)
+        .where(CourseChapter.chapter_id == Chapter.id, Chapter.course_id == course.id)
         .group_by(Chapter.id, CourseChapter.order) # type: ignore
         .order_by(CourseChapter.order) # type: ignore
     )
