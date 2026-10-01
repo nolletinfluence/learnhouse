@@ -539,7 +539,6 @@ class TestDeleteCertification:
                 )
 
         assert exc_info.value.status_code == 409
-        # The template and the awarded certificate both survive.
         assert (
             await db.execute(
                 select(Certifications).where(
@@ -661,7 +660,6 @@ class TestCreateCertificateUser:
         assert len(parts[0]) == 2
         assert parts[1] == current_date
         assert parts[2] == regular_user.user_uuid[-4:]
-        # Suffix is now an 8-char hex token (collision-safe), not sequential.
         assert len(parts[3]) == 8
         assert all(c in "0123456789abcdef" for c in parts[3])
         mock_access.assert_awaited_once_with(
@@ -887,9 +885,6 @@ class TestCreateCertificateUser:
     async def test_duplicate_row_blocked_by_db_constraint(
         self, db, course, regular_user
     ):
-        # The unique (user_id, certification_id) constraint must reject a second
-        # certificate row for the same user+certification at the DB level — the
-        # safety net behind the race-recovery path.
         from sqlalchemy.exc import IntegrityError
 
         certification = await _create_certification(db, course, cert_uuid="cert_uq")
@@ -910,11 +905,6 @@ class TestCreateCertificateUser:
     async def test_create_certificate_user_race_returns_existing(
         self, db, course, admin_user, regular_user, mock_request
     ):
-        # Simulate the race: a concurrent request already inserted the winning
-        # certificate, but this request's pre-existence SELECT missed it (the
-        # race window). Its own INSERT then trips the unique constraint. The
-        # service must recover — roll back and return the existing row — instead
-        # of 500-ing an already-committed submission.
         certification = await _create_certification(db, course, cert_uuid="cert_race")
         winner = await _create_certificate_user(
             db,
@@ -923,10 +913,6 @@ class TestCreateCertificateUser:
             user_certification_uuid="WIN-20240101-TEST-999",
         )
 
-        # Force the FIRST CertificateUser SELECT (the pre-existence check) to
-        # return an empty result so the code proceeds to its own INSERT; later
-        # CertificateUser SELECTs (the except-branch fetch) run for real and
-        # find the winner.
         real_execute = db.execute
         state = {"cu_selects": 0}
 
@@ -936,7 +922,6 @@ class TestCreateCertificateUser:
             if is_cu_select:
                 state["cu_selects"] += 1
                 if state["cu_selects"] == 1:
-                    # Empty result: same query shape but matches nothing.
                     return await real_execute(
                         select(CertificateUser).where(CertificateUser.id == -1)
                     )
@@ -960,10 +945,8 @@ class TestCreateCertificateUser:
                 current_user=admin_user,
             )
 
-        # Recovered the winner's row rather than raising.
         assert isinstance(result, CertificateUserRead)
         assert result.user_certification_uuid == winner.user_certification_uuid
-        # No duplicate CERTIFICATE_CLAIMED emitted on the losing racer.
         mock_track.assert_not_called()
         mock_webhooks.assert_not_called()
 
@@ -1097,14 +1080,12 @@ class TestCompletionHelpers:
         self, db, course, org, regular_user, activity, mock_request
     ):
         certification = await _create_certification(
-            db,
-            course,
-            cert_uuid="cert_completion",
+            db, course, cert_uuid="cert_completion"
         )
         await _create_trail_complete_graph(db, org, course, regular_user)
         trail_step = TrailStep(
             complete=True,
-            teacher_verified=False,
+            teacher_verified=True,
             grade="",
             data={},
             trailrun_id=1,
@@ -1118,39 +1099,36 @@ class TestCompletionHelpers:
         )
         db.add(trail_step)
         await db.commit()
-
-        with patch(
-            "src.services.courses.certifications.track",
-            new_callable=AsyncMock,
-        ) as mock_track, patch(
-            "src.services.courses.certifications.dispatch_webhooks",
-            new_callable=AsyncMock,
-        ) as mock_webhooks:
+        with (
+            patch(
+                "src.services.courses.certifications.track", new_callable=AsyncMock
+            ) as mock_track,
+            patch(
+                "src.services.courses.certifications.dispatch_webhooks",
+                new_callable=AsyncMock,
+            ) as mock_webhooks,
+        ):
             result = await check_course_completion_and_create_certificate(
-                mock_request,
-                regular_user.id,
-                course.id,
-                db,
+                mock_request, regular_user.id, course.id, db
             )
-
         assert result is True
         created = (
-            await db.execute(
-                select(CertificateUser).where(
-                    CertificateUser.certification_id == certification.id,
-                    CertificateUser.user_id == regular_user.id,
+            (
+                await db.execute(
+                    select(CertificateUser).where(
+                        CertificateUser.certification_id == certification.id,
+                        CertificateUser.user_id == regular_user.id,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         assert created is not None
         mock_track.assert_awaited_once()
         mock_webhooks.assert_awaited_once()
-
         second_result = await check_course_completion_and_create_certificate(
-            mock_request,
-            regular_user.id,
-            course.id,
-            db,
+            mock_request, regular_user.id, course.id, db
         )
         assert second_result is False
 
@@ -1158,10 +1136,6 @@ class TestCompletionHelpers:
     async def test_check_course_completion_promotes_trailrun_status(
         self, db, course, org, regular_user, activity, mock_request
     ):
-        # H2: when the last activity is an assignment, nothing but this check
-        # would flip the enrollment status. Start the run IN_PROGRESS with the
-        # only activity complete, and assert the completion check promotes the
-        # TrailRun to COMPLETED (no certification needed for the sync itself).
         trail = Trail(
             id=1,
             org_id=org.id,
@@ -1187,7 +1161,7 @@ class TestCompletionHelpers:
         db.add(
             TrailStep(
                 complete=True,
-                teacher_verified=False,
+                teacher_verified=True,
                 grade="",
                 data={},
                 trailrun_id=1,
@@ -1201,11 +1175,9 @@ class TestCompletionHelpers:
             )
         )
         await db.commit()
-
         await check_course_completion_and_create_certificate(
             mock_request, regular_user.id, course.id, db
         )
-
         await db.refresh(trail_run)
         assert trail_run.status == StatusEnum.STATUS_COMPLETED
 
@@ -1236,7 +1208,7 @@ class TestCompletionHelpers:
         await _create_trail_complete_graph(db, org, course, regular_user)
         trail_step = TrailStep(
             complete=True,
-            teacher_verified=False,
+            teacher_verified=True,
             grade="",
             data={},
             trailrun_id=1,
@@ -1250,14 +1222,9 @@ class TestCompletionHelpers:
         )
         db.add(trail_step)
         await db.commit()
-
         result = await check_course_completion_and_create_certificate(
-            mock_request,
-            regular_user.id,
-            course.id,
-            db,
+            mock_request, regular_user.id, course.id, db
         )
-
         assert result is False
 
     @pytest.mark.asyncio
@@ -1268,7 +1235,7 @@ class TestCompletionHelpers:
         await _create_trail_complete_graph(db, org, course, regular_user)
         trail_step = TrailStep(
             complete=True,
-            teacher_verified=False,
+            teacher_verified=True,
             grade="",
             data={},
             trailrun_id=1,
@@ -1282,7 +1249,6 @@ class TestCompletionHelpers:
         )
         db.add(trail_step)
         await db.commit()
-
         with patch(
             "src.services.courses.certifications.create_certificate_user",
             new_callable=AsyncMock,
@@ -1290,12 +1256,8 @@ class TestCompletionHelpers:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await check_course_completion_and_create_certificate(
-                    mock_request,
-                    regular_user.id,
-                    course.id,
-                    db,
+                    mock_request, regular_user.id, course.id, db
                 )
-
         assert exc_info.value.status_code == 500
 
     @pytest.mark.asyncio
@@ -1303,14 +1265,12 @@ class TestCompletionHelpers:
         self, db, course, org, regular_user, mock_request
     ):
         certification = await _create_certification(
-            db,
-            course,
-            cert_uuid="cert_completion_duplicate",
+            db, course, cert_uuid="cert_completion_duplicate"
         )
         await _create_trail_complete_graph(db, org, course, regular_user)
         trail_step = TrailStep(
             complete=True,
-            teacher_verified=False,
+            teacher_verified=True,
             grade="",
             data={},
             trailrun_id=1,
@@ -1325,14 +1285,9 @@ class TestCompletionHelpers:
         db.add(trail_step)
         await db.commit()
         await _create_certificate_user(db, certification, regular_user)
-
         result = await check_course_completion_and_create_certificate(
-            mock_request,
-            regular_user.id,
-            course.id,
-            db,
+            mock_request, regular_user.id, course.id, db
         )
-
         assert result is False
 
 
@@ -1562,44 +1517,71 @@ class TestIsCourseFullyCompleted:
         must not count toward completion — otherwise the course could never be
         finished and the certificate would be permanently withheld."""
         from src.db.courses.activities import (
-            Activity, ActivityTypeEnum, ActivitySubTypeEnum,
+            Activity,
+            ActivityTypeEnum,
+            ActivitySubTypeEnum,
         )
         from src.db.courses.chapter_activities import ChapterActivity
         from src.services.courses.certifications import is_course_fully_completed
 
         published = Activity(
-            id=4101, name="Published", activity_uuid="activity_pub_4101",
+            id=4101,
+            name="Published",
+            activity_uuid="activity_pub_4101",
             activity_type=ActivityTypeEnum.TYPE_DYNAMIC,
             activity_sub_type=ActivitySubTypeEnum.SUBTYPE_DYNAMIC_PAGE,
-            published=True, org_id=org.id, course_id=course.id, content={},
-            creation_date="2024-01-01", update_date="2024-01-01",
+            published=True,
+            org_id=org.id,
+            course_id=course.id,
+            content={},
+            creation_date="2024-01-01",
+            update_date="2024-01-01",
         )
         draft = Activity(
-            id=4102, name="Draft", activity_uuid="activity_draft_4102",
+            id=4102,
+            name="Draft",
+            activity_uuid="activity_draft_4102",
             activity_type=ActivityTypeEnum.TYPE_DYNAMIC,
             activity_sub_type=ActivitySubTypeEnum.SUBTYPE_DYNAMIC_PAGE,
-            published=False, org_id=org.id, course_id=course.id, content={},
-            creation_date="2024-01-01", update_date="2024-01-01",
+            published=False,
+            org_id=org.id,
+            course_id=course.id,
+            content={},
+            creation_date="2024-01-01",
+            update_date="2024-01-01",
         )
         db.add(published)
         db.add(draft)
         await db.commit()
         for a in (published, draft):
-            db.add(ChapterActivity(
-                activity_id=a.id, course_id=course.id, chapter_id=1,
-                org_id=org.id, order=1,
-                creation_date="2024-01-01", update_date="2024-01-01",
-            ))
-        # Only the PUBLISHED activity is completed.
-        db.add(TrailStep(
-            complete=True, teacher_verified=False, grade="", data={},
-            trailrun_id=1, trail_id=1, activity_id=published.id,
-            course_id=course.id, org_id=org.id, user_id=regular_user.id,
-            creation_date="2024-01-01", update_date="2024-01-01",
-        ))
+            db.add(
+                ChapterActivity(
+                    activity_id=a.id,
+                    course_id=course.id,
+                    chapter_id=1,
+                    org_id=org.id,
+                    order=1,
+                    creation_date="2024-01-01",
+                    update_date="2024-01-01",
+                )
+            )
+        db.add(
+            TrailStep(
+                complete=True,
+                teacher_verified=True,
+                grade="",
+                data={},
+                trailrun_id=1,
+                trail_id=1,
+                activity_id=published.id,
+                course_id=course.id,
+                org_id=org.id,
+                user_id=regular_user.id,
+                creation_date="2024-01-01",
+                update_date="2024-01-01",
+            )
+        )
         await db.commit()
-
-        # The draft activity is excluded, so the course is fully completed.
         assert await is_course_fully_completed(regular_user.id, course.id, db) is True
 
 
@@ -1767,7 +1749,6 @@ class TestAreCourseAssignmentsPassed:
     async def test_graded_but_failed_returns_false(self, db, org, course, activity, regular_user):
         from src.db.courses.assignments import AssignmentUserSubmissionStatus
         from src.services.courses.certifications import are_course_assignments_passed
-        # 77% against a configured 80% threshold -> failed -> cert withheld.
         a = await self._make_assignment(db, org, course, activity, threshold=80)
         await self._make_submission(db, a, regular_user, grade=77, status=AssignmentUserSubmissionStatus.GRADED)
         assert await are_course_assignments_passed(regular_user.id, course.id, db) is False
@@ -1788,8 +1769,6 @@ class TestAreCourseAssignmentsPassed:
 
     @pytest.mark.asyncio
     async def test_zero_max_assignment_does_not_block(self, db, org, course, activity, regular_user):
-        # A 0-point assignment (no gradable tasks) must not permanently block the
-        # certificate even with no submission -> vacuously passed.
         from src.services.courses.certifications import are_course_assignments_passed
         await self._make_assignment(db, org, course, activity, threshold=80, max_grade=0)
         assert await are_course_assignments_passed(regular_user.id, course.id, db) is True
@@ -1817,7 +1796,6 @@ class TestRevokeUserCertificate:
             )
 
         assert revoked is True
-        # Row is gone.
         remaining = (
             await db.execute(
                 select(CertificateUser).where(
@@ -1827,7 +1805,6 @@ class TestRevokeUserCertificate:
             )
         ).scalars().first()
         assert remaining is None
-        # certificate_revoked emitted with the reason + revoked uuid.
         mock_track.assert_awaited_once()
         assert mock_track.await_args.kwargs["event_name"] == analytics_events.CERTIFICATE_REVOKED
         wh = mock_webhooks.await_args.kwargs

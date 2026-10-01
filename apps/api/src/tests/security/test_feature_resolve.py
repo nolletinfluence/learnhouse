@@ -54,7 +54,6 @@ class TestFeatureResolve:
             return_value=redis_client,
         ):
             assert _get_purchased_extra(1, "ai") == 9
-            # members/admin_seats no longer have a purchasable pack -> always 0
             assert _get_purchased_extra(2, "members") == 0
             assert _get_purchased_extra(3, "unknown") == 0
 
@@ -98,43 +97,45 @@ class TestFeatureResolve:
                 "analytics": {"force_enabled": True},
             },
         }
-
-        with patch("src.security.features_utils.resolve.get_deployment_mode", return_value="saas"), patch(
-            "src.security.features_utils.resolve._get_purchased_extra",
-            return_value=4,
+        with (
+            patch(
+                "src.security.features_utils.resolve.get_deployment_mode",
+                return_value="saas",
+            ),
+            patch(
+                "src.security.features_utils.resolve._get_purchased_extra",
+                return_value=4,
+            ),
         ):
             members = resolve_feature("members", config, org_id=12)
             analytics = resolve_feature("analytics", config, org_id=12)
             boards = resolve_feature("boards", config, org_id=12)
-            ai = resolve_feature("ai", {"config_version": "2.0", "plan": "free"}, org_id=0)
-
+            ai = resolve_feature(
+                "ai", {"config_version": "2.0", "plan": "free"}, org_id=0
+            )
         assert members == {
             "enabled": True,
             "available": True,
             "limit": 17,
             "required_plan": None,
         }
-        # force_enabled override → available even though the free plan omits it.
         assert analytics == {
             "enabled": True,
             "available": True,
             "limit": 0,
             "required_plan": "standard",
         }
-        # admin-disabled AND not in the (free) plan → unavailable and off.
         assert boards == {
             "enabled": False,
             "available": False,
             "limit": 0,
             "required_plan": "personal",
         }
-        # AI is enabled on the free plan (metered by a starter credit allowance),
-        # so it resolves as available with a free requirement.
         assert ai == {
-            "enabled": True,
-            "available": True,
+            "enabled": False,
+            "available": False,
             "limit": 0,
-            "required_plan": "free",
+            "required_plan": None,
         }
 
     def test_courses_saas_limit_resolution_uses_plan_overrides_and_purchased_extra(self):
@@ -188,14 +189,12 @@ class TestFeatureResolve:
             oss_blocked = resolve_feature("sso", config, org_id=0)
             oss_allowed = resolve_feature("analytics", config_allowed, org_id=0)
 
-        # EE: available (everything is), but the admin toggle still turned it off.
         assert ee_disabled == {
             "enabled": False,
             "available": True,
             "limit": 0,
             "required_plan": "standard",
         }
-        # OSS: an EE-only feature is unavailable.
         assert oss_blocked == {
             "enabled": False,
             "available": False,
@@ -210,8 +209,6 @@ class TestFeatureResolve:
         }
 
     def test_paid_plan_feature_cannot_be_admin_disabled(self):
-        # A feature INCLUDED in a paid plan must stay enabled even when an admin
-        # toggles it off — paying users always keep their plan features.
         base = {"config_version": "2.0", "plan": "pro"}
         toggled_off = {**base, "admin_toggles": {"roles": {"disabled": True}}}
 
@@ -219,15 +216,12 @@ class TestFeatureResolve:
             without_toggle = resolve_feature("roles", base, org_id=0)
             with_toggle = resolve_feature("roles", toggled_off, org_id=0)
 
-        # pro includes roles → available, and the admin toggle can't take it away
         assert without_toggle["available"] is True
         assert without_toggle["enabled"] is True
         assert with_toggle["available"] is True
         assert with_toggle["enabled"] is True
 
     def test_free_plan_feature_can_be_admin_disabled(self):
-        # The SAME toggle DOES disable a plan feature on the free plan (the
-        # guarantee only protects paying orgs).
         config = {
             "config_version": "2.0",
             "plan": "free",
@@ -236,8 +230,8 @@ class TestFeatureResolve:
         with patch("src.security.features_utils.resolve.get_deployment_mode", return_value="saas"):
             members = resolve_feature("members", config, org_id=0)
 
-        assert members["available"] is True   # free plan includes members
-        assert members["enabled"] is False    # ...but the admin turned it off
+        assert members["available"] is True
+        assert members["enabled"] is False
 
     def test_fetch_purchased_extras_returns_defaults_when_org_id_zero(self):
         result = _fetch_purchased_extras(0)
@@ -249,8 +243,6 @@ class TestFeatureResolve:
         assert result == {"ai": 0, "members": 0, "admin_seats": 0}
 
     def test_fetch_purchased_extras_returns_values_from_redis(self):
-        # Only AI credits remain purchasable; members/admin_seats are always 0
-        # (the member-seats pack was retired for active-user overage).
         redis_client = Mock()
         redis_client.get.return_value = b"100"
         with patch("src.core.redis.get_redis_client", return_value=redis_client):
@@ -272,7 +264,6 @@ class TestFeatureResolve:
 
     def test_get_purchased_extra_uses_pre_fetched_extras(self):
         extras = {"ai": 42, "members": 10, "admin_seats": 10}
-        # No redis call should happen when _extras is provided
         with patch("src.core.redis.get_redis_client") as mock_redis:
             assert _get_purchased_extra(5, "ai", _extras=extras) == 42
             assert _get_purchased_extra(5, "members", _extras=extras) == 10

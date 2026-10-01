@@ -50,8 +50,6 @@ from src.services.courses.activities.assignments import (
     update_assignment,
 )
 
-# The assignment / submission / task fixtures come from the services-level
-# conftest.py (auto-discovered) — no cross-module import needed.
 
 _PATCH_RBAC = "src.services.courses.activities.assignments.check_resource_access"
 _PATCH_LIMITS = "src.services.courses.activities.assignments.check_limits_with_usage"
@@ -82,11 +80,6 @@ def _rbac_denied():
     return AsyncMock(
         side_effect=HTTPException(status_code=403, detail="Access denied")
     )
-
-
-# ===========================================================================
-# 1. _block_api_tokens fires on every sensitive action — BEFORE RBAC
-# ===========================================================================
 
 
 class TestApiTokensBlockedOnSensitiveActions:
@@ -240,11 +233,6 @@ class TestApiTokensBlockedOnSensitiveActions:
         rbac.assert_not_awaited()
 
 
-# ===========================================================================
-# 2. check_resource_access denial propagates (student lacks permission)
-# ===========================================================================
-
-
 class TestRbacDenialPropagates:
     """When ``check_resource_access`` raises 403 (no permission), each mutating
     action must propagate that denial rather than proceeding. We use a real
@@ -333,11 +321,6 @@ class TestRbacDenialPropagates:
         assert exc.value.status_code == 403
 
 
-# ===========================================================================
-# 3. Grading allowed when RBAC passes (instructor happy path)
-# ===========================================================================
-
-
 class TestGradingAllowedWhenAccessPasses:
     async def test_instructor_can_grade(
         self,
@@ -366,11 +349,6 @@ class TestGradingAllowedWhenAccessPasses:
         assert "display_grade" in result
 
 
-# ===========================================================================
-# 4. get_grade ownership gate (RBAC READ passes, but non-instructor scoping)
-# ===========================================================================
-
-
 class TestGetGradeOwnershipGate:
     """``get_grade_assignment_submission`` layers an ownership check on top of
     the RBAC READ gate: a non-instructor may only view their OWN grade. RBAC is
@@ -378,16 +356,25 @@ class TestGetGradeOwnershipGate:
     """
 
     async def test_non_instructor_cannot_read_other_users_grade(
-        self, mock_request, db, assignment, graded_submission, admin_user, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        graded_submission,
+        admin_user,
+        regular_user,
+        enrolled_student,
     ):
         """regular_user (id 2) tries to read admin_user's (id 1) grade while
         not an instructor → 403 "You can only view your own grade"."""
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await get_grade_assignment_submission(
                     mock_request,
-                    admin_user.id,  # someone else's grade
+                    admin_user.id,
                     assignment.assignment_uuid,
                     regular_user,
                     db,
@@ -396,15 +383,25 @@ class TestGetGradeOwnershipGate:
         assert "your own grade" in exc.value.detail
 
     async def test_non_instructor_can_read_own_grade(
-        self, mock_request, db, assignment, assignment_task, graded_submission, task_submission, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        assignment_task,
+        graded_submission,
+        task_submission,
+        regular_user,
+        enrolled_student,
     ):
         """Same student reading their OWN grade is allowed even when not an
         instructor."""
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+        ):
             result = await get_grade_assignment_submission(
                 mock_request,
-                regular_user.id,  # their own grade
+                regular_user.id,
                 assignment.assignment_uuid,
                 regular_user,
                 db,
@@ -428,18 +425,21 @@ class TestGetGradeOwnershipGate:
         assert "display_grade" in result
 
 
-# ===========================================================================
-# 5. create_assignment_submission past-due gate (RBAC READ passes)
-# ===========================================================================
-
-
 class TestSubmissionPastDueGate:
     """A student submitting after the deadline is blocked (403) even though the
     RBAC READ gate passes — the deadline is enforced only for non-instructors.
     """
 
     async def test_student_blocked_after_due_date(
-        self, mock_request, db, org, course, chapter, activity, regular_user
+        self,
+        mock_request,
+        db,
+        org,
+        course,
+        chapter,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         """create_assignment_submission blocks a non-instructor student after the due date with 403, even when RBAC passes."""
         from src.db.courses.assignments import Assignment
@@ -468,14 +468,13 @@ class TestSubmissionPastDueGate:
         db.add(a)
         await db.commit()
         await db.refresh(a)
-
-        # RBAC READ passes; non-instructor → past-due check fires.
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await create_assignment_submission(
                     mock_request, a.assignment_uuid, regular_user, db

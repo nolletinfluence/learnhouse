@@ -81,7 +81,12 @@ async def request_enrollment(request, course_uuid, user, db):
     require_session(user)
     course = await load_course(course_uuid, db, lock=True)
     await require_org_membership(user.id, course.org_id, db)
-    await check_resource_access(request, db, user, course.course_uuid, AccessAction.READ)
+    from src.services.trail.access import ensure_learner_identity
+
+    await ensure_learner_identity(user, course.org_id, db)
+    await check_resource_access(
+        request, db, user, course.course_uuid, AccessAction.READ
+    )
     access = await course_learning_access(course, user, db)
     if access == "staff":
         raise HTTPException(403, "Staff use course preview")
@@ -89,12 +94,26 @@ async def request_enrollment(request, course_uuid, user, db):
         return {"status": "approved"}
     if not course.published:
         raise HTTPException(403, "Course is not accepting applications")
-    application = (await db.execute(select(EnrollmentRequest).where(
-        EnrollmentRequest.course_id == course.id, EnrollmentRequest.user_id == user.id,
-    ))).scalars().first()
+    application = (
+        (
+            await db.execute(
+                select(EnrollmentRequest).where(
+                    EnrollmentRequest.course_id == course.id,
+                    EnrollmentRequest.user_id == user.id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
     if not application:
-        application = EnrollmentRequest(course_id=course.id, org_id=course.org_id,
-            user_id=user.id, creation_date=timestamp(), update_date=timestamp())
+        application = EnrollmentRequest(
+            course_id=course.id,
+            org_id=course.org_id,
+            user_id=user.id,
+            creation_date=timestamp(),
+            update_date=timestamp(),
+        )
     elif application.status != "pending":
         application.status = "pending"
         application.decided_by = None

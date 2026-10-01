@@ -85,7 +85,7 @@ async def assignment(db, org, course, chapter, activity):
     await db.refresh(a)
     return a
 
-# Reuse the same patch targets as test_assignments_service.py.
+
 _PATCH_RBAC = "src.services.courses.activities.assignments.check_resource_access"
 _PATCH_AUTH_ROLES = (
     "src.services.courses.activities.assignments.authorization_verify_based_on_roles"
@@ -103,11 +103,6 @@ _PATCH_CERT_CHECK = (
     "src.services.courses.activities.assignments."
     "check_course_completion_and_create_certificate"
 )
-
-
-# ---------------------------------------------------------------------------
-# _is_assignment_past_due — net-new parsing edge cases
-# ---------------------------------------------------------------------------
 
 
 class TestIsAssignmentPastDueEdge:
@@ -208,11 +203,6 @@ class TestIsAssignmentPastDueEdge:
         assert _is_assignment_past_due(a) is False
 
 
-# ---------------------------------------------------------------------------
-# create_assignment_submission — deadline gate (SUBMITTED vs 403)
-# ---------------------------------------------------------------------------
-
-
 class TestCreateSubmissionDeadlineGate:
     """The create path: on-time / no-deadline -> SUBMITTED; past-due -> 403.
 
@@ -240,25 +230,40 @@ class TestCreateSubmissionDeadlineGate:
         return trail
 
     async def test_student_before_far_future_due_is_submitted(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         """Student submitting well before a far-future due date -> SUBMITTED."""
         await self._set_due(db, assignment, "2999-01-01")
-        trail = await self._make_trail(db, course, regular_user)
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        await self._make_trail(db, course, regular_user)
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
 
     async def test_student_on_due_date_today_is_submitted_not_late(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         """Boundary: a date-only deadline of TODAY keeps the whole day open.
 
@@ -268,21 +273,29 @@ class TestCreateSubmissionDeadlineGate:
         """
         today = datetime.now().date().isoformat()
         await self._set_due(db, assignment, today)
-        trail = await self._make_trail(db, course, regular_user)
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        await self._make_trail(db, course, regular_user)
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
 
     async def test_student_after_due_with_datetime_is_rejected_403(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         """Student submitting after a past datetime deadline -> 403, not LATE.
 
@@ -290,10 +303,12 @@ class TestCreateSubmissionDeadlineGate:
         and that the outcome is rejection rather than a stored LATE submission.
         """
         await self._set_due(db, assignment, "2000-06-15T12:00:00")
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await create_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
@@ -302,16 +317,25 @@ class TestCreateSubmissionDeadlineGate:
         assert "deadline has passed" in exc.value.detail
 
     async def test_student_after_yesterday_date_only_is_rejected_403(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         """A date-only deadline of yesterday is past (cutoff = today midnight),
         so a student submission today is rejected with 403."""
         yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
         await self._set_due(db, assignment, yesterday)
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await create_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
@@ -320,7 +344,14 @@ class TestCreateSubmissionDeadlineGate:
         assert "deadline has passed" in exc.value.detail
 
     async def test_student_with_whitespace_only_due_date_is_submitted(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         """A whitespace-only due_date is treated as no deadline -> SUBMITTED.
 
@@ -330,21 +361,29 @@ class TestCreateSubmissionDeadlineGate:
         None case is exercised at the unit level instead.)
         """
         await self._set_due(db, assignment, "   ")
-        trail = await self._make_trail(db, course, regular_user)
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        await self._make_trail(db, course, regular_user)
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
 
     async def test_student_with_malformed_due_date_is_submitted(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         """A malformed due_date must not lock students out.
 
@@ -352,14 +391,15 @@ class TestCreateSubmissionDeadlineGate:
         is skipped and the submission succeeds as SUBMITTED (graceful, no crash).
         """
         await self._set_due(db, assignment, "not-a-real-date")
-        trail = await self._make_trail(db, course, regular_user)
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        await self._make_trail(db, course, regular_user)
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )

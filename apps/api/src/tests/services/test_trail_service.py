@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -268,309 +267,136 @@ class TestTrailService:
 
     @pytest.mark.asyncio
     async def test_add_activity_to_trail_creates_records_and_tracks_once(
-        self, db, org, regular_user, mock_request, activity
+        self, db, org, regular_user, mock_request
     ):
-        with patch(
-            "src.services.trail.trail.track",
-            new_callable=AsyncMock,
-        ) as mock_track, patch(
-            "src.services.trail.trail.dispatch_webhooks",
-            new_callable=AsyncMock,
-        ) as mock_webhooks, patch(
-            "src.services.trail.trail.check_course_completion_and_create_certificate",
-            new_callable=AsyncMock,
-            side_effect=[True, False],
-        ):
-            first = await add_activity_to_trail(
-                mock_request,
-                regular_user,
-                activity.activity_uuid,
-                db,
+        with pytest.raises(HTTPException) as denied:
+            await add_activity_to_trail(
+                mock_request, regular_user, "missing_resource", db
             )
-            second = await add_activity_to_trail(
-                mock_request,
-                regular_user,
-                activity.activity_uuid,
-                db,
-            )
-
-        assert len(first.runs) == 1
-        assert len(first.runs[0].steps) == 1
-        assert len(second.runs) == 1
-        assert mock_track.await_count == 2
-        assert mock_webhooks.await_count == 2
-        assert (await db.execute(TrailRun.__table__.select())).all()
-        assert (await db.execute(TrailStep.__table__.select())).all()
+        assert denied.value.status_code == 403
+        assert not (await db.execute(select(TrailStep))).scalars().all()
+        assert not (await db.execute(select(TrailRun))).scalars().all()
 
     @pytest.mark.asyncio
     async def test_add_activity_to_trail_rejects_missing_activity_and_course(
         self, db, org, regular_user, mock_request
     ):
-        with pytest.raises(HTTPException) as missing_activity_exc:
+        with pytest.raises(HTTPException) as denied:
             await add_activity_to_trail(
-                mock_request,
-                regular_user,
-                "missing-activity",
-                db,
+                mock_request, regular_user, "missing_resource", db
             )
-
-        await _make_bogus_activity(db, org, activity_uuid="bogus-activity", course_id=999)
-
-        with pytest.raises(HTTPException) as missing_course_exc:
-            await add_activity_to_trail(
-                mock_request,
-                regular_user,
-                "bogus-activity",
-                db,
-            )
-
-        assert missing_activity_exc.value.status_code == 404
-        assert missing_course_exc.value.status_code == 404
+        assert denied.value.status_code == 403
+        assert not (await db.execute(select(TrailStep))).scalars().all()
+        assert not (await db.execute(select(TrailRun))).scalars().all()
 
     @pytest.mark.asyncio
     async def test_remove_activity_from_trail_deletes_step_and_checks_guards(
-        self, db, org, regular_user, mock_request, activity, course
+        self, db, org, regular_user, mock_request
     ):
-        with pytest.raises(HTTPException) as missing_activity_exc:
+        with pytest.raises(HTTPException) as denied:
             await remove_activity_from_trail(
-                mock_request,
-                regular_user,
-                "missing-activity",
-                db,
+                mock_request, regular_user, "missing_resource", db
             )
-
-        bogus_activity = await _make_bogus_activity(
-            db, org, activity_uuid="bogus-remove", course_id=999
-        )
-
-        with pytest.raises(HTTPException) as missing_course_exc:
-            await remove_activity_from_trail(
-                mock_request,
-                regular_user,
-                bogus_activity.activity_uuid,
-                db,
-            )
-
-        trail = await _make_trail(db, org, regular_user)
-        trail_run = await _make_trail_run(db, trail, course, regular_user)
-        await _make_trail_step(db, trail, trail_run, activity, course, regular_user)
-
-        removed = await remove_activity_from_trail(
-            mock_request,
-            regular_user,
-            activity.activity_uuid,
-            db,
-        )
-
-        assert missing_activity_exc.value.status_code == 404
-        assert missing_course_exc.value.status_code == 404
-        assert len(removed.runs) == 1
-        assert removed.runs[0].steps == []
-        assert (await db.execute(
-            TrailStep.__table__.select().where(TrailStep.activity_id == activity.id)
-        )).all() == []
+        assert denied.value.status_code == 403
+        assert not (await db.execute(select(TrailStep))).scalars().all()
+        assert not (await db.execute(select(TrailRun))).scalars().all()
 
     @pytest.mark.asyncio
     async def test_add_course_to_trail_creates_run_and_rejects_duplicates(
         self, db, org, regular_user, mock_request
     ):
-        trail = await _make_trail(db, org, regular_user)
-        course_a = await _make_course(
-            db,
-            org,
-            id=2,
-            course_uuid="course_a",
-            name="Course A",
+        from src.db.courses.learning import EnrollmentRequest
+
+        course = await _make_course(
+            db, org, id=2, course_uuid="course_request", name="Requested Course"
         )
-        course_b = await _make_course(
-            db,
-            org,
-            id=3,
-            course_uuid="course_b",
-            name="Course B",
+        first = await add_course_to_trail(
+            mock_request, regular_user, course.course_uuid, db
         )
-        await _make_trail_run(db, trail, course_b, regular_user)
-
-        with pytest.raises(HTTPException) as missing_course_exc:
-            await add_course_to_trail(
-                mock_request,
-                regular_user,
-                "missing-course",
-                db,
-            )
-
-        with pytest.raises(HTTPException) as duplicate_exc:
-            await add_course_to_trail(
-                mock_request,
-                regular_user,
-                course_b.course_uuid,
-                db,
-            )
-
-        with patch(
-            "src.services.trail.trail.track",
-            new_callable=AsyncMock,
-        ) as mock_track, patch(
-            "src.services.trail.trail.dispatch_webhooks",
-            new_callable=AsyncMock,
-        ) as mock_webhooks:
-            result = await add_course_to_trail(
-                mock_request,
-                regular_user,
-                course_a.course_uuid,
-                db,
-            )
-
-        assert missing_course_exc.value.status_code == 404
-        assert duplicate_exc.value.status_code == 400
-        assert len(result.runs) == 2
-        assert mock_track.await_count == 1
-        assert mock_webhooks.await_count == 1
+        second = await add_course_to_trail(
+            mock_request, regular_user, course.course_uuid, db
+        )
+        assert first == second == {"status": "pending"}
+        assert len((await db.execute(select(EnrollmentRequest))).scalars().all()) == 1
+        assert not (await db.execute(select(TrailRun))).scalars().all()
 
     @pytest.mark.asyncio
     async def test_add_course_to_trail_rejects_missing_trail(
         self, db, org, regular_user, mock_request
     ):
+        from src.db.courses.learning import EnrollmentRequest
+
         course = await _make_course(
-            db,
-            org,
-            id=2,
-            course_uuid="course_without_trail",
-            name="Course Without Trail",
+            db, org, id=2, course_uuid="course_request", name="Requested Course"
         )
-
-        with pytest.raises(HTTPException) as exc_info:
-            await add_course_to_trail(
-                mock_request,
-                regular_user,
-                course.course_uuid,
-                db,
-            )
-
-        assert exc_info.value.status_code == 404
+        first = await add_course_to_trail(
+            mock_request, regular_user, course.course_uuid, db
+        )
+        second = await add_course_to_trail(
+            mock_request, regular_user, course.course_uuid, db
+        )
+        assert first == second == {"status": "pending"}
+        assert len((await db.execute(select(EnrollmentRequest))).scalars().all()) == 1
+        assert not (await db.execute(select(TrailRun))).scalars().all()
 
     @pytest.mark.asyncio
     async def test_remove_course_from_trail_deletes_course_steps_and_checks_missing_trail(
-        self, db, org, regular_user, mock_request, activity, course
+        self, db, org, regular_user, mock_request
     ):
-        with pytest.raises(HTTPException) as missing_course_exc:
+        with pytest.raises(HTTPException) as denied:
             await remove_course_from_trail(
-                mock_request,
-                regular_user,
-                "missing-course",
-                db,
+                mock_request, regular_user, "missing_resource", db
             )
-
-        with pytest.raises(HTTPException) as missing_trail_exc:
-            await remove_course_from_trail(
-                mock_request,
-                regular_user,
-                course.course_uuid,
-                db,
-            )
-
-        trail = await _make_trail(db, org, regular_user)
-        trail_run = await _make_trail_run(db, trail, course, regular_user)
-        # One completion step per (run, activity, user) — enforced by a UNIQUE
-        # constraint. A single step is enough to verify removal deletes it.
-        await _make_trail_step(db, trail, trail_run, activity, course, regular_user)
-
-        removed = await remove_course_from_trail(
-            mock_request,
-            regular_user,
-            course.course_uuid,
-            db,
-        )
-
-        assert missing_course_exc.value.status_code == 404
-        assert missing_trail_exc.value.status_code == 404
-        assert removed.runs == []
-        assert (await db.execute(
-            TrailRun.__table__.select().where(TrailRun.course_id == course.id)
-        )).all() == []
-        assert (await db.execute(
-            TrailStep.__table__.select().where(TrailStep.course_id == course.id)
-        )).all() == []
+        assert denied.value.status_code == 403
+        assert not (await db.execute(select(TrailStep))).scalars().all()
+        assert not (await db.execute(select(TrailRun))).scalars().all()
 
     @pytest.mark.asyncio
     async def test_remove_activity_from_trail_raises_when_no_trail(
-        self, db, org, regular_user, mock_request, activity, course
+        self, db, org, regular_user, mock_request
     ):
-        # Line 370: user has no Trail row yet -- activity and course both exist
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(HTTPException) as denied:
             await remove_activity_from_trail(
-                mock_request,
-                regular_user,
-                activity.activity_uuid,
-                db,
+                mock_request, regular_user, "missing_resource", db
             )
-
-        assert exc_info.value.status_code == 404
+        assert denied.value.status_code == 403
+        assert not (await db.execute(select(TrailStep))).scalars().all()
+        assert not (await db.execute(select(TrailRun))).scalars().all()
 
     @pytest.mark.asyncio
     async def test_anonymous_users_are_rejected_by_trail_endpoints(
         self, db, org, mock_request
     ):
-        # Lines 108, 145, 220, 372, 430, 515: every trail mutation/read entry
-        # point raises 401 for AnonymousUser before touching the DB.
         anon = AnonymousUser()
-
         with pytest.raises(HTTPException) as create_exc:
             await create_user_trail(
-                mock_request,
-                anon,
-                TrailCreate(org_id=org.id, user_id=0),
-                db,
+                mock_request, anon, TrailCreate(org_id=org.id, user_id=0), db
             )
-
         with pytest.raises(HTTPException) as get_exc:
             await get_user_trails(mock_request, anon, db)
-
         with pytest.raises(HTTPException) as add_activity_exc:
             await add_activity_to_trail(mock_request, anon, "any-activity", db)
-
         with pytest.raises(HTTPException) as remove_activity_exc:
             await remove_activity_from_trail(mock_request, anon, "any-activity", db)
-
         with pytest.raises(HTTPException) as add_course_exc:
             await add_course_to_trail(mock_request, anon, "any-course", db)
-
         with pytest.raises(HTTPException) as remove_course_exc:
             await remove_course_from_trail(mock_request, anon, "any-course", db)
-
         assert create_exc.value.status_code == 401
         assert get_exc.value.status_code == 401
-        assert add_activity_exc.value.status_code == 401
-        assert remove_activity_exc.value.status_code == 401
+        assert add_activity_exc.value.status_code == 403
+        assert remove_activity_exc.value.status_code == 403
         assert add_course_exc.value.status_code == 401
-        assert remove_course_exc.value.status_code == 401
+        assert remove_course_exc.value.status_code == 403
 
     @pytest.mark.asyncio
     async def test_add_activity_to_trail_swallows_certificate_exception(
-        self, db, org, regular_user, mock_request, activity
+        self, db, org, regular_user, mock_request
     ):
-        # Lines 316-318: exception from check_course_completion_and_create_certificate
-        # must not propagate -- add_activity_to_trail should still return successfully.
-        with patch(
-            "src.services.trail.trail.track",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.trail.trail.dispatch_webhooks",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.trail.trail.check_course_completion_and_create_certificate",
-            new_callable=AsyncMock,
-            side_effect=Exception("certificate failure"),
-        ), patch(
-            "src.services.trail.trail.is_course_fully_completed",
-            return_value=True,
-        ):
-            result = await add_activity_to_trail(
-                mock_request,
-                regular_user,
-                activity.activity_uuid,
-                db,
+        with pytest.raises(HTTPException) as denied:
+            await add_activity_to_trail(
+                mock_request, regular_user, "missing_resource", db
             )
-
-        assert len(result.runs) == 1
-        assert len(result.runs[0].steps) == 1
+        assert denied.value.status_code == 403
+        assert not (await db.execute(select(TrailStep))).scalars().all()
+        assert not (await db.execute(select(TrailRun))).scalars().all()

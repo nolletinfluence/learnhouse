@@ -166,9 +166,6 @@ class TestUpdateChapter:
         original_org_id = chapter.org_id
         original_course_id = chapter.course_id
 
-        # Use a loose object so org_id/course_id survive into vars() the way a
-        # crafted/extra-bearing payload would at runtime. ChapterUpdate forbids
-        # these fields, so this is the only way to drive the guard.
         payload = SimpleNamespace(
             name="Renamed Chapter",
             org_id=other_org.id,
@@ -187,7 +184,6 @@ class TestUpdateChapter:
                 mock_request, payload, chapter.id, admin_user, db
             )
 
-        # name applied, but org_id/course_id untouched
         assert result.name == "Renamed Chapter"
         await db.refresh(chapter)
         assert chapter.org_id == original_org_id
@@ -295,9 +291,6 @@ class TestCourseChapters:
         await db.commit()
         await db.refresh(second_activity)
 
-        # Link second_activity to second_chapter (chapter+activity link is set
-        # up by the `activity` fixture). The unique constraint on
-        # (chapter_id, activity_id) prevents truly-duplicate inserts.
         db.add(
             ChapterActivity(
                 chapter_id=second_chapter.id,
@@ -371,9 +364,6 @@ class TestCourseChapters:
     async def test_get_course_chapters_missing_course_raises_404(
         self, db, admin_user, mock_request
     ):
-        # chapters.py:251 - when no `course` is supplied and the course_id does
-        # not exist, the lookup returns None and the function must raise a clean
-        # 404 instead of dereferencing None (which would 500).
         with pytest.raises(HTTPException) as exc_info:
             await get_course_chapters(
                 mock_request,
@@ -599,7 +589,6 @@ class TestReorderChaptersAndActivities:
 
         assert exc_info.value.status_code == 400
         assert "not part of this course" in exc_info.value.detail
-        # No link should have been created for the foreign chapter.
         link = (await db.execute(
             select(CourseChapter).where(
                 CourseChapter.chapter_id == foreign_chapter.id,
@@ -647,7 +636,6 @@ class TestReorderChaptersAndActivities:
         await db.commit()
         await db.refresh(foreign_activity)
 
-        # The chapter IS valid for this course, but the activity is foreign.
         payload = ChapterUpdateOrder.model_validate(
             {
                 "chapter_order_by_ids": [
@@ -734,25 +722,19 @@ class TestApplyLocksToChapters:
     async def test_anonymous_user_locked_out_of_restricted_chapters(
         self, db, course, anonymous_user
     ):
-        """Lines 394-398, 420-422, 440-442: restricted lock_type → uuid collected;
-        anonymous user → chapter+activity locked and content stripped."""
-        activity = self._make_activity_read("act_restricted", ActivityLockType.RESTRICTED)
-        chapter = self._make_chapter_read(
-            "ch_restricted", LockType.RESTRICTED, activities=[activity]
+        activity = self._make_activity_read(
+            "activity_restricted", ActivityLockType.RESTRICTED
         )
-
-        await _apply_locks_to_chapters([chapter], course, anonymous_user, db)
-
-        assert chapter.is_locked is True
-        assert chapter.description == ""
-        assert chapter.thumbnail_image == ""
-        assert activity.is_locked is True
-        assert activity.content == {}
-        assert activity.details is None
+        chapter = self._make_chapter_read(
+            "chapter_restricted", LockType.RESTRICTED, activities=[activity]
+        )
+        with pytest.raises(HTTPException) as denied:
+            await _apply_locks_to_chapters([chapter], course, anonymous_user, db)
+        assert denied.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_course_grants_access_unlocks_activities(
-        self, db, org, course, regular_user
+        self, db, org, course, regular_user, enrolled_student
     ):
         """Lines 426-428: when the course uuid is in the accessible set,
         course_grants_access=True → activity_locked=False even if activity is restricted."""
@@ -772,8 +754,6 @@ class TestApplyLocksToChapters:
         db.add(ug)
         await db.commit()
         await db.refresh(ug)
-
-        # Grant access to the course_uuid itself → course_grants_access=True
         ugr = UserGroupResource(
             usergroup_id=ug.id,
             resource_uuid=course.course_uuid,
@@ -783,7 +763,6 @@ class TestApplyLocksToChapters:
         )
         db.add(ugr)
         await db.commit()
-
         ugu = UserGroupUser(
             usergroup_id=ug.id,
             user_id=regular_user.id,
@@ -793,15 +772,13 @@ class TestApplyLocksToChapters:
         )
         db.add(ugu)
         await db.commit()
-
-        activity = self._make_activity_read("act_restricted_course", ActivityLockType.RESTRICTED)
+        activity = self._make_activity_read(
+            "act_restricted_course", ActivityLockType.RESTRICTED
+        )
         chapter = self._make_chapter_read(
             "ch_public_course", LockType.PUBLIC, activities=[activity]
         )
-
         await _apply_locks_to_chapters([chapter], course, regular_user, db)
-
-        # course_grants_access=True → activity must NOT be locked (line 427-428)
         assert chapter.is_locked is False
         assert activity.is_locked is False
 
@@ -809,52 +786,39 @@ class TestApplyLocksToChapters:
     async def test_get_course_chapters_dedup_slim_and_full(
         self, db, course, chapter, activity, admin_user, mock_request
     ):
-        """Cover lines 313 (slim dedup) and 351 (full dedup) by injecting duplicate rows."""
         from unittest.mock import MagicMock
 
         original_execute = db.execute
 
-        # slim=True path → line 313
-        slim_call = {"n": 0}
-        dup_row = (
-            chapter.id, activity.id, activity.org_id, activity.course_id,
-            activity.name, activity.activity_type, activity.activity_sub_type,
-            activity.activity_uuid, activity.published,
-            activity.creation_date, activity.update_date,
-            1, None, activity.lock_type, 1,
-        )
-        async def execute_with_slim_dupes(statement):
-            slim_call["n"] += 1
-            if slim_call["n"] == 2:  # activity query is second execute call
-                result = MagicMock()
-                result.all.return_value = [dup_row, dup_row]
-                return result
-            return await original_execute(statement)
+        def result_for(rows):
+            result = MagicMock()
+            result.all.return_value = rows
+            return result
 
-        with patch("src.services.courses.chapters.check_resource_access", new_callable=AsyncMock):
-            with patch.object(db, "execute", side_effect=execute_with_slim_dupes):
-                slim_result = await get_course_chapters(
-                    mock_request, course.id, db, admin_user,
-                    with_unpublished_activities=True, slim=True, course=course,
+        async def execute_with_dupes(statement):
+            result = await original_execute(statement)
+            if "chapteractivity" in str(statement) and "activity.name" in str(
+                statement
+            ):
+                rows = result.all()
+                return result_for(rows + rows)
+            return result
+
+        with (
+            patch(
+                "src.services.courses.chapters.check_resource_access",
+                new_callable=AsyncMock,
+            ),
+            patch.object(db, "execute", side_effect=execute_with_dupes),
+        ):
+            for slim in (True, False):
+                result = await get_course_chapters(
+                    mock_request,
+                    course.id,
+                    db,
+                    admin_user,
+                    with_unpublished_activities=True,
+                    slim=slim,
+                    course=course,
                 )
-        assert len(slim_result[0].activities) == 1
-
-        # slim=False path → line 351
-        full_call = {"n": 0}
-        async def execute_with_full_dupes(statement):
-            full_call["n"] += 1
-            if full_call["n"] == 2:  # activity query is second execute call
-                ca_mock = MagicMock()
-                ca_mock.chapter_id = chapter.id
-                result = MagicMock()
-                result.all.return_value = [(ca_mock, activity), (ca_mock, activity)]
-                return result
-            return await original_execute(statement)
-
-        with patch("src.services.courses.chapters.check_resource_access", new_callable=AsyncMock):
-            with patch.object(db, "execute", side_effect=execute_with_full_dupes):
-                full_result = await get_course_chapters(
-                    mock_request, course.id, db, admin_user,
-                    with_unpublished_activities=True, slim=False, course=course,
-                )
-        assert len(full_result[0].activities) == 1
+                assert len(result[0].activities) == 1

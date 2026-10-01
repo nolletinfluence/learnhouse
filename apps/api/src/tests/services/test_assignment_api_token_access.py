@@ -57,11 +57,6 @@ _PATCH_INCREASE = "src.services.courses.activities.assignments.increase_feature_
 _PATCH_DISPATCH = "src.services.courses.activities.assignments.dispatch_webhooks"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _assignments_rights(create=False, read=False, update=False, delete=False):
     return {
         "action_create": create,
@@ -119,11 +114,6 @@ def _assignment_create_obj(org, course, chapter, activity, title="New Assignment
     )
 
 
-# ---------------------------------------------------------------------------
-# Authoring (assignments bucket)
-# ---------------------------------------------------------------------------
-
-
 class TestTokenAuthoring:
     async def test_token_with_create_can_create_assignment(
         self, mock_request, db, org, course, chapter, activity
@@ -139,7 +129,7 @@ class TestTokenAuthoring:
     async def test_token_without_create_is_forbidden(
         self, mock_request, db, org, course, chapter, activity
     ):
-        token = _token(assignments=_assignments_rights(read=True))  # no create
+        token = _token(assignments=_assignments_rights(read=True))
         obj = _assignment_create_obj(org, course, chapter, activity)
         with patch(_PATCH_LIMITS, new_callable=AsyncMock), \
              patch(_PATCH_INCREASE, new_callable=AsyncMock):
@@ -150,7 +140,6 @@ class TestTokenAuthoring:
     async def test_token_with_no_assignments_bucket_is_forbidden(
         self, mock_request, db, org, course, chapter, activity
     ):
-        # Token has other buckets but not `assignments` at all.
         token = _token(courses={"action_create": True})
         obj = _assignment_create_obj(org, course, chapter, activity)
         with patch(_PATCH_LIMITS, new_callable=AsyncMock), \
@@ -162,7 +151,6 @@ class TestTokenAuthoring:
     async def test_cross_org_token_is_forbidden(
         self, mock_request, db, org, other_org, course, chapter, activity
     ):
-        # Token belongs to org 2; the course lives in org 1 -> org boundary 403.
         token = _token(org_id=other_org.id, assignments=_assignments_rights(create=True))
         obj = _assignment_create_obj(org, course, chapter, activity)
         with patch(_PATCH_LIMITS, new_callable=AsyncMock), \
@@ -170,11 +158,6 @@ class TestTokenAuthoring:
             with pytest.raises(HTTPException) as exc:
                 await create_assignment(mock_request, obj, token, db)
         assert exc.value.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# Reading (assignments bucket, read action)
-# ---------------------------------------------------------------------------
 
 
 class TestTokenReading:
@@ -190,7 +173,7 @@ class TestTokenReading:
         self, mock_request, db, org, course, chapter, activity
     ):
         await _make_assignment(db, org, course, chapter, activity)
-        token = _token(assignments=_assignments_rights(create=True))  # no read
+        token = _token(assignments=_assignments_rights(create=True))
         with pytest.raises(HTTPException) as exc:
             await read_assignment(mock_request, "assignment_token_test", token, db)
         assert exc.value.status_code == 403
@@ -204,11 +187,6 @@ class TestTokenReading:
             mock_request, "assignment_token_test", token, db
         )
         assert isinstance(result, list)
-
-
-# ---------------------------------------------------------------------------
-# Grading (assignments bucket, update action)
-# ---------------------------------------------------------------------------
 
 
 class TestTokenGrading:
@@ -248,7 +226,7 @@ class TestTokenGrading:
         db.add(user_submission)
         task_submission = AssignmentTaskSubmission(
             assignment_task_submission_uuid="ats_token_test",
-            task_submission={"answer": "4"},  # correct
+            task_submission={"answer": "4"},
             grade=0,
             manually_graded=False,
             task_submission_grade_feedback="",
@@ -275,24 +253,18 @@ class TestTokenGrading:
                 mock_request, regular_user.id, "assignment_token_test", token, db,
                 overall_feedback="Nice work",
             )
-        # Correct short answer -> full marks, submission marked GRADED.
         assert result["grade"] == 100
 
     async def test_token_without_update_cannot_grade(
         self, mock_request, db, org, course, chapter, activity, regular_user
     ):
         await self._seed_submission(db, org, course, chapter, activity, regular_user)
-        token = _token(assignments=_assignments_rights(read=True))  # no update
+        token = _token(assignments=_assignments_rights(read=True))
         with pytest.raises(HTTPException) as exc:
             await grade_assignment_submission(
                 mock_request, regular_user.id, "assignment_token_test", token, db,
             )
         assert exc.value.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# Session-only endpoints stay blocked for tokens
-# ---------------------------------------------------------------------------
 
 
 class TestTokenSubmitOnBehalf:
@@ -313,22 +285,41 @@ class TestTokenSubmitOnBehalf:
         return assignment, task
 
     async def test_token_submits_task_answer_for_learner(
-        self, mock_request, db, org, course, chapter, activity, regular_user
+        self,
+        mock_request,
+        db,
+        org,
+        course,
+        chapter,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         await self._seed_task(db, org, course, chapter, activity)
         token = _token(assignments=_assignments_rights(create=True))
-        body = AssignmentTaskSubmissionUpdate(task_submission={"answer": "my custom answer"})
+        body = AssignmentTaskSubmissionUpdate(
+            task_submission={"answer": "my custom answer"}
+        )
         result = await handle_assignment_task_submission(
-            mock_request, "assignmenttask_obo_test", body, token, db,
+            mock_request,
+            "assignmenttask_obo_test",
+            body,
+            token,
+            db,
             on_behalf_of_user_id=regular_user.id,
         )
-        # Persisted against the LEARNER, not the token.
         assert result.user_id == regular_user.id
-        row = (await db.execute(
-            select(AssignmentTaskSubmission).where(
-                AssignmentTaskSubmission.user_id == regular_user.id
+        row = (
+            (
+                await db.execute(
+                    select(AssignmentTaskSubmission).where(
+                        AssignmentTaskSubmission.user_id == regular_user.id
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         assert row is not None
         assert row.task_submission == {"answer": "my custom answer"}
 
@@ -348,7 +339,7 @@ class TestTokenSubmitOnBehalf:
         self, mock_request, db, org, course, chapter, activity, regular_user
     ):
         await self._seed_task(db, org, course, chapter, activity)
-        token = _token(assignments=_assignments_rights(read=True))  # no create
+        token = _token(assignments=_assignments_rights(read=True))
         body = AssignmentTaskSubmissionUpdate(task_submission={"answer": "x"})
         with pytest.raises(HTTPException) as exc:
             await handle_assignment_task_submission(
@@ -361,7 +352,6 @@ class TestTokenSubmitOnBehalf:
         self, mock_request, db, org, course, chapter, activity
     ):
         await self._seed_task(db, org, course, chapter, activity)
-        # A user with no membership in the token's org.
         outsider = User(
             id=999, username="outsider", first_name="O", last_name="O",
             email="outsider@x.com", password="x", user_uuid="user_outsider",
@@ -392,26 +382,40 @@ class TestTokenSubmitOnBehalf:
         assert exc.value.status_code == 404
 
     async def test_token_creates_assignment_submission_for_learner(
-        self, mock_request, db, org, course, chapter, activity, regular_user
+        self,
+        mock_request,
+        db,
+        org,
+        course,
+        chapter,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         await _make_assignment(db, org, course, chapter, activity)
         trail = Trail(
-            org_id=org.id, user_id=regular_user.id, trail_uuid="trail_obo_test",
-            creation_date=str(datetime.now()), update_date=str(datetime.now()),
+            org_id=org.id,
+            user_id=regular_user.id,
+            trail_uuid="trail_obo_test",
+            creation_date=str(datetime.now()),
+            update_date=str(datetime.now()),
         )
         db.add(trail)
         await db.commit()
         await db.refresh(trail)
         token = _token(assignments=_assignments_rights(create=True))
-        with patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
-                mock_request, "assignment_token_test", token, db,
+                mock_request,
+                "assignment_token_test",
+                token,
+                db,
                 on_behalf_of_user_id=regular_user.id,
             )
-        # Aggregate submission created for the LEARNER and marked submitted.
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
         assert result.user_id == regular_user.id
 
@@ -420,7 +424,6 @@ class TestSessionOnlyEndpointsStillBlockTokens:
     async def test_retry_blocks_token(
         self, mock_request, db, org, course, chapter, activity
     ):
-        # Retry stays session-only — even a full-rights token is rejected.
         await _make_assignment(db, org, course, chapter, activity)
         token = _token(
             assignments=_assignments_rights(create=True, read=True, update=True, delete=True)

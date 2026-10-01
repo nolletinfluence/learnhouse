@@ -9,34 +9,19 @@ in-memory SQLite database with JSONB-to-JSON remapping.
 import os
 import sys
 
-# Ensure src/ is on the Python path for all tests
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-# Set testing environment variable to use SQLite (must be before any app imports)
+
 os.environ["TESTING"] = "true"
 
-# Pin the deployment mode to 'oss' for the whole suite.
-#
-# Unpinned, get_deployment_mode() resolves against the filesystem: 'oss' in CI
-# (no ee/ checkout) but potentially 'ee' on a developer machine with the
-# apps/api/ee symlink. That divergence hides EE-gating regressions locally.
-# Going through LEARNHOUSE_DISABLE_EE rather than patching
-# get_deployment_mode is deliberate — several modules import that symbol at
-# load time, so a patch would reach only the lazy importers and leave the
-# suite split-brained, silently relaxing the SaaS plan gates that key off the
-# same function. Tests that need 'saas' or 'ee' patch it explicitly.
+
 os.environ["LEARNHOUSE_DISABLE_EE"] = "1"
 
-# Pin the demo organization off for the whole suite.
-#
-# config.py calls load_dotenv() while parsing, so a developer running the local
-# demo stack has LEARNHOUSE_DEMO_ENABLED=1 in apps/api/.env and it leaks into
-# the test process — the demo scheduler then starts a background task, and
-# tests that assert on the application's task lifecycle fail on that machine
-# and nowhere else. Tests that need the feature on enable it themselves.
+
 os.environ["LEARNHOUSE_DEMO_ENABLED"] = "0"
 
-# Set a valid JWT secret key for tests (must be at least 32 characters)
+
 os.environ["LEARNHOUSE_AUTH_JWT_SECRET_KEY"] = (
     "test-secret-key-for-unit-tests-32chars!"
 )
@@ -77,10 +62,6 @@ from src.db.roles import (
 from src.db.user_organizations import UserOrganization
 from src.db.users import AnonymousUser, PublicUser, User
 
-
-# ---------------------------------------------------------------------------
-# Rights helpers
-# ---------------------------------------------------------------------------
 
 def _full_permission() -> Permission:
     return Permission(
@@ -161,10 +142,6 @@ USER_RIGHTS = Rights(
 )
 
 
-# ---------------------------------------------------------------------------
-# Database fixtures
-# ---------------------------------------------------------------------------
-
 @pytest.fixture
 async def engine():
     """In-memory async SQLite engine with JSONB-to-JSON remapping."""
@@ -191,10 +168,6 @@ async def db(engine):
     async with factory() as session:
         yield session
 
-
-# ---------------------------------------------------------------------------
-# Organization fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 async def org(db):
@@ -231,10 +204,6 @@ async def other_org(db):
     await db.refresh(o)
     return o
 
-
-# ---------------------------------------------------------------------------
-# Role fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 async def admin_role(db, org):
@@ -273,10 +242,6 @@ async def user_role(db, org):
     await db.refresh(r)
     return r
 
-
-# ---------------------------------------------------------------------------
-# User fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 async def admin_user(db, org, admin_role):
@@ -355,10 +320,6 @@ def anonymous_user():
     """Anonymous (unauthenticated) user."""
     return AnonymousUser()
 
-
-# ---------------------------------------------------------------------------
-# Course / Chapter / Activity fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 async def course(db, org):
@@ -443,10 +404,6 @@ async def activity(db, org, course, chapter):
     return a
 
 
-# ---------------------------------------------------------------------------
-# Folder fixture
-# ---------------------------------------------------------------------------
-
 @pytest.fixture
 async def folder(db, org, course):
     """A public folder containing the test course."""
@@ -475,10 +432,6 @@ async def folder(db, org, course):
     await db.commit()
     return f
 
-
-# ---------------------------------------------------------------------------
-# Request / bypass fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def mock_request():
@@ -521,3 +474,54 @@ def bypass_analytics():
         new_callable=AsyncMock,
     ) as mock:
         yield mock
+@pytest.fixture
+async def enrolled_student(db, course, regular_user):
+    from src.db.trails import Trail
+    from src.db.trail_runs import TrailRun
+    from sqlmodel import select
+
+    trail = (
+        (
+            await db.execute(
+                select(Trail).where(
+                    Trail.org_id == course.org_id, Trail.user_id == regular_user.id
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not trail:
+        trail = Trail(
+            org_id=course.org_id,
+            user_id=regular_user.id,
+            trail_uuid=f"trail_enrolled_{regular_user.id}",
+            creation_date="2026-10-02",
+            update_date="2026-10-02",
+        )
+        db.add(trail)
+        await db.flush()
+    run = (
+        (
+            await db.execute(
+                select(TrailRun).where(
+                    TrailRun.course_id == course.id, TrailRun.user_id == regular_user.id
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not run:
+        db.add(
+            TrailRun(
+                trail_id=trail.id,
+                org_id=course.org_id,
+                course_id=course.id,
+                user_id=regular_user.id,
+                creation_date="2026-10-02",
+                update_date="2026-10-02",
+            )
+        )
+    await db.commit()
+    return regular_user

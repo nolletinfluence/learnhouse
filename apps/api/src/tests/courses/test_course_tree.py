@@ -24,26 +24,12 @@ from src.db.courses.activities import (
     ActivityTypeEnum,
 )
 from src.db.courses.chapter_activities import ChapterActivity
-from src.db.users import PublicUser
 from src.services.courses.chapters import get_course_chapters
 
 
-# ── Fixtures ────────────────────────────────────────────────────────────────
-
-# engine, db, org, course, chapter, mock_request, bypass_rbac are provided
-# by conftest.py as async fixtures backed by an async SQLite engine.
-
-
 @pytest.fixture
-def public_user():
-    return PublicUser(
-        id=1,
-        username="u",
-        first_name="U",
-        last_name="T",
-        email="u@t.com",
-        user_uuid="user_t",
-    )
+def public_user(admin_user):
+    return admin_user
 
 
 @pytest.fixture
@@ -131,9 +117,6 @@ def bypass_rbac():
         yield
 
 
-# ── Tests ───────────────────────────────────────────────────────────────────
-
-
 @pytest.mark.asyncio
 async def test_slim_projection_strips_content_and_details(
     db,
@@ -160,7 +143,6 @@ async def test_slim_projection_strips_content_and_details(
     activities = chapters[0].activities
     assert len(activities) == 2
 
-    # Order follows ChapterActivity.order: heavy (1) then second (2)
     heavy = activities[0]
     assert heavy.activity_uuid == "activity_heavy"
     assert heavy.name == "Heavy Activity"
@@ -169,7 +151,6 @@ async def test_slim_projection_strips_content_and_details(
     assert heavy.published is True
     assert heavy.org_id == course.org_id
     assert heavy.course_id == course.id
-    # Critical: content and details stripped regardless of DB payload
     assert heavy.content == {}
     assert heavy.details is None
 
@@ -345,11 +326,8 @@ async def test_non_slim_matches_slim_on_navigation_fields(
         assert s.course_id == f.course_id
         assert s.current_version == f.current_version
         assert s.last_modified_by_id == f.last_modified_by_id
-        # Slim always strips content/details regardless of stored value.
         assert s.content == {}
         assert s.details is None
 
-    # And at least one of the full activities must carry real content/details —
-    # otherwise this test would pass vacuously.
     assert any(f.content for f in full_acts)
     assert any(f.details for f in full_acts)

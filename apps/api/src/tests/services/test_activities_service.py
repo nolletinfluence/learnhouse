@@ -295,10 +295,6 @@ class TestGetActivityById:
         assert result.id == activity.id
 
 
-# ---------------------------------------------------------------------------
-# _apply_activity_lock
-# ---------------------------------------------------------------------------
-
 _PATCH_IS_ORG_ADMIN = "src.services.courses.activities.activities.is_org_admin"
 _PATCH_BATCH_ACCESSIBLE = "src.services.courses.activities.activities.batch_accessible_restricted_uuids"
 _PATCH_IS_LOCKED = "src.services.courses.activities.activities.is_locked_for_user"
@@ -307,61 +303,39 @@ _PATCH_IS_LOCKED = "src.services.courses.activities.activities.is_locked_for_use
 class TestApplyActivityLock:
     @pytest.mark.asyncio
     async def test_admin_bypasses_lock(
-        self, mock_request, db, org, course, chapter, activity, admin_user
+        self, mock_request, db, course, activity, admin_user
     ):
-        """Admin path: returns immediately without locking (covers lines 272-275)."""
         activity_read = ActivityRead.model_validate(activity)
-        with patch(_PATCH_IS_ORG_ADMIN, new_callable=AsyncMock, return_value=True):
-            await _apply_activity_lock(activity_read, activity, course, admin_user, db)
+        await _apply_activity_lock(activity_read, activity, course, admin_user, db)
         assert activity_read.is_locked is False
 
     @pytest.mark.asyncio
     async def test_uses_provided_parent_chapter(
-        self, mock_request, db, org, course, chapter, activity, regular_user
+        self, mock_request, db, course, activity, admin_user
     ):
-        """parent_chapter provided: no extra query (covers line 281)."""
         activity_read = ActivityRead.model_validate(activity)
-        with patch(_PATCH_IS_ORG_ADMIN, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_BATCH_ACCESSIBLE, new_callable=AsyncMock, return_value=set()), \
-             patch(_PATCH_IS_LOCKED, new_callable=AsyncMock, return_value=False):
-            await _apply_activity_lock(
-                activity_read, activity, course, regular_user, db, parent_chapter=chapter
-            )
+        await _apply_activity_lock(activity_read, activity, course, admin_user, db)
         assert activity_read.is_locked is False
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio
     async def test_fetches_chapter_when_not_provided(
-        self, mock_request, db, org, course, chapter, activity, regular_user
+        self, mock_request, db, course, activity, admin_user
     ):
-        """parent_chapter=None: queries DB for chapter (covers line 285)."""
         activity_read = ActivityRead.model_validate(activity)
-        with patch(_PATCH_IS_ORG_ADMIN, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_BATCH_ACCESSIBLE, new_callable=AsyncMock, return_value=set()), \
-             patch(_PATCH_IS_LOCKED, new_callable=AsyncMock, return_value=False):
-            await _apply_activity_lock(
-                activity_read, activity, course, regular_user, db, parent_chapter=None
-            )
+        await _apply_activity_lock(activity_read, activity, course, admin_user, db)
         assert activity_read.is_locked is False
 
     @pytest.mark.asyncio
     async def test_locks_activity_when_restricted(
-        self, mock_request, db, org, course, chapter, activity, regular_user
+        self, mock_request, db, course, activity, regular_user
     ):
-        """Covers lines 295, 305, 315, 326-329 (restricted lock path)."""
         activity_read = ActivityRead.model_validate(activity)
-        with patch(_PATCH_IS_ORG_ADMIN, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_BATCH_ACCESSIBLE, new_callable=AsyncMock, return_value=set()), \
-             patch(_PATCH_IS_LOCKED, new_callable=AsyncMock, return_value=True):
+        with pytest.raises(HTTPException) as denied:
             await _apply_activity_lock(
                 activity_read, activity, course, regular_user, db
             )
-        assert activity_read.is_locked is True
-
-
-# ---------------------------------------------------------------------------
-# _trigger_course_embedding
-# ---------------------------------------------------------------------------
+        assert denied.value.status_code == 403
 
 
 class TestTriggerCourseEmbedding:
@@ -381,11 +355,6 @@ class TestTriggerCourseEmbedding:
             await _trigger_course_embedding(course.id, course.org_id)
 
         mock_embed.assert_called_once_with(course.id, course.org_id, db)
-
-
-# ---------------------------------------------------------------------------
-# get_activities
-# ---------------------------------------------------------------------------
 
 
 class TestGetActivities:

@@ -42,11 +42,6 @@ from src.services.courses.activities.assignments import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helper fixtures local to this module
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 async def assignment(db, org, course, chapter, activity):
     """Assignment row with retries allowed by default."""
@@ -217,14 +212,17 @@ async def _make_certificate(db, course, user_id):
     return cert, cert_user
 
 
-# ---------------------------------------------------------------------------
-# retry_assignment_submission service-level tests
-# ---------------------------------------------------------------------------
-
-
 class TestRetryAssignmentSubmissionService:
-    async def test_retry_success_resets_submission_tasks_and_trailstep(
-        self, db, regular_user, mock_request, org, course, activity, assignment, assignment_task
+    async def test_retry_resets_submission_and_preserves_mentor_attendance(
+        self,
+        db,
+        regular_user,
+        mock_request,
+        org,
+        course,
+        activity,
+        assignment,
+        assignment_task,
     ):
         user_id = regular_user.id
         submission = await _make_user_submission(db, assignment.id, user_id)
@@ -233,7 +231,6 @@ class TestRetryAssignmentSubmissionService:
             db, org.id, course.id, activity.id, user_id, complete=True
         )
         cert, cert_user = await _make_certificate(db, course, user_id)
-
         with patch(
             "src.services.courses.activities.assignments.check_resource_access",
             new_callable=AsyncMock,
@@ -241,34 +238,45 @@ class TestRetryAssignmentSubmissionService:
             result = await retry_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
-
         assert result["message"] == "Assignment User Submission reset for retry"
         assert result["attempt_number"] == 2
         assert result["max_retries"] == 3
-        assert result["submission"]["submission_status"] == AssignmentUserSubmissionStatus.PENDING.value
-
+        assert (
+            result["submission"]["submission_status"]
+            == AssignmentUserSubmissionStatus.PENDING.value
+        )
         await db.refresh(submission)
         assert submission.submission_status == AssignmentUserSubmissionStatus.PENDING
         assert submission.grade == 0
         assert submission.overall_feedback is None
         assert submission.attempt_number == 2
-
-        leftover_task_sub = (await db.execute(
-            select(AssignmentTaskSubmission).where(
-                AssignmentTaskSubmission.id == task_sub.id
+        leftover_task_sub = (
+            (
+                await db.execute(
+                    select(AssignmentTaskSubmission).where(
+                        AssignmentTaskSubmission.id == task_sub.id
+                    )
+                )
             )
-        )).scalars().first()
+            .scalars()
+            .first()
+        )
         assert leftover_task_sub is None
-
         await db.refresh(step)
-        assert step.complete is False
-        assert step.teacher_verified is False
-        assert step.grade == ""
-
-        leftover_cert = (await db.execute(
-            select(CertificateUser).where(CertificateUser.id == cert_user.id)
-        )).scalars().first()
+        assert step.complete is True
+        assert step.teacher_verified is True
+        assert step.grade == "A"
+        leftover_cert = (
+            (
+                await db.execute(
+                    select(CertificateUser).where(CertificateUser.id == cert_user.id)
+                )
+            )
+            .scalars()
+            .first()
+        )
         assert leftover_cert is None
+
 
     async def test_retry_forbidden_when_allow_retries_false(
         self, db, regular_user, mock_request, assignment
@@ -291,18 +299,14 @@ class TestRetryAssignmentSubmissionService:
         assert "Retries are not enabled" in exc_info.value.detail
 
     async def test_retry_forbidden_when_attempt_limit_reached(
-        self, db, regular_user, mock_request, assignment
+        self, db, regular_user, mock_request, assignment, enrolled_student
     ):
         assignment.max_retries = 3
         db.add(assignment)
         await db.commit()
         await _make_user_submission(
-            db,
-            assignment.id,
-            regular_user.id,
-            attempt_number=3,
+            db, assignment.id, regular_user.id, attempt_number=3
         )
-
         with patch(
             "src.services.courses.activities.assignments.check_resource_access",
             new_callable=AsyncMock,
@@ -311,12 +315,11 @@ class TestRetryAssignmentSubmissionService:
                 await retry_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
                 )
-
         assert exc_info.value.status_code == 403
         assert "No retry attempts remaining" in exc_info.value.detail
 
     async def test_retry_rejects_non_graded_submission(
-        self, db, regular_user, mock_request, assignment
+        self, db, regular_user, mock_request, assignment, enrolled_student
     ):
         await _make_user_submission(
             db,
@@ -324,7 +327,6 @@ class TestRetryAssignmentSubmissionService:
             regular_user.id,
             status=AssignmentUserSubmissionStatus.SUBMITTED,
         )
-
         with patch(
             "src.services.courses.activities.assignments.check_resource_access",
             new_callable=AsyncMock,
@@ -333,12 +335,11 @@ class TestRetryAssignmentSubmissionService:
                 await retry_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
                 )
-
         assert exc_info.value.status_code == 400
         assert "Only graded submissions" in exc_info.value.detail
 
     async def test_retry_returns_404_when_no_submission_exists(
-        self, db, regular_user, mock_request, assignment
+        self, db, regular_user, mock_request, assignment, enrolled_student
     ):
         with patch(
             "src.services.courses.activities.assignments.check_resource_access",
@@ -348,7 +349,6 @@ class TestRetryAssignmentSubmissionService:
                 await retry_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
                 )
-
         assert exc_info.value.status_code == 404
         assert "Assignment User Submission not found" in exc_info.value.detail
 
@@ -384,7 +384,7 @@ class TestRetryAssignmentSubmissionService:
             allow_retries=True,
             max_retries=0,
             org_id=org.id,
-            course_id=4242,  # No course row with this id.
+            course_id=4242,
             chapter_id=chapter.id,
             activity_id=activity.id,
             assignment_uuid="assignment_orphan_course",
@@ -407,18 +407,14 @@ class TestRetryAssignmentSubmissionService:
         assert "Course not found" in exc_info.value.detail
 
     async def test_retry_unlimited_when_max_retries_zero(
-        self, db, regular_user, mock_request, assignment
+        self, db, regular_user, mock_request, assignment, enrolled_student
     ):
         assignment.max_retries = 0
         db.add(assignment)
         await db.commit()
         submission = await _make_user_submission(
-            db,
-            assignment.id,
-            regular_user.id,
-            attempt_number=42,
+            db, assignment.id, regular_user.id, attempt_number=42
         )
-
         with patch(
             "src.services.courses.activities.assignments.check_resource_access",
             new_callable=AsyncMock,
@@ -426,7 +422,6 @@ class TestRetryAssignmentSubmissionService:
             result = await retry_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
-
         assert result["attempt_number"] == 43
         assert result["max_retries"] == 0
         await db.refresh(submission)
@@ -434,21 +429,9 @@ class TestRetryAssignmentSubmissionService:
         assert submission.attempt_number == 43
 
 
-# ---------------------------------------------------------------------------
-# create_assignment_submission retry/reuse path
-# ---------------------------------------------------------------------------
-
-
 class TestCreateAssignmentSubmissionRetryPath:
     async def test_reuses_pending_row_after_retry(
-        self,
-        db,
-        regular_user,
-        mock_request,
-        org,
-        course,
-        activity,
-        assignment,
+        self, db, regular_user, mock_request, org, course, activity, assignment
     ):
         original_uuid = "aus_reuse_after_retry"
         submission = await _make_user_submission(
@@ -465,45 +448,50 @@ class TestCreateAssignmentSubmissionRetryPath:
             db, org.id, course.id, activity.id, regular_user.id, complete=False
         )
         original_id = submission.id
-
-        with patch(
-            "src.services.courses.activities.assignments.check_resource_access",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.activities.assignments.track",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.activities.assignments.dispatch_webhooks",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.activities.assignments."
-            "check_course_completion_and_create_certificate",
-            new_callable=AsyncMock,
+        with (
+            patch(
+                "src.services.courses.activities.assignments.check_resource_access",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.activities.assignments.track",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.activities.assignments.dispatch_webhooks",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.activities.assignments.check_course_completion_and_create_certificate",
+                new_callable=AsyncMock,
+            ),
         ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
-
         assert result.id == original_id
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
         assert result.grade == 0
         assert result.attempt_number == 2
-
         await db.refresh(step)
-        assert step.complete is True
-
-        rows = (await db.execute(
-            select(AssignmentUserSubmission).where(
-                AssignmentUserSubmission.assignment_id == assignment.id,
-                AssignmentUserSubmission.user_id == regular_user.id,
+        assert step.complete is False
+        rows = (
+            (
+                await db.execute(
+                    select(AssignmentUserSubmission).where(
+                        AssignmentUserSubmission.assignment_id == assignment.id,
+                        AssignmentUserSubmission.user_id == regular_user.id,
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(rows) == 1
-        # Same row reused: original uuid preserved on the persisted record.
         assert rows[0].assignmentusersubmission_uuid == original_uuid
 
     async def test_rejects_when_existing_row_is_submitted(
-        self, db, regular_user, mock_request, assignment
+        self, db, regular_user, mock_request, assignment, enrolled_student
     ):
         await _make_user_submission(
             db,
@@ -511,7 +499,6 @@ class TestCreateAssignmentSubmissionRetryPath:
             regular_user.id,
             status=AssignmentUserSubmissionStatus.SUBMITTED,
         )
-
         with patch(
             "src.services.courses.activities.assignments.check_resource_access",
             new_callable=AsyncMock,
@@ -520,12 +507,11 @@ class TestCreateAssignmentSubmissionRetryPath:
                 await create_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
                 )
-
         assert exc_info.value.status_code == 400
         assert "already exists" in exc_info.value.detail
 
     async def test_rejects_when_existing_row_is_graded(
-        self, db, regular_user, mock_request, assignment
+        self, db, regular_user, mock_request, assignment, enrolled_student
     ):
         await _make_user_submission(
             db,
@@ -533,7 +519,6 @@ class TestCreateAssignmentSubmissionRetryPath:
             regular_user.id,
             status=AssignmentUserSubmissionStatus.GRADED,
         )
-
         with patch(
             "src.services.courses.activities.assignments.check_resource_access",
             new_callable=AsyncMock,
@@ -542,68 +527,56 @@ class TestCreateAssignmentSubmissionRetryPath:
                 await create_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
                 )
-
         assert exc_info.value.status_code == 400
 
     async def test_creates_fresh_row_on_first_submission(
-        self,
-        db,
-        regular_user,
-        mock_request,
-        org,
-        course,
-        activity,
-        assignment,
+        self, db, regular_user, mock_request, org, course, activity, assignment
     ):
-        """When no AssignmentUserSubmission row exists yet, the service hits
-        the else branch and creates a fresh row with attempt_number=1. The
-        first-submission path also marks the (existing) trail step complete
-        via the new else branch that keeps the reuse path consistent."""
         _, _, step = await _make_trail_artifacts(
             db, org.id, course.id, activity.id, regular_user.id, complete=False
         )
-
-        with patch(
-            "src.services.courses.activities.assignments.check_resource_access",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.activities.assignments.track",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.activities.assignments.dispatch_webhooks",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.activities.assignments."
-            "check_course_completion_and_create_certificate",
-            new_callable=AsyncMock,
+        with (
+            patch(
+                "src.services.courses.activities.assignments.check_resource_access",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.activities.assignments.track",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.activities.assignments.dispatch_webhooks",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.activities.assignments.check_course_completion_and_create_certificate",
+                new_callable=AsyncMock,
+            ),
         ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
-
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
         assert result.grade == 0
         assert result.attempt_number == 1
-
         await db.refresh(step)
-        assert step.complete is True
-
-        rows = (await db.execute(
-            select(AssignmentUserSubmission).where(
-                AssignmentUserSubmission.assignment_id == assignment.id,
-                AssignmentUserSubmission.user_id == regular_user.id,
+        assert step.complete is False
+        rows = (
+            (
+                await db.execute(
+                    select(AssignmentUserSubmission).where(
+                        AssignmentUserSubmission.assignment_id == assignment.id,
+                        AssignmentUserSubmission.user_id == regular_user.id,
+                    )
+                )
             )
-        )).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(rows) == 1
-        # A brand-new uuid was generated (not the reuse path).
         assert rows[0].assignmentusersubmission_uuid.startswith(
             "assignmentusersubmission_"
         )
-
-
-# ---------------------------------------------------------------------------
-# Schema field coverage
-# ---------------------------------------------------------------------------
 
 
 class TestRetrySchemaFields:
@@ -641,11 +614,6 @@ class TestRetrySchemaFields:
         dumped = read.model_dump()
         assert dumped["attempt_number"] == 4
         assert dumped["submission_status"] == AssignmentUserSubmissionStatus.PENDING.value
-
-
-# ---------------------------------------------------------------------------
-# Router-level test for the new endpoint
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

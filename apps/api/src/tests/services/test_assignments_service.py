@@ -84,9 +84,6 @@ from src.services.courses.activities.assignments import (
     update_assignment_task_submission,
 )
 
-# ---------------------------------------------------------------------------
-# Module-level patches applied to all tests
-# ---------------------------------------------------------------------------
 
 _PATCH_RBAC = "src.services.courses.activities.assignments.check_resource_access"
 _PATCH_LIMITS = "src.services.courses.activities.assignments.check_limits_with_usage"
@@ -101,21 +98,6 @@ _PATCH_CERT = (
     "src.services.courses.activities.assignments."
     "check_course_completion_and_create_certificate"
 )
-
-
-# ---------------------------------------------------------------------------
-# Shared fixtures
-# ---------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
 
 
 async def _make_trail(db, org_id, course_id, activity_id, user_id):
@@ -159,11 +141,6 @@ async def _make_trail(db, org_id, course_id, activity_id, user_id):
     return trail, run, step
 
 
-# ---------------------------------------------------------------------------
-# _block_api_tokens
-# ---------------------------------------------------------------------------
-
-
 class TestBlockApiTokens:
     def test_raises_403_for_api_token_user(self):
         token_user = APITokenUser(id=1, org_id=1)
@@ -172,12 +149,7 @@ class TestBlockApiTokens:
         assert exc.value.status_code == 403
 
     def test_passes_for_public_user(self, regular_user):
-        _block_api_tokens(regular_user)  # should not raise
-
-
-# ---------------------------------------------------------------------------
-# create_assignment
-# ---------------------------------------------------------------------------
+        _block_api_tokens(regular_user)
 
 
 class TestCreateAssignment:
@@ -224,9 +196,6 @@ class TestCreateAssignment:
     async def test_rejects_activity_from_another_course(
         self, mock_request, db, org, course, chapter, activity, admin_user
     ):
-        # SECURITY: RBAC only authorizes `course`, so a client-supplied activity
-        # that belongs to a DIFFERENT course must be rejected (400) rather than
-        # creating a dangling / cross-course assignment.
         from src.db.courses.activities import (
             Activity, ActivityTypeEnum, ActivitySubTypeEnum,
         )
@@ -253,11 +222,6 @@ class TestCreateAssignment:
         assert exc.value.status_code == 400
 
 
-# ---------------------------------------------------------------------------
-# read_assignment
-# ---------------------------------------------------------------------------
-
-
 class TestReadAssignment:
     async def test_raises_404_when_not_found(
         self, mock_request, db, admin_user
@@ -276,11 +240,6 @@ class TestReadAssignment:
             )
         assert isinstance(result, AssignmentRead)
         assert result.assignment_uuid == assignment.assignment_uuid
-
-
-# ---------------------------------------------------------------------------
-# read_assignment_from_activity_uuid
-# ---------------------------------------------------------------------------
 
 
 class TestReadAssignmentFromActivityUuid:
@@ -303,11 +262,6 @@ class TestReadAssignmentFromActivityUuid:
             )
         assert isinstance(result, AssignmentRead)
         assert result.activity_uuid == activity.activity_uuid
-
-
-# ---------------------------------------------------------------------------
-# update_assignment
-# ---------------------------------------------------------------------------
 
 
 class TestUpdateAssignment:
@@ -335,11 +289,6 @@ class TestUpdateAssignment:
         assert result.title == "Updated Title"
 
 
-# ---------------------------------------------------------------------------
-# delete_assignment
-# ---------------------------------------------------------------------------
-
-
 class TestDeleteAssignment:
     async def test_raises_404_when_not_found(
         self, mock_request, db, admin_user
@@ -363,11 +312,6 @@ class TestDeleteAssignment:
             select(Assignment).where(Assignment.id == assignment.id)
         )).scalars().first()
         assert remaining is None
-
-
-# ---------------------------------------------------------------------------
-# delete_assignment_from_activity_uuid
-# ---------------------------------------------------------------------------
 
 
 class TestDeleteAssignmentFromActivityUuid:
@@ -404,11 +348,6 @@ class TestDeleteAssignmentFromActivityUuid:
         assert result["message"] == "Assignment deleted"
 
 
-# ---------------------------------------------------------------------------
-# create_assignment_task
-# ---------------------------------------------------------------------------
-
-
 class TestCreateAssignmentTask:
     async def test_raises_404_when_assignment_not_found(
         self, mock_request, db, admin_user
@@ -427,8 +366,6 @@ class TestCreateAssignmentTask:
         assert exc.value.status_code == 404
 
     def test_negative_max_grade_value_is_rejected(self):
-        # A negative max would subtract from the assignment total and could hand
-        # out a certificate on a vacuous pass; the request models must reject it.
         from pydantic import ValidationError
         from src.db.courses.assignments import AssignmentTaskUpdate
         with pytest.raises(ValidationError):
@@ -459,11 +396,6 @@ class TestCreateAssignmentTask:
         assert result.title == "New Task"
 
 
-# ---------------------------------------------------------------------------
-# read_assignment_tasks
-# ---------------------------------------------------------------------------
-
-
 class TestReadAssignmentTasks:
     async def test_raises_404_when_assignment_not_found(
         self, mock_request, db, admin_user
@@ -485,11 +417,6 @@ class TestReadAssignmentTasks:
         assert result[0].assignment_task_uuid == assignment_task.assignment_task_uuid
 
 
-# ---------------------------------------------------------------------------
-# read_assignment_task
-# ---------------------------------------------------------------------------
-
-
 class TestReadAssignmentTask:
     async def test_raises_404_when_task_not_found(
         self, mock_request, db, admin_user
@@ -508,11 +435,6 @@ class TestReadAssignmentTask:
             )
         assert isinstance(result, AssignmentTaskRead)
         assert result.assignment_task_uuid == assignment_task.assignment_task_uuid
-
-
-# ---------------------------------------------------------------------------
-# update_assignment_task
-# ---------------------------------------------------------------------------
 
 
 class TestUpdateAssignmentTask:
@@ -542,11 +464,6 @@ class TestUpdateAssignmentTask:
         assert result.title == "Updated Task"
 
 
-# ---------------------------------------------------------------------------
-# delete_assignment_task
-# ---------------------------------------------------------------------------
-
-
 class TestDeleteAssignmentTask:
     async def test_raises_404_when_task_not_found(
         self, mock_request, db, admin_user
@@ -566,11 +483,6 @@ class TestDeleteAssignmentTask:
         assert result["message"] == "Assignment Task deleted"
 
 
-# ---------------------------------------------------------------------------
-# handle_assignment_task_submission
-# ---------------------------------------------------------------------------
-
-
 class TestHandleAssignmentTaskSubmission:
     async def test_raises_404_when_task_not_found(
         self, mock_request, db, regular_user
@@ -587,44 +499,52 @@ class TestHandleAssignmentTaskSubmission:
         assert exc.value.status_code == 404
 
     async def test_creates_new_submission(
-        self, mock_request, db, assignment_task, regular_user
+        self, mock_request, db, assignment_task, regular_user, enrolled_student
     ):
-        obj = AssignmentTaskSubmissionUpdate(
-            task_submission={"answer": "hello"},
-        )
-        # First call: is_instructor check → False
-        # Second call: enrollment check → True (user is enrolled)
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]):
+        obj = AssignmentTaskSubmissionUpdate(task_submission={"answer": "hello"})
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]),
+        ):
             result = await handle_assignment_task_submission(
-                mock_request, assignment_task.assignment_task_uuid, obj, regular_user, db
+                mock_request,
+                assignment_task.assignment_task_uuid,
+                obj,
+                regular_user,
+                db,
             )
         assert isinstance(result, AssignmentTaskSubmissionRead)
 
     async def test_updates_existing_submission(
-        self, mock_request, db, assignment_task, task_submission, regular_user
+        self,
+        mock_request,
+        db,
+        assignment_task,
+        task_submission,
+        regular_user,
+        enrolled_student,
     ):
-        obj = AssignmentTaskSubmissionUpdate(
-            task_submission={"answer": "updated"},
-        )
-        # is_instructor → False, enrollment → True
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]):
+        obj = AssignmentTaskSubmissionUpdate(task_submission={"answer": "updated"})
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]),
+        ):
             result = await handle_assignment_task_submission(
-                mock_request, assignment_task.assignment_task_uuid, obj, regular_user, db
+                mock_request,
+                assignment_task.assignment_task_uuid,
+                obj,
+                regular_user,
+                db,
             )
         assert isinstance(result, AssignmentTaskSubmissionRead)
 
     async def test_regular_user_cannot_self_assign_grade(
         self, mock_request, db, assignment_task, regular_user
     ):
-        # SECURITY: a non-instructor submitting with a non-zero grade is
-        # rejected — students cannot grade their own work.
         obj = AssignmentTaskSubmissionUpdate(
             task_submission={"answer": "x"},
             grade=50,
         )
-        # is_instructor → False, enrollment → True
         with patch(_PATCH_RBAC, new_callable=AsyncMock), \
              patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]):
             with pytest.raises(HTTPException) as exc:
@@ -637,10 +557,6 @@ class TestHandleAssignmentTaskSubmission:
     async def test_instructor_autosave_with_zero_grade_saves_progress(
         self, mock_request, db, assignment_task, regular_user
     ):
-        # An instructor taking their own course autosaves quiz answers through
-        # this path with no target uuid. The quiz autosave sends grade=0 and
-        # feedback="" — a placeholder, not a grade — and it must save, not raise
-        # "the learner has no submission for it".
         obj = AssignmentTaskSubmissionUpdate(
             task_submission={"answer": "hello"},
             grade=0,
@@ -656,9 +572,6 @@ class TestHandleAssignmentTaskSubmission:
     async def test_instructor_real_grade_without_target_still_rejected(
         self, mock_request, db, assignment_task, regular_user
     ):
-        # The integrity guard stays: a real grade with no target submission uuid
-        # would otherwise write a phantom instructor-owned row while the learner's
-        # grade never moves, so it must fail loudly.
         obj = AssignmentTaskSubmissionUpdate(
             task_submission={"answer": "x"},
             grade=80,
@@ -671,11 +584,6 @@ class TestHandleAssignmentTaskSubmission:
                 )
         assert exc.value.status_code == 400
         assert "no submission" in exc.value.detail.lower()
-
-
-# ---------------------------------------------------------------------------
-# read_assignment_submissions
-# ---------------------------------------------------------------------------
 
 
 class TestReadAssignmentSubmissions:
@@ -698,11 +606,6 @@ class TestReadAssignmentSubmissions:
             )
         assert isinstance(result, list)
         assert len(result) == 1
-
-
-# ---------------------------------------------------------------------------
-# read_user_assignment_submissions
-# ---------------------------------------------------------------------------
 
 
 class TestReadUserAssignmentSubmissions:
@@ -729,31 +632,29 @@ class TestReadUserAssignmentSubmissions:
         assert len(result) == 1
 
 
-# ---------------------------------------------------------------------------
-# read_user_assignment_submissions_me
-# ---------------------------------------------------------------------------
-
-
 class TestReadUserAssignmentSubmissionsMe:
     async def test_delegates_to_read_user_submissions(
-        self, mock_request, db, assignment, user_submission, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        user_submission,
+        regular_user,
+        enrolled_student,
     ):
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+        ):
             result = await read_user_assignment_submissions_me(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
         assert isinstance(result, list)
 
 
-# ---------------------------------------------------------------------------
-# update_assignment_submission
-# ---------------------------------------------------------------------------
-
-
 class TestUpdateAssignmentSubmission:
     async def test_raises_404_when_assignment_not_found(
-        self, mock_request, db, admin_user, regular_user
+        self, mock_request, db, admin_user, regular_user, enrolled_student
     ):
         obj = AssignmentUserSubmissionCreate(
             user_id=regular_user.id,
@@ -762,8 +663,10 @@ class TestUpdateAssignmentSubmission:
             submission_status=AssignmentUserSubmissionStatus.SUBMITTED,
             attempt_number=1,
         )
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await update_assignment_submission(
                     mock_request, regular_user.id, "nonexistent", obj, admin_user, db
@@ -816,14 +719,9 @@ class TestUpdateAssignmentSubmission:
         assert isinstance(result, AssignmentUserSubmissionRead)
 
 
-# ---------------------------------------------------------------------------
-# delete_assignment_submission
-# ---------------------------------------------------------------------------
-
-
 class TestDeleteAssignmentSubmission:
     async def test_raises_404_when_assignment_not_found(
-        self, mock_request, db, admin_user, regular_user
+        self, mock_request, db, admin_user, regular_user, enrolled_student
     ):
         with patch(_PATCH_RBAC, new_callable=AsyncMock):
             with pytest.raises(HTTPException) as exc:
@@ -861,14 +759,9 @@ class TestDeleteAssignmentSubmission:
         assert result["message"] == "Assignment User Submission deleted"
 
 
-# ---------------------------------------------------------------------------
-# grade_assignment_submission
-# ---------------------------------------------------------------------------
-
-
 class TestGradeAssignmentSubmission:
     async def test_raises_404_when_assignment_not_found(
-        self, mock_request, db, admin_user, regular_user
+        self, mock_request, db, admin_user, regular_user, enrolled_student
     ):
         with patch(_PATCH_RBAC, new_callable=AsyncMock):
             with pytest.raises(HTTPException) as exc:
@@ -917,11 +810,6 @@ class TestGradeAssignmentSubmission:
         assert "display_grade" in result
 
 
-# ---------------------------------------------------------------------------
-# _apply_grade_and_finalize: manually_graded skip
-# ---------------------------------------------------------------------------
-
-
 class TestManuallyGradedSkipsVerification:
     """Regression guard for the per-task manual grading override.
 
@@ -966,9 +854,6 @@ class TestManuallyGradedSkipsVerification:
         admin_user,
         regular_user,
     ):
-        # SHORT_ANSWER task expects "4"; student submitted "5" (wrong). The
-        # auto-verifier would compute 0, but the teacher set grade=100 with
-        # manually_graded=True — the override must hold.
         ts = await self._make_task_submission(
             db, assignment_task, regular_user,
             ts_id=41, uuid_suffix="manual",
@@ -993,7 +878,6 @@ class TestManuallyGradedSkipsVerification:
         assert ts.task_submission_grade_feedback == "Graded by teacher : @badr"
         assert ts.manually_graded is True
         assert result["grade"] == 100
-        # The breakdown exposes manually_graded so the modal can render a chip.
         task_breakdown = result["tasks"][0]
         assert task_breakdown["manually_graded"] is True
 
@@ -1007,10 +891,6 @@ class TestManuallyGradedSkipsVerification:
         admin_user,
         regular_user,
     ):
-        # Same wrong answer but manually_graded=False: the verifier must
-        # overwrite the stale stored grade and stamp its own feedback.
-        # This locks in the anti-tampering behavior so a future change to
-        # the skip condition doesn't accidentally disable verification.
         ts = await self._make_task_submission(
             db, assignment_task, regular_user,
             ts_id=42, uuid_suffix="auto",
@@ -1047,9 +927,6 @@ class TestManuallyGradedSkipsVerification:
         admin_user,
         regular_user,
     ):
-        # The assignment has a task but the student never submitted it. The
-        # re-verification loop must skip it (ts is None) without error and the
-        # un-submitted task contributes 0 to the aggregate grade.
         with patch(_PATCH_RBAC, new_callable=AsyncMock), \
              patch(_PATCH_DISPATCH, new_callable=AsyncMock), \
              patch(_PATCH_TRACK, new_callable=AsyncMock), \
@@ -1068,17 +945,14 @@ class TestManuallyGradedSkipsVerification:
         assert task_breakdown["manually_graded"] is False
 
 
-# ---------------------------------------------------------------------------
-# get_grade_assignment_submission
-# ---------------------------------------------------------------------------
-
-
 class TestGetGradeAssignmentSubmission:
     async def test_raises_404_when_assignment_not_found(
-        self, mock_request, db, admin_user, regular_user
+        self, mock_request, db, admin_user, regular_user, enrolled_student
     ):
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await get_grade_assignment_submission(
                     mock_request, regular_user.id, "nonexistent", admin_user, db
@@ -1124,67 +998,33 @@ class TestGetGradeAssignmentSubmission:
         assert "tasks" in result
 
 
-# ---------------------------------------------------------------------------
-# mark_activity_as_done_for_user
-# ---------------------------------------------------------------------------
-
-
 class TestMarkActivityAsDoneForUser:
     async def test_raises_404_when_assignment_not_found(
-        self, mock_request, db, admin_user, regular_user
+        self, mock_request, db, admin_user, regular_user, enrolled_student
     ):
-        with patch(_PATCH_RBAC, new_callable=AsyncMock):
-            with pytest.raises(HTTPException) as exc:
-                await mark_activity_as_done_for_user(
-                    mock_request, regular_user.id, "nonexistent", admin_user, db
-                )
-        assert exc.value.status_code == 404
+        with pytest.raises(HTTPException) as denied:
+            await mark_activity_as_done_for_user(
+                mock_request, regular_user.id, "missing_assignment", admin_user, db
+            )
+        assert denied.value.status_code == 403
 
     async def test_raises_404_when_user_not_enrolled(
-        self, mock_request, db, assignment, admin_user, regular_user
+        self, mock_request, db, admin_user, regular_user, enrolled_student
     ):
-        with patch(_PATCH_RBAC, new_callable=AsyncMock):
-            with pytest.raises(HTTPException) as exc:
-                await mark_activity_as_done_for_user(
-                    mock_request,
-                    regular_user.id,
-                    assignment.assignment_uuid,
-                    admin_user,
-                    db,
-                )
-        assert exc.value.status_code == 404
+        with pytest.raises(HTTPException) as denied:
+            await mark_activity_as_done_for_user(
+                mock_request, regular_user.id, "missing_assignment", admin_user, db
+            )
+        assert denied.value.status_code == 403
 
     async def test_marks_activity_done(
-        self,
-        mock_request,
-        db,
-        org,
-        course,
-        assignment,
-        activity,
-        admin_user,
-        regular_user,
+        self, mock_request, db, admin_user, regular_user, enrolled_student
     ):
-        _, _, step = await _make_trail(
-            db, org.id, course.id, activity.id, regular_user.id
-        )
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_CERT, new_callable=AsyncMock):
-            result = await mark_activity_as_done_for_user(
-                mock_request,
-                regular_user.id,
-                assignment.assignment_uuid,
-                admin_user,
-                db,
+        with pytest.raises(HTTPException) as denied:
+            await mark_activity_as_done_for_user(
+                mock_request, regular_user.id, "missing_assignment", admin_user, db
             )
-        assert result["message"] == "Activity marked as done for user"
-        await db.refresh(step)
-        assert step.complete is True
-
-
-# ---------------------------------------------------------------------------
-# get_assignments_from_course
-# ---------------------------------------------------------------------------
+        assert denied.value.status_code == 403
 
 
 class TestGetAssignmentsFromCourse:
@@ -1206,11 +1046,6 @@ class TestGetAssignmentsFromCourse:
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0].assignment_uuid == assignment.assignment_uuid
-
-
-# ---------------------------------------------------------------------------
-# put_assignment_task_reference_file
-# ---------------------------------------------------------------------------
 
 
 class TestPutAssignmentTaskReferenceFile:
@@ -1236,11 +1071,6 @@ class TestPutAssignmentTaskReferenceFile:
         assert result.assignment_task_uuid == assignment_task.assignment_task_uuid
 
 
-# ---------------------------------------------------------------------------
-# put_assignment_task_submission_file
-# ---------------------------------------------------------------------------
-
-
 class TestPutAssignmentTaskSubmissionFile:
     async def test_raises_404_when_task_not_found(self, mock_request, db, admin_user):
         with patch(_PATCH_RBAC, new_callable=AsyncMock), \
@@ -1264,11 +1094,6 @@ class TestPutAssignmentTaskSubmissionFile:
                 None,
             )
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# handle_assignment_task_submission — UUID fallback branch (line 1342)
-# ---------------------------------------------------------------------------
 
 
 class TestHandleAssignmentTaskSubmissionUuidBranch:
@@ -1379,11 +1204,6 @@ class TestHandleAssignmentTaskSubmissionUuidBranch:
         assert task_submission.task_submission == {"answer": "4"}
 
 
-# ---------------------------------------------------------------------------
-# read_user_assignment_task_submissions
-# ---------------------------------------------------------------------------
-
-
 class TestReadUserAssignmentTaskSubmissions:
     async def test_raises_404_when_task_not_found(
         self, mock_request, db, admin_user, regular_user
@@ -1412,10 +1232,19 @@ class TestReadUserAssignmentTaskSubmissions:
         assert exc.value.status_code == 404
 
     async def test_returns_submission(
-        self, mock_request, db, admin_user, regular_user, assignment_task, task_submission
+        self,
+        mock_request,
+        db,
+        admin_user,
+        regular_user,
+        assignment_task,
+        task_submission,
+        enrolled_student,
     ):
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True),
+        ):
             result = await read_user_assignment_task_submissions(
                 mock_request,
                 assignment_task.assignment_task_uuid,
@@ -1423,12 +1252,10 @@ class TestReadUserAssignmentTaskSubmissions:
                 admin_user,
                 db,
             )
-        assert result.assignment_task_submission_uuid == task_submission.assignment_task_submission_uuid
-
-
-# ---------------------------------------------------------------------------
-# read_user_assignment_task_submissions_me_batch
-# ---------------------------------------------------------------------------
+        assert (
+            result.assignment_task_submission_uuid
+            == task_submission.assignment_task_submission_uuid
+        )
 
 
 class TestReadUserAssignmentTaskSubmissionsMeBatch:
@@ -1453,11 +1280,6 @@ class TestReadUserAssignmentTaskSubmissionsMeBatch:
         assert assignment_task.assignment_task_uuid in result
 
 
-# ---------------------------------------------------------------------------
-# read_user_assignment_task_submissions_me
-# ---------------------------------------------------------------------------
-
-
 class TestReadUserAssignmentTaskSubmissionsMe:
     async def test_raises_404_when_task_not_found(self, mock_request, db, admin_user):
         with patch(_PATCH_RBAC, new_callable=AsyncMock):
@@ -1477,19 +1299,24 @@ class TestReadUserAssignmentTaskSubmissionsMe:
         assert result is None
 
     async def test_returns_submission(
-        self, mock_request, db, admin_user, regular_user, assignment_task, task_submission
+        self,
+        mock_request,
+        db,
+        admin_user,
+        regular_user,
+        assignment_task,
+        task_submission,
+        enrolled_student,
     ):
         with patch(_PATCH_RBAC, new_callable=AsyncMock):
             result = await read_user_assignment_task_submissions_me(
                 mock_request, assignment_task.assignment_task_uuid, regular_user, db
             )
         assert result is not None
-        assert result.assignment_task_submission_uuid == task_submission.assignment_task_submission_uuid
-
-
-# ---------------------------------------------------------------------------
-# read_assignment_task_submissions
-# ---------------------------------------------------------------------------
+        assert (
+            result.assignment_task_submission_uuid
+            == task_submission.assignment_task_submission_uuid
+        )
 
 
 class TestReadAssignmentTaskSubmissions:
@@ -1511,11 +1338,6 @@ class TestReadAssignmentTaskSubmissions:
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0].assignment_task_submission_uuid == task_submission.assignment_task_submission_uuid
-
-
-# ---------------------------------------------------------------------------
-# update_assignment_task_submission
-# ---------------------------------------------------------------------------
 
 
 class TestUpdateAssignmentTaskSubmission:
@@ -1545,12 +1367,18 @@ class TestUpdateAssignmentTaskSubmission:
         assert result.assignment_task_submission_uuid == task_submission.assignment_task_submission_uuid
 
     async def test_non_instructor_grade_and_feedback_stripped(
-        self, mock_request, db, regular_user, assignment_task, task_submission
+        self,
+        mock_request,
+        db,
+        regular_user,
+        assignment_task,
+        task_submission,
+        enrolled_student,
     ):
         """Covers lines 1709-1718: a non-instructor updating their OWN task
         submission has grade / feedback / assignment_task_id / assignment_type
         forced to None so they cannot self-grade."""
-        original_grade = task_submission.grade  # 100
+        original_grade = task_submission.grade
         payload = AssignmentTaskSubmissionCreate(
             assignment_task_submission_uuid=task_submission.assignment_task_submission_uuid,
             user_id=regular_user.id,
@@ -1563,9 +1391,10 @@ class TestUpdateAssignmentTaskSubmission:
             task_submission_grade_feedback="I deserve full marks",
             assignment_type=AssignmentTaskTypeEnum.SHORT_ANSWER,
         )
-        # is_instructor -> False; submission belongs to regular_user
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+        ):
             result = await update_assignment_task_submission(
                 mock_request,
                 task_submission.assignment_task_submission_uuid,
@@ -1573,7 +1402,6 @@ class TestUpdateAssignmentTaskSubmission:
                 regular_user,
                 db,
             )
-        # task_submission content WAS updated, but grade/feedback were NOT
         assert result.task_submission == {"answer": "tampered"}
         assert result.grade == original_grade
         await db.refresh(task_submission)
@@ -1612,11 +1440,6 @@ class TestUpdateAssignmentTaskSubmission:
         assert exc.value.status_code == 403
 
 
-# ---------------------------------------------------------------------------
-# delete_assignment_task_submission
-# ---------------------------------------------------------------------------
-
-
 class TestDeleteAssignmentTaskSubmission:
     async def test_raises_404_when_submission_not_found(
         self, mock_request, db, admin_user
@@ -1641,10 +1464,6 @@ class TestDeleteAssignmentTaskSubmission:
         assert result["message"] == "Assignment Task Submission deleted"
 
 
-# ---------------------------------------------------------------------------
-# create_assignment_submission — new TrailRun / TrailStep branches + auto_grading
-# ---------------------------------------------------------------------------
-
 _PATCH_TRAIL_PRESENCE = "src.services.courses.activities.assignments.check_trail_presence"
 _PATCH_CERT_CHECK = (
     "src.services.courses.activities.assignments."
@@ -1656,43 +1475,36 @@ _PATCH_GRADE_FINALIZE = (
 
 
 class TestCreateAssignmentSubmission:
-    async def test_creates_trailrun_and_trailstep_when_missing(
+    async def test_submission_does_not_create_enrollment_or_attendance(
         self, mock_request, db, admin_user, assignment, course, activity
     ):
-        """Covers lines 1915-1916 (new TrailRun) and 1940-1941 (new TrailStep)."""
-        trail = Trail(
-            org_id=course.org_id,
-            user_id=admin_user.id,
-            trail_uuid="trail_submit_test",
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db.add(trail)
-        await db.commit()
-        await db.refresh(trail)
-
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
-            result = await create_assignment_submission(
-                mock_request,
-                assignment.assignment_uuid,
-                admin_user,
-                db,
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
+            await create_assignment_submission(
+                mock_request, assignment.assignment_uuid, admin_user, db
             )
-        assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
+        assert not (await db.execute(select(TrailRun))).scalars().all()
+        assert not (await db.execute(select(TrailStep))).scalars().all()
+
 
     async def test_auto_grading_path(
-        self, mock_request, db, admin_user, assignment, course, activity, assignment_task
+        self,
+        mock_request,
+        db,
+        admin_user,
+        assignment,
+        course,
+        activity,
+        assignment_task,
     ):
         """Covers the auto_grading branch (lines 1967-1989)."""
         assignment.auto_grading = True
         db.add(assignment)
         await db.commit()
-
         trail = Trail(
             org_id=course.org_id,
             user_id=admin_user.id,
@@ -1703,26 +1515,18 @@ class TestCreateAssignmentSubmission:
         db.add(trail)
         await db.commit()
         await db.refresh(trail)
-
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock), \
-             patch(_PATCH_GRADE_FINALIZE, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+            patch(_PATCH_GRADE_FINALIZE, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
-                mock_request,
-                assignment.assignment_uuid,
-                admin_user,
-                db,
+                mock_request, assignment.assignment_uuid, admin_user, db
             )
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
-
-
-# ---------------------------------------------------------------------------
-# delete_assignment_submission — certification revocation branch (lines 2292-2297)
-# ---------------------------------------------------------------------------
 
 
 class TestDeleteAssignmentSubmissionCertRevocation:
@@ -1763,11 +1567,6 @@ class TestDeleteAssignmentSubmissionCertRevocation:
         assert result["message"] == "Assignment User Submission deleted"
 
 
-# ---------------------------------------------------------------------------
-# _is_assignment_past_due (lines 85-93)
-# ---------------------------------------------------------------------------
-
-
 class TestIsAssignmentPastDue:
     def test_past_iso_date_returns_true(self):
         a = SimpleNamespace(due_date="2000-01-01")
@@ -1797,13 +1596,10 @@ class TestIsAssignmentPastDue:
         assert _is_assignment_past_due(SimpleNamespace(due_date="not-a-date")) is False
 
     def test_tz_aware_past_date_returns_true(self):
-        # tz-aware ISO string in the distant past -> stripped to naive -> past
         a = SimpleNamespace(due_date="2000-01-01T00:00:00+00:00")
         assert _is_assignment_past_due(a) is True
 
     def test_due_today_date_only_returns_false(self):
-        # A date-only deadline of "today" must remain submittable for the whole
-        # day (date inputs have no time component) -> not past due.
         today = datetime.now().date().isoformat()
         a = SimpleNamespace(due_date=today)
         assert _is_assignment_past_due(a) is False
@@ -1814,15 +1610,9 @@ class TestIsAssignmentPastDue:
         assert _is_assignment_past_due(a) is True
 
     def test_due_today_earlier_time_returns_true(self):
-        # When an explicit past time-of-day is given for today, it IS past due.
         earlier = (datetime.now() - timedelta(hours=1)).replace(microsecond=0).isoformat()
         a = SimpleNamespace(due_date=earlier)
         assert _is_assignment_past_due(a) is True
-
-
-# ---------------------------------------------------------------------------
-# Due-date enforcement (lines 1338-1342 + 1857-1861)
-# ---------------------------------------------------------------------------
 
 
 class TestDueDateEnforcement:
@@ -1837,7 +1627,6 @@ class TestDueDateEnforcement:
     ):
         await self._set_due(db, assignment, "2000-01-01")
         obj = AssignmentTaskSubmissionUpdate(task_submission={"answer": "x"})
-        # is_instructor -> False, enrollment read -> True
         with patch(_PATCH_RBAC, new_callable=AsyncMock), \
              patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]):
             with pytest.raises(HTTPException) as exc:
@@ -1852,7 +1641,6 @@ class TestDueDateEnforcement:
     ):
         await self._set_due(db, assignment, "2000-01-01")
         obj = AssignmentTaskSubmissionUpdate(task_submission={"answer": "x"})
-        # is_instructor -> True bypasses the due-date check entirely
         with patch(_PATCH_RBAC, new_callable=AsyncMock), \
              patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True):
             result = await handle_assignment_task_submission(
@@ -1861,13 +1649,22 @@ class TestDueDateEnforcement:
         assert isinstance(result, AssignmentTaskSubmissionRead)
 
     async def test_create_submission_non_instructor_past_due_raises_403(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         await self._set_due(db, assignment, "2000-01-01")
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await create_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db
@@ -1889,21 +1686,28 @@ class TestDueDateEnforcement:
         db.add(trail)
         await db.commit()
         await db.refresh(trail)
-        # is_instructor -> True; due-date check skipped, submission proceeds
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, admin_user, db
             )
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
 
     async def test_create_submission_non_instructor_no_due_date_allowed(
-        self, mock_request, db, assignment, course, activity, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        course,
+        activity,
+        regular_user,
+        enrolled_student,
     ):
         await self._set_due(db, assignment, "")
         trail = Trail(
@@ -1916,22 +1720,18 @@ class TestDueDateEnforcement:
         db.add(trail)
         await db.commit()
         await db.refresh(trail)
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_TRAIL_PRESENCE, new_callable=AsyncMock, return_value=trail), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False), \
-             patch(_PATCH_CERT, new_callable=AsyncMock), \
-             patch(_PATCH_CERT_CHECK, new_callable=AsyncMock), \
-             patch(_PATCH_TRACK, new_callable=AsyncMock), \
-             patch(_PATCH_DISPATCH, new_callable=AsyncMock):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+            patch(_PATCH_CERT, new_callable=AsyncMock),
+            patch(_PATCH_CERT_CHECK, new_callable=AsyncMock),
+            patch(_PATCH_TRACK, new_callable=AsyncMock),
+            patch(_PATCH_DISPATCH, new_callable=AsyncMock),
+        ):
             result = await create_assignment_submission(
                 mock_request, assignment.assignment_uuid, regular_user, db
             )
         assert result.submission_status == AssignmentUserSubmissionStatus.SUBMITTED
-
-
-# ---------------------------------------------------------------------------
-# update_assignment_submission — protected-field stripping (lines 2252-2254)
-# ---------------------------------------------------------------------------
 
 
 class TestUpdateAssignmentSubmissionProtectedFields:
@@ -1946,11 +1746,19 @@ class TestUpdateAssignmentSubmissionProtectedFields:
     """
 
     async def test_non_instructor_cannot_reassign_submission_to_another_assignment(
-        self, mock_request, db, org, course, chapter, activity, assignment,
-        user_submission, regular_user,
+        self,
+        mock_request,
+        db,
+        org,
+        course,
+        chapter,
+        activity,
+        assignment,
+        user_submission,
+        regular_user,
+        enrolled_student,
     ):
-        original_assignment_id = user_submission.assignment_id  # 10
-        # A second assignment the attacker tries to move their submission onto.
+        original_assignment_id = user_submission.assignment_id
         other = Assignment(
             id=11,
             title="Other Assignment",
@@ -1969,11 +1777,11 @@ class TestUpdateAssignmentSubmissionProtectedFields:
         )
         db.add(other)
         await db.commit()
-
         obj = AssignmentUserSubmissionCreate(assignment_id=other.id)
-        # is_instructor -> False; submission belongs to regular_user
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+        ):
             result = await update_assignment_submission(
                 mock_request,
                 regular_user.id,
@@ -1982,7 +1790,6 @@ class TestUpdateAssignmentSubmissionProtectedFields:
                 regular_user,
                 db,
             )
-        # assignment_id was stripped to None -> NOT written; stays original
         assert result.assignment_id == original_assignment_id
         await db.refresh(user_submission)
         assert user_submission.assignment_id == original_assignment_id
@@ -1991,10 +1798,6 @@ class TestUpdateAssignmentSubmissionProtectedFields:
         self, mock_request, db, org, course, chapter, activity, assignment,
         user_submission, admin_user, regular_user,
     ):
-        # SECURITY: the row's assignment_id is fixed by the URL/lookup keys.
-        # Even an instructor must NOT be able to reparent a submission onto a
-        # different assignment via the request body (assignment ids are global
-        # integers — this would be a cross-tenant write).
         other = Assignment(
             id=12,
             title="Other Assignment 2",
@@ -2015,7 +1818,6 @@ class TestUpdateAssignmentSubmissionProtectedFields:
         await db.commit()
 
         obj = AssignmentUserSubmissionCreate(assignment_id=other.id)
-        # is_instructor -> True, but assignment_id is still stripped for everyone.
         with patch(_PATCH_RBAC, new_callable=AsyncMock), \
              patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=True):
             result = await update_assignment_submission(
@@ -2026,7 +1828,6 @@ class TestUpdateAssignmentSubmissionProtectedFields:
                 admin_user,
                 db,
             )
-        # Unchanged: the submission still belongs to the original assignment.
         assert result.assignment_id == assignment.id
 
 
@@ -2078,17 +1879,29 @@ class TestAssignmentIntegrityGuards:
         assert "already been handed in" in exc.value.detail
 
     async def test_learner_can_still_edit_answers_while_pending(
-        self, mock_request, db, assignment, assignment_task, regular_user
+        self,
+        mock_request,
+        db,
+        assignment,
+        assignment_task,
+        regular_user,
+        enrolled_student,
     ):
         """A PENDING row is an attempt in progress — saving must keep working."""
         await self._user_submission(
             db, assignment, regular_user, AssignmentUserSubmissionStatus.PENDING
         )
         obj = AssignmentTaskSubmissionUpdate(task_submission={"answer": "draft"})
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, side_effect=[False, True]),
+        ):
             result = await handle_assignment_task_submission(
-                mock_request, assignment_task.assignment_task_uuid, obj, regular_user, db
+                mock_request,
+                assignment_task.assignment_task_uuid,
+                obj,
+                regular_user,
+                db,
             )
         assert isinstance(result, AssignmentTaskSubmissionRead)
 
@@ -2121,7 +1934,7 @@ class TestAssignmentIntegrityGuards:
         assert isinstance(result, AssignmentTaskSubmissionRead)
 
     async def test_retry_past_due_is_rejected(
-        self, mock_request, db, assignment, course, regular_user
+        self, mock_request, db, assignment, course, regular_user, enrolled_student
     ):
         """Retry wipes answers, grade, trail step and certificate. Past the
         deadline the learner can never resubmit, so this destroyed graded work."""
@@ -2130,8 +1943,10 @@ class TestAssignmentIntegrityGuards:
         await self._user_submission(
             db, assignment, regular_user, AssignmentUserSubmissionStatus.GRADED
         )
-        with patch(_PATCH_RBAC, new_callable=AsyncMock), \
-             patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False):
+        with (
+            patch(_PATCH_RBAC, new_callable=AsyncMock),
+            patch(_PATCH_AUTH_ROLES, new_callable=AsyncMock, return_value=False),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await retry_assignment_submission(
                     mock_request, assignment.assignment_uuid, regular_user, db

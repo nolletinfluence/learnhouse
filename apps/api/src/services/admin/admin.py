@@ -56,10 +56,7 @@ from src.security.session_context import AUTH_METHOD_API_TOKEN, session_claims
 from src.services.analytics import events as analytics_events
 from src.services.analytics.analytics import track
 from src.services.courses.certifications import (
-    check_course_completion_and_create_certificate,
     create_certificate_user,
-    is_course_fully_completed,
-    sync_trailrun_status,
 )
 from src.services.email.utils import get_base_url_from_request
 from src.services.orgs.join_notifications import notify_user_joined_org
@@ -96,7 +93,6 @@ async def _resolve_org_slug(org_slug: str, token_user: APITokenUser, db_session:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="API token does not have access to this organization",
         )
-    # Enforce pro plan requirement for admin API
     current_plan = await get_org_plan(org.id, db_session)
     if not plan_meets_requirement(current_plan, "pro"):
         raise HTTPException(
@@ -118,7 +114,6 @@ async def _get_user_in_org(user_id: int, org_id: int, db_session: AsyncSession) 
     )).scalar_one_or_none()
 
     if result is None:
-        # Distinguish "user not found" from "not a member" for a better error
         exists = (await db_session.execute(select(User.id).where(User.id == user_id))).scalar_one_or_none()
         if not exists:
             raise HTTPException(status_code=404, detail="User not found")
@@ -212,9 +207,6 @@ async def _check_token_can_assign_role(
         )
 
 
-# -- Auth Token endpoints -----------------------------------------------------
-
-
 async def issue_user_token(
     token_user: APITokenUser,
     user_id: int,
@@ -236,13 +228,7 @@ async def issue_user_token(
 
     await _check_token_can_impersonate(user, token_user.org_id, db_session)
 
-    # Issue a short-lived token (1 hour) for headless use — shorter than the
-    # default 8-hour session token to limit blast radius if leaked.
     from datetime import timedelta
-    # ``purpose`` has to stay "session" — get_current_user rejects every other
-    # value — so the machine origin is recorded in ``amr`` instead: the session
-    # is auditable as API-token-minted rather than indistinguishable from a
-    # human login, and stays bound to the token's org via ``sorg``.
     access_token = create_access_token(
         data={
             "sub": user.email,
@@ -257,9 +243,6 @@ async def issue_user_token(
         "user_id": user.id,
         "user_uuid": user.user_uuid,
     }
-
-
-# -- Course access ------------------------------------------------------------
 
 
 async def list_organization_courses(
@@ -401,7 +384,6 @@ async def check_course_access(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # Check if user has a TrailRun (enrollment) for this course
     enrollment = (await db_session.execute(
         select(TrailRun).where(
             TrailRun.course_id == course.id,
@@ -416,9 +398,6 @@ async def check_course_access(
         "is_public": course.public,
         "is_published": course.published,
     }
-
-
-# -- Enrollment endpoints -----------------------------------------------------
 
 
 async def enroll_user(
@@ -441,7 +420,6 @@ async def enroll_user(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # Ensure trail exists
     trail = (await db_session.execute(
         select(Trail).where(Trail.org_id == token_user.org_id, Trail.user_id == user_id)
     )).scalars().first()
@@ -457,7 +435,6 @@ async def enroll_user(
         await db_session.commit()
         await db_session.refresh(trail)
 
-    # Check for existing enrollment
     existing = (await db_session.execute(
         select(TrailRun).where(
             TrailRun.course_id == course.id,
@@ -522,7 +499,6 @@ async def unenroll_user(
     if not trail_run:
         raise HTTPException(status_code=404, detail="Enrollment not found")
 
-    # Delete associated trail steps scoped to this org
     steps = (await db_session.execute(
         select(TrailStep).where(
             TrailStep.course_id == course.id,
@@ -566,9 +542,6 @@ async def get_user_enrollments(
     return await _build_trail_read(trail, trail_runs_raw, db_session, user_id=user_id)
 
 
-# -- Progress endpoints -------------------------------------------------------
-
-
 async def get_user_progress(
     token_user: APITokenUser,
     user_id: int,
@@ -589,14 +562,12 @@ async def get_user_progress(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # Total activities in the course
     total = (await db_session.execute(
         select(func.count(Activity.id)).where(
             Activity.course_id == course.id, Activity.published == True
         )
     )).scalar_one()
 
-    # Completed activities - select only activity_id to avoid loading full rows
     completed_activity_ids = (await db_session.execute(
         select(TrailStep.activity_id).join(Activity, Activity.id == TrailStep.activity_id).where(
             Activity.published == True, TrailStep.teacher_verified == True,
@@ -681,41 +652,7 @@ async def uncomplete_activity(
     activity_uuid: str,
     db_session: AsyncSession,
 ) -> dict:
-    """Remove an activity completion for a user."""
-
-    await _get_user_in_org(user_id, token_user.org_id, db_session)
-
-    activity = (await db_session.execute(
-        select(Activity).where(Activity.activity_uuid == activity_uuid)
-    )).scalars().first()
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    course = (await db_session.execute(select(Course).where(Course.id == activity.course_id))).scalars().first()
-    if not course or course.org_id != token_user.org_id:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    step = (await db_session.execute(
-        select(TrailStep).where(
-            TrailStep.activity_id == activity.id,
-            TrailStep.user_id == user_id,
-            TrailStep.org_id == token_user.org_id,
-        )
-    )).scalars().first()
-
-    if step:
-        await db_session.delete(step)
-        await db_session.commit()
-        # Completion may have been lost — demote the enrollment so analytics
-        # stop counting it as completed.
-        if course.id:
-            await sync_trailrun_status(user_id, course.id, db_session)
-
-    return {
-        "activity_uuid": activity_uuid,
-        "user_id": user_id,
-        "completed": False,
-    }
+    raise HTTPException(403, "Lesson completion is recorded by mentor attendance")
 
 
 async def complete_course(
@@ -725,125 +662,7 @@ async def complete_course(
     course_uuid: str,
     db_session: AsyncSession,
 ) -> dict:
-    """Mark all activities in a course as completed for a user."""
-
-    await _get_user_in_org(user_id, token_user.org_id, db_session)
-
-    course = (await db_session.execute(
-        select(Course).where(
-            Course.course_uuid == course_uuid,
-            Course.org_id == token_user.org_id,
-        )
-    )).scalars().first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-
-    # Ensure trail exists
-    trail = (await db_session.execute(
-        select(Trail).where(Trail.org_id == token_user.org_id, Trail.user_id == user_id)
-    )).scalars().first()
-    if not trail:
-        trail = Trail(
-            org_id=token_user.org_id,
-            user_id=user_id,
-            trail_uuid=f"trail_{uuid4()}",
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db_session.add(trail)
-        await db_session.commit()
-        await db_session.refresh(trail)
-
-    # Ensure trail run exists
-    trailrun = (await db_session.execute(
-        select(TrailRun).where(
-            TrailRun.trail_id == trail.id,
-            TrailRun.course_id == course.id,
-            TrailRun.user_id == user_id,
-        )
-    )).scalars().first()
-    if not trailrun:
-        trailrun = TrailRun(
-            trail_id=trail.id if trail.id is not None else 0,
-            course_id=course.id if course.id is not None else 0,
-            org_id=course.org_id,
-            user_id=user_id,
-            creation_date=str(datetime.now()),
-            update_date=str(datetime.now()),
-        )
-        db_session.add(trailrun)
-        await db_session.commit()
-        await db_session.refresh(trailrun)
-
-    # Get all activities in the course
-    chapter_activities = (await db_session.execute(
-        select(ChapterActivity).where(ChapterActivity.course_id == course.id)
-    )).scalars().all()
-
-    activity_ids = [ca.activity_id for ca in chapter_activities]
-    if not activity_ids:
-        return {"detail": "No activities in course", "completed_count": 0}
-
-    # Get already completed activities
-    existing_steps = (await db_session.execute(
-        select(TrailStep).where(
-            TrailStep.user_id == user_id,
-            TrailStep.course_id == course.id,
-            TrailStep.complete == True,
-        )
-    )).scalars().all()
-    already_completed = {s.activity_id for s in existing_steps}
-
-    new_count = 0
-    for activity_id in activity_ids:
-        if activity_id not in already_completed:
-            step = TrailStep(
-                trailrun_id=trailrun.id if trailrun.id is not None else 0,
-                activity_id=activity_id,
-                course_id=course.id if course.id is not None else 0,
-                trail_id=trail.id if trail.id is not None else 0,
-                org_id=course.org_id,
-                complete=True,
-                teacher_verified=False,
-                grade="",
-                user_id=user_id,
-                creation_date=str(datetime.now()),
-                update_date=str(datetime.now()),
-            )
-            db_session.add(step)
-            new_count += 1
-
-    await db_session.commit()
-
-    # Create the certificate if eligible. Its return value means "a NEW
-    # certificate row was created", so it maps to certificate_awarded — NOT to
-    # course_completed. The completion signal must come from actual completion,
-    # otherwise a course with no certification (or an already-issued one) would
-    # report course_completed=False and drop the COURSE_COMPLETED event.
-    certificate_awarded = await check_course_completion_and_create_certificate(
-        request, user_id, course.id, db_session
-    )
-    course_completed = await is_course_fully_completed(user_id, course.id, db_session)
-    # Keep the enrollment row's status aligned with real completion.
-    await sync_trailrun_status(user_id, course.id, db_session)
-
-    if course_completed:
-        await track(
-            event_name=analytics_events.COURSE_COMPLETED,
-            org_id=course.org_id,
-            user_id=user_id,
-            properties={"course_uuid": course.course_uuid},
-        )
-
-    return {
-        "course_uuid": course_uuid,
-        "user_id": user_id,
-        "completed_count": new_count,
-        "already_completed_count": len(already_completed),
-        "total_activities": len(activity_ids),
-        "course_completed": course_completed,
-        "certificate_awarded": certificate_awarded,
-    }
+    raise HTTPException(403, "Lesson completion is recorded by mentor attendance")
 
 
 async def get_all_user_progress(
@@ -868,13 +687,11 @@ async def get_all_user_progress(
 
     course_ids = [tr.course_id for tr in trail_runs]
 
-    # Batch fetch courses
     courses = (await db_session.execute(
         select(Course).where(Course.id.in_(course_ids))  # type: ignore
     )).scalars().all()
     course_map = {c.id: c for c in courses}
 
-    # Batch fetch total activities per course
     total_counts = (await db_session.execute(
         select(ChapterActivity.course_id, func.count(ChapterActivity.id))  # type: ignore
         .where(ChapterActivity.course_id.in_(course_ids))  # type: ignore
@@ -882,7 +699,6 @@ async def get_all_user_progress(
     )).all()
     total_map = {row[0]: row[1] for row in total_counts}
 
-    # Batch fetch completed steps
     completed_counts = (await db_session.execute(
         select(TrailStep.course_id, func.count(TrailStep.id))  # type: ignore
         .where(
@@ -1101,9 +917,6 @@ async def get_user_trail_detail(
     }
 
 
-# -- User provisioning --------------------------------------------------------
-
-
 async def provision_user(
     token_user: APITokenUser,
     email: str,
@@ -1162,18 +975,12 @@ async def provision_user(
 
     await check_limits_with_usage("members", token_user.org_id, db_session)
 
-    # Provisioning always creates a NET-NEW membership, so a dashboard-access
-    # role consumes a fresh admin seat — enforce the plan's seat cap.
     if _role_grants_dashboard_access(role):
         await check_admin_seat_limit(token_user.org_id, db_session)
 
     now = datetime.now()
 
     if existing_user:
-        # Email matches an existing account — treat this as "attach to org"
-        # rather than "create new user". Previously this raised 400 and left
-        # any user that had been created in a prior aborted call as an orphan
-        # (in the users table but with no UserOrganization row).
         membership = UserOrganization(
             user_id=existing_user.id if existing_user.id else 0,
             org_id=token_user.org_id,
@@ -1267,8 +1074,6 @@ async def provision_user(
         },
     )
 
-    # Admin-provisioned accounts skip the signup flow entirely, so this is the
-    # only mail they get: it tells them the org exists and where to log in.
     await notify_user_joined_org(request, db_session, user, token_user.org_id)
 
     return UserRead.model_validate(user)
@@ -1348,9 +1153,6 @@ async def get_user_by_email(
     return UserRead.model_validate(row)
 
 
-# -- Magic link ---------------------------------------------------------------
-
-
 def _validate_magic_link_redirect(redirect_to: str | None) -> str | None:
     """Validate that a magic-link redirect_to is a same-origin path.
 
@@ -1401,19 +1203,12 @@ async def issue_magic_link(
     _require_token_right(token_user, "users", "action_read")
     user = await _get_user_in_org(user_id, token_user.org_id, db_session)
 
-    # Same check issue_user_token applies, for the same reason: consuming this
-    # link mints a full session for the target, so leaving it off made the
-    # magic-link route a way around the impersonation rules rather than a
-    # variation on them. A token that may not mint a session for an Admin,
-    # Maintainer or superadmin directly must not be able to mail itself one.
     await _check_token_can_impersonate(user, token_user.org_id, db_session)
 
     safe_redirect = _validate_magic_link_redirect(redirect_to)
 
     ttl = max(60, min(ttl_seconds, 900))
     expires_delta = timedelta(seconds=ttl)
-    # Every link carries a random jti so the consume endpoint can enforce
-    # single-use via a Redis SETNX marker.
     import secrets as _secrets
     jti = _secrets.token_urlsafe(16)
     payload = {
@@ -1472,10 +1267,6 @@ async def consume_magic_link_token(
     if not email or not org_id:
         raise HTTPException(status_code=410, detail="Magic link payload incomplete")
 
-    # Enforce single-use: the first consume claims the jti; any replay hits
-    # an existing key and is rejected. Tokens minted before jti was added
-    # have none — let them through; the JWT exp (max 15 min) bounds them.
-    # A Redis outage also falls through for the same reason.
     if jti:
         try:
             import redis as _redis
@@ -1487,8 +1278,6 @@ async def consume_magic_link_token(
                 _r = _redis.Redis.from_url(
                     _redis_url, socket_connect_timeout=2, socket_timeout=2
                 )
-                # TTL matches the magic-link max lifetime so the marker
-                # outlives any window the token could still be replayed in.
                 claimed = _r.set(f"magic_link_used:{jti}", "1", nx=True, ex=900)
                 if not claimed:
                     raise HTTPException(
@@ -1503,7 +1292,7 @@ async def consume_magic_link_token(
     try:
         redirect_to = _validate_magic_link_redirect(raw_redirect)
     except HTTPException:
-        redirect_to = None  # fall through to default "/" on bad redirect
+        redirect_to = None
 
     user = (await db_session.execute(select(User).where(User.email == email))).scalars().first()
     if not user:
@@ -1518,18 +1307,11 @@ async def consume_magic_link_token(
     if not membership:
         raise HTTPException(status_code=410, detail="User is no longer a member of this organization")
 
-    # An admin-issued magic link is a password-equivalent credential, so it must
-    # not walk past a second factor the user has deliberately enabled. When MFA
-    # is active this yields a pending token instead of a session, and the caller
-    # redirects the browser to the code challenge.
     issue = await issue_session_or_challenge(db_session, user)
     if issue.mfa_required:
         return user, None, None, redirect_to, issue.mfa_token
 
     return user, issue.access_token, issue.refresh_token, redirect_to, None
-
-
-# -- Bulk enrollment ----------------------------------------------------------
 
 
 async def bulk_enroll_users(
@@ -1552,7 +1334,6 @@ async def bulk_enroll_users(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # Pre-fetch memberships, existing enrollments, and trails in 3 queries total
     member_ids = set(
         (await db_session.execute(
             select(UserOrganization.user_id).where(
@@ -1598,7 +1379,6 @@ async def bulk_enroll_users(
         )).scalars().all()
     }
 
-    # Create missing trails in one flush
     new_trails = []
     for user_id in to_enroll:
         if user_id not in trails_by_user:
@@ -1616,7 +1396,6 @@ async def bulk_enroll_users(
         for t in new_trails:
             trails_by_user[t.user_id] = t
 
-    # Batch-insert all trail runs
     for user_id in to_enroll:
         trail = trails_by_user[user_id]
         db_session.add(TrailRun(
@@ -1689,9 +1468,6 @@ async def list_course_enrollments(
     ]
 
 
-# -- Progress reset -----------------------------------------------------------
-
-
 async def reset_user_progress(
     token_user: APITokenUser,
     user_id: int,
@@ -1743,9 +1519,6 @@ async def reset_user_progress(
         "user_id": user_id,
         "steps_deleted": deleted,
     }
-
-
-# -- Certificate award / revoke -----------------------------------------------
 
 
 async def award_certificate(
@@ -1840,9 +1613,6 @@ async def revoke_certificate(
         "detail": "Certificate revoked",
         "user_certification_uuid": user_certification_uuid,
     }
-
-
-# -- User group membership ----------------------------------------------------
 
 
 async def _get_usergroup_in_org(
@@ -1948,8 +1718,6 @@ async def remove_usergroup_member(
         "user_id": user_id,
     }
 
-# -- Certification endpoints (read-only) --------------------------------------
-
 
 async def get_user_certificates(
     token_user: APITokenUser,
@@ -1979,7 +1747,6 @@ async def get_user_certificates(
     )).scalars().all() if course_ids else []
     course_map = {c.id: c for c in courses}
 
-    # Filter to only certs in this org
     result = []
     for cu in cert_users:
         cert = cert_map.get(cu.certification_id)
@@ -2001,9 +1768,6 @@ async def get_user_certificates(
         })
 
     return result
-
-
-# -- User profile & role updates ----------------------------------------------
 
 
 _USER_UPDATABLE_FIELDS = {
@@ -2036,8 +1800,6 @@ async def update_user_profile(
         if existing:
             raise HTTPException(status_code=400, detail="Username already in use")
 
-    # Reject phishing links in display-name fields here too — the admin API
-    # token path must not be a way around the signup/profile-update guard.
     from src.services.security.profile_validation import validate_profile_fields
 
     name_check = validate_profile_fields({
@@ -2099,10 +1861,6 @@ async def change_user_role(
     if not membership:
         raise HTTPException(status_code=404, detail="User not in org")
 
-    # Defense-in-depth: API tokens must never be able to mint Admin/Maintainer
-    # or grant a role above their creator's privilege — same guard enforced at
-    # provisioning time. Without this, a low-privilege token could escalate any
-    # member to org Admin via this endpoint.
     await _check_token_can_assign_role(token_user, role, db_session)
 
     if membership.role_id == ADMIN_ROLE_ID and new_role_id != ADMIN_ROLE_ID:
@@ -2118,8 +1876,6 @@ async def change_user_role(
                 detail="Cannot demote the last admin of the organization",
             )
 
-    # Enforce the admin-seat cap when promoting into a dashboard-access role
-    # (no-op for demotions and admin->admin swaps).
     await enforce_admin_seat_limit_for_role_change(
         token_user.org_id, user_id, role, db_session
     )
@@ -2135,19 +1891,11 @@ async def change_user_role(
     except Exception:
         pass
 
-    # NOTE: no Loops "became admin" sync here on purpose. API tokens can NEVER
-    # grant Admin (enforced by _check_token_can_assign_role above, which 403s on
-    # ADMIN/MAINTAINER targets), so this path cannot produce a new org admin.
-    # Admin promotions are synced from the interactive flows (orgs.create_org and
-    # orgs.users.update_user_role).
 
     return {
         "user_id": user_id,
         "role_id": new_role_id,
     }
-
-
-# -- User group CRUD ---------------------------------------------------------
 
 
 async def create_usergroup(
@@ -2158,8 +1906,6 @@ async def create_usergroup(
 ) -> UserGroupRead:
     """Create a user group / cohort in the token's org."""
 
-    # Enforce the usergroups plan limit on the API path too (it is disabled on
-    # free and count-limited on higher tiers); previously this bypassed it.
     await check_limits_with_usage("usergroups", token_user.org_id, db_session)
 
     now = datetime.now()
@@ -2278,9 +2024,6 @@ async def get_user_groups(
     ]
 
 
-# -- Cohort → course access ---------------------------------------------------
-
-
 async def add_course_to_usergroup(
     token_user: APITokenUser,
     usergroup_uuid: str,
@@ -2374,9 +2117,6 @@ async def remove_course_from_usergroup(
     }
 
 
-# -- Bulk unenroll ------------------------------------------------------------
-
-
 async def bulk_unenroll_users(
     token_user: APITokenUser,
     course_uuid: str,
@@ -2432,9 +2172,6 @@ async def bulk_unenroll_users(
     }
 
 
-# -- GDPR export / anonymize --------------------------------------------------
-
-
 async def export_user_data(
     token_user: APITokenUser,
     user_id: int,
@@ -2475,7 +2212,6 @@ async def export_user_data(
         )
     )).scalars().all()
 
-    # Certificates scoped to this org via Certifications -> Course -> org_id
     cert_rows = (await db_session.execute(
         select(CertificateUser, Certifications, Course)
         .join(Certifications, Certifications.id == CertificateUser.certification_id)  # type: ignore
@@ -2584,9 +2320,6 @@ async def anonymize_user(
     }
 
 
-# -- Course analytics ---------------------------------------------------------
-
-
 async def get_course_analytics(
     token_user: APITokenUser,
     course_uuid: str,
@@ -2625,7 +2358,6 @@ async def get_course_analytics(
 
     average_completion_percentage = 0.0
     if trail_runs and total_activities:
-        # Single GROUP BY query replaces one query per enrolled user
         completion_rows = (await db_session.execute(
             select(TrailStep.user_id, func.count(TrailStep.id))  # type: ignore
             .where(

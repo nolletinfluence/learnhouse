@@ -46,7 +46,7 @@ class TestFeaturesUtils:
     def mock_redis(self):
         """Create a mock Redis connection"""
         redis_mock = Mock()
-        redis_mock.get.return_value = b"5"  # Current usage
+        redis_mock.get.return_value = b"5"
         redis_mock.set.return_value = True
         return redis_mock
 
@@ -61,27 +61,34 @@ class TestFeaturesUtils:
                              "courses", "members", "payments", "storage", "usergroups"]
 
     @pytest.mark.asyncio
-    async def test_check_limits_with_usage_success(self, mock_db_session, mock_org_config):
+    async def test_check_limits_with_usage_success(
+        self, mock_db_session, mock_org_config
+    ):
         """Test successful feature limit check (EE mode — all features enabled & unlimited)"""
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = mock_org_config
-
-        with patch('src.security.features_utils.resolve.get_deployment_mode', return_value='ee'), \
-             patch('src.security.features_utils.usage.get_deployment_mode', return_value='ee'), \
-             patch('src.security.features_utils.usage._get_redis_client') as mock_redis_client, \
-             patch('src.services.orgs.cache.get_cached_org_config', return_value=None), \
-             patch('src.services.orgs.cache.set_cached_org_config'):
-
+        mock_db_session.execute.return_value.scalar_one_or_none.return_value = (
+            mock_org_config
+        )
+        with (
+            patch(
+                "src.security.features_utils.resolve.get_deployment_mode",
+                return_value="ee",
+            ),
+            patch(
+                "src.security.features_utils.usage.get_deployment_mode",
+                return_value="ee",
+            ),
+            patch(
+                "src.security.features_utils.usage._get_redis_client"
+            ) as mock_redis_client,
+            patch("src.services.orgs.cache.get_cached_org_config", return_value=None),
+            patch("src.services.orgs.cache.set_cached_org_config"),
+        ):
             mock_redis = Mock()
             mock_redis.get.return_value = b"5"
             mock_redis_client.return_value = mock_redis
-
             result = await check_limits_with_usage(
-                feature="ai",
-                org_id=1,
-                db_session=mock_db_session
+                feature="api", org_id=1, db_session=mock_db_session
             )
-
-            # In EE mode, limit=0 (unlimited) so returns True immediately
             assert result is True
 
     @pytest.mark.asyncio
@@ -130,31 +137,33 @@ class TestFeaturesUtils:
             assert "Organization has no config" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_check_limits_with_usage_no_redis_connection(self, mock_db_session, mock_org_config):
-        """Test feature limit check when Redis connection is not available"""
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = mock_org_config
-
-        with patch('src.security.features_utils.resolve.get_deployment_mode', return_value='saas'), \
-             patch('src.security.features_utils.usage.get_deployment_mode', return_value='saas'), \
-             patch('src.security.features_utils.usage._get_redis_client',
-                   side_effect=HTTPException(status_code=500, detail="Redis connection string not found")), \
-             patch('src.services.orgs.cache.get_cached_org_config', return_value=None), \
-             patch('src.services.orgs.cache.set_cached_org_config'):
-
-            with pytest.raises(HTTPException) as exc_info:
+    async def test_check_limits_with_usage_no_redis_connection(
+        self, mock_db_session, mock_org_config
+    ):
+        mock_db_session.execute.return_value.scalar_one_or_none.return_value = (
+            mock_org_config
+        )
+        with (
+            patch(
+                "src.security.features_utils.resolve.resolve_feature",
+                return_value={"enabled": True, "limit": 10},
+            ),
+            patch(
+                "src.security.features_utils.usage._get_redis_client",
+                side_effect=HTTPException(500, "Redis connection string not found"),
+            ),
+            patch("src.services.orgs.cache.get_cached_org_config", return_value=None),
+            patch("src.services.orgs.cache.set_cached_org_config"),
+        ):
+            with pytest.raises(HTTPException) as denied:
                 await check_limits_with_usage(
-                    feature="ai",
-                    org_id=1,
-                    db_session=mock_db_session
+                    feature="api", org_id=1, db_session=mock_db_session
                 )
-
-            assert exc_info.value.status_code == 500
-            assert "Redis connection string not found" in exc_info.value.detail
+        assert denied.value.status_code == 500
 
     @pytest.mark.asyncio
     async def test_check_limits_with_usage_limit_reached(self, mock_db_session, mock_org_config):
         """Test feature limit check when limit is reached"""
-        # Use free plan so overage is not allowed
         mock_org_config.config["plan"] = "free"
         mock_db_session.execute.return_value.scalar_one_or_none.return_value = mock_org_config
 
@@ -165,7 +174,6 @@ class TestFeaturesUtils:
              patch('src.services.orgs.cache.get_cached_org_config', return_value=None), \
              patch('src.services.orgs.cache.set_cached_org_config'):
 
-            # Free plan has members limit=10, mock usage=10 → limit reached
             with pytest.raises(HTTPException) as exc_info:
                 await check_limits_with_usage(
                     feature="members",
@@ -192,7 +200,7 @@ class TestFeaturesUtils:
             mock_redis_client.return_value = mock_redis
 
             result = await check_limits_with_usage(
-                feature="analytics",  # Unlimited (limit=0) on standard plan
+                feature="analytics",
                 org_id=1,
                 db_session=mock_db_session
             )
@@ -203,23 +211,11 @@ class TestFeaturesUtils:
     async def test_check_limits_with_usage_no_previous_usage(self, mock_db_session, mock_org_config):
         """Test feature limit check when no previous usage exists"""
         mock_db_session.execute.return_value.scalar_one_or_none.return_value = mock_org_config
-
-        with patch('src.security.features_utils.usage._get_redis_client') as mock_redis_client, \
-             patch('src.security.features_utils.resolve.get_deployment_mode', return_value='saas'), \
-             patch('src.security.features_utils.usage.get_deployment_mode', return_value='saas'), \
-             patch('src.services.orgs.cache.get_cached_org_config', return_value=None), \
-             patch('src.services.orgs.cache.set_cached_org_config'):
-
+        with patch('src.security.features_utils.usage._get_redis_client') as mock_redis_client, patch('src.security.features_utils.resolve.get_deployment_mode', return_value='saas'), patch('src.security.features_utils.usage.get_deployment_mode', return_value='saas'), patch('src.services.orgs.cache.get_cached_org_config', return_value=None), patch('src.services.orgs.cache.set_cached_org_config'), patch('src.security.features_utils.resolve.resolve_feature', return_value={'enabled': True, 'limit': 10}):
             mock_redis = Mock()
-            mock_redis.get.return_value = None  # No usage
+            mock_redis.get.return_value = None
             mock_redis_client.return_value = mock_redis
-
-            result = await check_limits_with_usage(
-                feature="ai",
-                org_id=1,
-                db_session=mock_db_session
-            )
-
+            result = await check_limits_with_usage(feature='api', org_id=1, db_session=mock_db_session)
             assert result is True
 
     @pytest.mark.asyncio
@@ -300,28 +296,50 @@ class TestFeaturesUtils:
     async def test_all_features_covered(self, mock_db_session, mock_org_config):
         """Test that all features in FeatureSet are covered (EE mode — all enabled)"""
         features = [
-            "ai", "analytics", "api", "assignments", "collaboration",
-            "courses", "members", "payments", "storage", "usergroups"
+            "ai",
+            "analytics",
+            "api",
+            "assignments",
+            "collaboration",
+            "courses",
+            "members",
+            "payments",
+            "storage",
+            "usergroups",
         ]
-
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = mock_org_config
-
-        with patch('src.security.features_utils.resolve.get_deployment_mode', return_value='ee'), \
-             patch('src.security.features_utils.usage.get_deployment_mode', return_value='ee'), \
-             patch('src.security.features_utils.usage._get_redis_client') as mock_redis_client, \
-             patch('src.services.orgs.cache.get_cached_org_config', return_value=None), \
-             patch('src.services.orgs.cache.set_cached_org_config'):
-
+        mock_db_session.execute.return_value.scalar_one_or_none.return_value = (
+            mock_org_config
+        )
+        with (
+            patch(
+                "src.security.features_utils.resolve.get_deployment_mode",
+                return_value="ee",
+            ),
+            patch(
+                "src.security.features_utils.usage.get_deployment_mode",
+                return_value="ee",
+            ),
+            patch(
+                "src.security.features_utils.usage._get_redis_client"
+            ) as mock_redis_client,
+            patch("src.services.orgs.cache.get_cached_org_config", return_value=None),
+            patch("src.services.orgs.cache.set_cached_org_config"),
+        ):
             mock_redis = Mock()
             mock_redis.get.return_value = b"0"
             mock_redis.set.return_value = True
             mock_redis_client.return_value = mock_redis
-
             for feature in features:
-                result = await check_limits_with_usage(
-                    feature=feature,  # type: ignore
-                    org_id=1,
-                    db_session=mock_db_session
-                )
-                # In EE mode, all features are enabled and unlimited
-                assert result is True
+                if feature == "ai":
+                    with pytest.raises(HTTPException) as denied:
+                        await check_limits_with_usage(
+                            feature=feature, org_id=1, db_session=mock_db_session
+                        )
+                    assert denied.value.status_code == 403
+                else:
+                    assert (
+                        await check_limits_with_usage(
+                            feature=feature, org_id=1, db_session=mock_db_session
+                        )
+                        is True
+                    )

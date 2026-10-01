@@ -72,43 +72,53 @@ class TestResourceAccessRuntime:
         checker._check_api_token_access.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_check_access_child_resource_delegates_to_parent(self, mock_request, session, anonymous_user):
+    async def test_check_access_child_requires_enrollment_even_for_public_parent(
+        self, mock_request, session, anonymous_user
+    ):
         checker = self._checker(mock_request, session, anonymous_user)
+        course = SimpleNamespace(
+            course_uuid="course_101", public=True, published=True, org_id=1
+        )
         chapter = SimpleNamespace(chapter_uuid="chapter_1", course_id=101)
-        course = SimpleNamespace(course_uuid="course_101", public=True, published=True, org_id=1)
-        exec_results = []
-        for obj in [chapter, course, course]:
-            r = MagicMock()
-            r.scalars.return_value.first.return_value = obj
-            exec_results.append(r)
-        session.execute.side_effect = exec_results
+        session.execute.return_value.first.return_value = (course, chapter)
+        with pytest.raises(HTTPException) as denied:
+            await checker.check_access("chapter_1", AccessAction.READ)
+        assert denied.value.status_code == 401
 
-        decision = await checker.check_access("chapter_1", AccessAction.READ)
-
-        assert decision.allowed is True
-        assert decision.resource_uuid == "chapter_1"
 
     @pytest.mark.asyncio
-    async def test_check_access_child_resource_missing_parent_denied(self, mock_request, session, anonymous_user):
+    async def test_check_access_child_resource_missing_parent_denied(
+        self, mock_request, session, anonymous_user
+    ):
         checker = self._checker(mock_request, session, anonymous_user)
         chapter = SimpleNamespace(chapter_uuid="chapter_2", course_id=None)
         session.execute.return_value.scalars.return_value.first.return_value = chapter
-
+        session.execute.return_value.first.return_value = None
         decision = await checker.check_access("chapter_2", AccessAction.READ)
-
         assert decision.allowed is False
         assert "parent resource" in decision.reason.lower()
 
     @pytest.mark.asyncio
-    async def test_check_access_public_view_on_authenticated_user(self, mock_request, session, public_user):
-        checker = self._checker(mock_request, session, public_user)
-        course = SimpleNamespace(course_uuid="course_1", public=True, published=True, org_id=1)
-        session.execute.return_value.scalars.return_value.first.return_value = course
-
-        decision = await checker.check_access("course_1", AccessAction.READ, AccessContext.PUBLIC_VIEW)
-
-        assert decision.allowed is True
-        assert decision.via_public is True
+    async def test_check_access_public_view_on_authenticated_user(
+        self, mock_request, session, public_user
+    ):
+        with patch(
+            "src.services.courses.learning_access.course_learning_access",
+            new_callable=AsyncMock,
+            return_value="not_enrolled",
+        ):
+            checker = self._checker(mock_request, session, public_user)
+            course = SimpleNamespace(
+                course_uuid="course_1", public=True, published=True, org_id=1
+            )
+            session.execute.return_value.scalars.return_value.first.return_value = (
+                course
+            )
+            decision = await checker.check_access(
+                "course_1", AccessAction.READ, AccessContext.PUBLIC_VIEW
+            )
+            assert decision.allowed is True
+            assert decision.via_public is True
 
     @pytest.mark.asyncio
     async def test_check_access_community_public_read_for_anonymous_user(self, mock_request, session, anonymous_user):
@@ -554,8 +564,6 @@ class TestResourceAccessRuntime:
 
         checker = self._checker(mock_request, session, public_user)
         session.execute.return_value.scalars.return_value.all.return_value = []
-        # No UserGroups linked → any authenticated user has access, regardless
-        # of the resource's public flag (UsersOnly semantics).
         assert await checker._check_usergroup_membership("course_2", True) is True
         assert await checker._check_usergroup_membership("course_3", False) is True
 

@@ -48,8 +48,8 @@ class TestResourceConfig:
         config = get_resource_config("community_abc123")
         assert config is not None
         assert config.resource_type == "communities"
-        assert config.has_published_field is False  # Communities don't have published field
-        assert config.supports_authorship is False  # Communities don't have authors
+        assert config.has_published_field is False
+        assert config.supports_authorship is False
 
     def test_get_resource_config_for_chapter(self):
         """Test getting config for chapter UUID (child resource)."""
@@ -140,7 +140,6 @@ class TestAccessDecision:
 
     def test_access_decision_audit_flags(self):
         """Test that all audit flags work correctly."""
-        # Test each flag individually
         decision = AccessDecision(allowed=True, reason="test", via_usergroup=True)
         assert decision.via_usergroup is True
 
@@ -213,7 +212,6 @@ class TestResourceAccessChecker:
         assert decision.allowed is True
         assert decision.via_admin is True
         assert decision.user_id == mock_public_user.id
-        # Bypass reads the flag off the user object — no DB calls.
         mock_db_session.execute.assert_not_called()
 
     @pytest.mark.asyncio
@@ -241,7 +239,6 @@ class TestResourceAccessChecker:
         """Test anonymous user can read public+published resource."""
         checker = ResourceAccessChecker(mock_request, mock_db_session, mock_anonymous_user)
 
-        # Mock the course lookup
         mock_course = Mock()
         mock_course.public = True
         mock_course.published = True
@@ -260,7 +257,6 @@ class TestResourceAccessChecker:
         """Test anonymous user cannot read private resource."""
         checker = ResourceAccessChecker(mock_request, mock_db_session, mock_anonymous_user)
 
-        # Mock the course lookup - private course
         mock_course = Mock()
         mock_course.public = False
         mock_course.published = True
@@ -290,11 +286,9 @@ class TestResourceAccessChecker:
         """Test community access without published field."""
         checker = ResourceAccessChecker(mock_request, mock_db_session, mock_anonymous_user)
 
-        # Mock the community lookup - public community (no published field)
         mock_community = Mock()
         mock_community.public = True
         mock_community.org_id = 1
-        # Community doesn't have published field
         del mock_community.published
         mock_db_session.execute.return_value.scalars.return_value.first.return_value = mock_community
 
@@ -335,7 +329,7 @@ class TestCheckResourceAccessFunction:
                 mock_request,
                 mock_db_session,
                 mock_public_user,
-                "unknown_123",  # Unknown resource type
+                "unknown_123",
                 AccessAction.READ,
                 raise_on_deny=True,
             )
@@ -351,13 +345,12 @@ class TestCheckResourceAccessFunction:
             mock_request,
             mock_db_session,
             mock_public_user,
-            "unknown_123",  # Unknown resource type
+            "unknown_123",
             AccessAction.READ,
             raise_on_deny=False,
         )
 
         assert decision.allowed is False
-        # Should not raise, just return the decision
 
 
 class TestParentResourceResolution:
@@ -425,25 +418,12 @@ class TestAccessContextEnum:
         assert len(AccessContext) == 2
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# DASHBOARD-context semantics for courses.
-#
-# These tests lock in the intended behaviour of get_course / get_course_meta
-# after the rewrite that removed the bespoke _user_can_view_unpublished_course
-# helper in favour of a single check_resource_access(context=DASHBOARD) call.
-#
-# The critical invariant: usergroup members must NOT be able to read an
-# unpublished course through the DASHBOARD context. Only admins/authors can.
-# ──────────────────────────────────────────────────────────────────────────
-
-
 class TestDashboardContext:
     """Lock in DASHBOARD-context read semantics for courses."""
 
     @pytest.fixture
     def mock_request(self):
         request = Mock(spec=Request)
-        # Use a real object for state so attribute assignment works but starts empty
         request.state = type("S", (), {})()
         return request
 
@@ -534,8 +514,6 @@ class TestDashboardContext:
     ):
         """Anonymous users never see unpublished courses even via dashboard."""
         checker = ResourceAccessChecker(mock_request, mock_db_session, AnonymousUser())
-        # Anonymous path goes straight to _check_anonymous_read_access which
-        # only inspects public/published flags.
         checker._is_public_and_published = AsyncMock(return_value=(False, False))
 
         decision = await checker.check_access(
@@ -547,46 +525,53 @@ class TestDashboardContext:
     async def test_regular_user_on_public_published_course_is_allowed(
         self, mock_request, mock_db_session, mock_public_user
     ):
-        """Dashboard falls through to public_view, so public+published stays allowed."""
-        checker = self._make_checker(
-            mock_request, mock_db_session, mock_public_user,
-            public_published=(True, True),
-        )
-        decision = await checker.check_access(
-            "course_pub_1", AccessAction.READ, AccessContext.DASHBOARD
-        )
-        assert decision.allowed is True
-        assert decision.via_public is True
+        with patch(
+            "src.services.courses.learning_access.course_learning_access",
+            new_callable=AsyncMock,
+            return_value="not_enrolled",
+        ):
+            "Dashboard falls through to public_view, so public+published stays allowed."
+            mock_db_session.execute = AsyncMock(return_value=MagicMock())
+            checker = self._make_checker(
+                mock_request,
+                mock_db_session,
+                mock_public_user,
+                public_published=(True, True),
+            )
+            decision = await checker.check_access(
+                "course_pub_1", AccessAction.READ, AccessContext.DASHBOARD
+            )
+            assert decision.allowed is True
+            assert decision.via_public is True
 
     @pytest.mark.asyncio
     async def test_usergroup_member_on_published_nonpublic_course_is_allowed(
         self, mock_request, mock_db_session, mock_public_user
     ):
-        """Published + non-public + usergroup member: allowed via public_view rule 5."""
-        checker = self._make_checker(
-            mock_request, mock_db_session, mock_public_user,
-            public_published=(False, True),
-            usergroup=True,
-        )
         with patch(
-            "src.security.rbac.resource_access.authorization_verify_based_on_roles",
-            new_callable=AsyncMock, return_value=False,
+            "src.services.courses.learning_access.course_learning_access",
+            new_callable=AsyncMock,
+            return_value="not_enrolled",
         ):
-            decision = await checker.check_access(
-                "course_priv_1", AccessAction.READ, AccessContext.DASHBOARD
+            "Published + non-public + usergroup member: allowed via public_view rule 5."
+            mock_db_session.execute = AsyncMock(return_value=MagicMock())
+            checker = self._make_checker(
+                mock_request,
+                mock_db_session,
+                mock_public_user,
+                public_published=(False, True),
+                usergroup=True,
             )
-        assert decision.allowed is True
-        assert decision.via_usergroup is True
-
-
-# ──────────────────────────────────────────────────────────────────────────
-# Request-scoped ResourceAccessChecker memoization.
-#
-# Course endpoints call check_resource_access() multiple times per request
-# (once in get_course_meta, once inside get_course_chapters, once per child
-# resource). The checker is now cached on request.state and its helper
-# methods short-circuit via per-instance dicts so repeated lookups are free.
-# ──────────────────────────────────────────────────────────────────────────
+            with patch(
+                "src.security.rbac.resource_access.authorization_verify_based_on_roles",
+                new_callable=AsyncMock,
+                return_value=False,
+            ):
+                decision = await checker.check_access(
+                    "course_priv_1", AccessAction.READ, AccessContext.DASHBOARD
+                )
+            assert decision.allowed is True
+            assert decision.via_usergroup is True
 
 
 class TestRequestScopedChecker:

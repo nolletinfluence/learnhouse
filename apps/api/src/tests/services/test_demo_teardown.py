@@ -59,9 +59,6 @@ def _foreign_keys_to(table_name: str):
                     yield table.name, column.name, fk
 
 
-# Columns that intentionally survive their parent instead of cascading. Each
-# one is a nullable back-reference where losing the row would destroy
-# independent history, so SET NULL is the correct behaviour.
 _SET_NULL_ALLOWED = {
     ("auditlog", "org_id"),
     ("auditlog", "user_id"),
@@ -69,8 +66,8 @@ _SET_NULL_ALLOWED = {
     ("playground", "created_by"),
     ("activity", "last_modified_by_id"),
     ("activityversion", "created_by_id"),
-    # The demo state row deliberately outlives its organization so the next
-    # provision can read last_error and bundle_version off it.
+    ("enrollmentrequest", "decided_by"),
+    ("lessonattendance", "marked_by"),
     ("demo_state", "org_id"),
 }
 
@@ -124,7 +121,6 @@ def test_progress_tables_reach_organization():
         ("trailrun", "org_id", "organization"),
         ("trail", "org_id", "organization"),
         ("user_activity_day", "org_id", "organization"),
-        # No org_id — these reach the org via assignment/course.
         ("assignmentusersubmission", "assignment_id", "assignment"),
         ("assignmenttasksubmission", "assignment_task_id", "assignmenttask"),
         ("certifications", "course_id", "course"),
@@ -168,15 +164,6 @@ def test_resource_author_has_no_cascade_from_its_resource():
         "manual author cleanup in the demo drift deletion."
     )
 
-
-# ---------------------------------------------------------------------------
-# What the cascade cannot reach
-#
-# The tests above assert on schema metadata because SQLite does not enforce
-# foreign keys. The ones below are runtime tests of the parts teardown does
-# by hand — deletes and file removals that happen in application code and so
-# behave identically on either database.
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 async def torn_down_demo(db, monkeypatch):
@@ -237,8 +224,6 @@ async def torn_down_demo(db, monkeypatch):
                 creation_date=now, update_date=now,
             )
         )
-        # Both authored the course: the student's row would go with the student
-        # anyway, the visitor's is the one that orphans.
         db.add(
             ResourceAuthor(
                 resource_uuid=course.course_uuid,

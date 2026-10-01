@@ -136,7 +136,7 @@ class TestGetCourseMeta:
     """Tests for get_course_meta()."""
 
     @pytest.mark.asyncio
-    async def test_get_course_meta_returns_cached_payload(
+    async def test_get_course_meta_ignores_shared_cached_payload(
         self, db, org, course, admin_user, mock_request
     ):
         cached = FullCourseRead(
@@ -154,66 +154,59 @@ class TestGetCourseMeta:
             authors=[],
             chapters=[],
         ).model_dump(mode="json")
-
-        with patch(
-            "src.services.courses.courses.check_resource_access",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.cache.get_cached_course_meta",
-            return_value=cached,
-        ), patch(
-            "src.services.courses.chapters.get_course_chapters",
-            new_callable=AsyncMock,
-        ) as mock_chapters:
-            # The shared meta cache is only served to anonymous viewers (per-user
-            # lock-stripping means authenticated views must not be cached).
+        with (
+            patch(
+                "src.services.courses.courses.check_resource_access",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.cache.get_cached_course_meta", return_value=cached
+            ),
+            patch(
+                "src.services.courses.chapters.get_course_chapters",
+                new_callable=AsyncMock,
+            ) as mock_chapters,
+        ):
             result = await get_course_meta(
-                mock_request,
-                "course_test",
-                False,
-                AnonymousUser(),
-                db,
-                slim=True,
+                mock_request, "course_test", False, AnonymousUser(), db, slim=True
             )
-
         assert isinstance(result, FullCourseRead)
         assert result.course_uuid == "course_test"
-        mock_chapters.assert_not_called()
+        mock_chapters.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_get_course_meta_passes_prefetched_course_and_caches_result(
+    async def test_get_course_meta_passes_prefetched_course_without_shared_cache(
         self, db, org, course, admin_user, mock_request
     ):
-        with patch(
-            "src.services.courses.courses.check_resource_access",
-            new_callable=AsyncMock,
-        ), patch(
-            "src.services.courses.cache.get_cached_course_meta",
-            return_value=None,
-        ), patch(
-            "src.services.courses.cache.set_cached_course_meta",
-        ) as mock_set_cache, patch(
-            "src.services.courses.chapters.get_course_chapters",
-            new_callable=AsyncMock,
-            return_value=[],
-        ) as mock_chapters:
+        with (
+            patch(
+                "src.services.courses.courses.check_resource_access",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.courses.cache.get_cached_course_meta", return_value=None
+            ),
+            patch(
+                "src.services.courses.cache.set_cached_course_meta"
+            ) as mock_set_cache,
+            patch(
+                "src.services.courses.chapters.get_course_chapters",
+                new_callable=AsyncMock,
+                return_value=[],
+            ) as mock_chapters,
+        ):
             anon = AnonymousUser()
             result = await get_course_meta(
-                mock_request,
-                "course_test",
-                False,
-                anon,
-                db,
-                slim=True,
+                mock_request, "course_test", False, anon, db, slim=True
             )
-
         assert result.org_uuid == "org_test"
         mock_chapters.assert_awaited_once()
         call = mock_chapters.await_args
         assert call.args[:5] == (mock_request, course.id, db, anon, False)
         assert call.kwargs["slim"] is True
         assert call.kwargs["course"].id == course.id
-        mock_set_cache.assert_called_once_with("course_test", True, result.model_dump())
+        mock_set_cache.assert_not_called()
+
 
     @pytest.mark.asyncio
     async def test_get_course_meta_skips_chapters_when_course_id_missing(
@@ -370,11 +363,9 @@ class TestGetCoursesOrgslug:
     async def test_get_courses_orgslug_anonymous_only_public_published(
         self, db, org, course, anonymous_user, mock_request, bypass_rbac
     ):
-        # Add a private course that anonymous users should NOT see
         await _make_course(db, org, id=10, name="Private Course",
                            course_uuid="course_private", public=False, published=True)
 
-        # Add an unpublished course that anonymous users should NOT see
         await _make_course(db, org, id=11, name="Unpublished Course",
                            course_uuid="course_unpub", public=True, published=False)
 
@@ -385,7 +376,6 @@ class TestGetCoursesOrgslug:
                 mock_request, anonymous_user, "test-org", db
             )
 
-        # Only the original public+published course should appear
         uuids = [c.course_uuid for c in result]
         assert "course_test" in uuids
         assert "course_private" not in uuids
@@ -525,7 +515,6 @@ class TestGetCoursesCountOrgslug:
             mock_request, anonymous_user, "test-org", db
         )
 
-        # Only the public+published fixture course counts
         assert count == 1
 
     @pytest.mark.asyncio
@@ -573,7 +562,6 @@ class TestDeleteCourse:
 
         assert result == {"detail": "Course deleted"}
 
-        # Verify the course is actually gone from the DB
         remaining = await db.get(Course, 1)
         assert remaining is None
 
@@ -659,8 +647,6 @@ class TestCourseMutationsAndRights:
                 thumbnail_type=ThumbnailType.IMAGE,
             )
 
-        # Query as the owner: a user may see their own unpublished courses, while
-        # other non-superadmin users only see the author's published+public ones.
         user_courses = await get_user_courses(
             mock_request, admin_user, admin_user.id, db
         )
@@ -1187,9 +1173,6 @@ class TestCourseMutationsAndRights:
                     db,
                 )
 
-        # The orphan course belongs to a foreign/non-existent org (999); cloning
-        # now requires membership in the source course's org, so a non-member is
-        # rejected with 403 before the org-existence check.
         assert missing_org_exc.value.status_code == 403
 
     @pytest.mark.asyncio
@@ -1471,7 +1454,6 @@ class TestSearchCourses:
     async def test_search_courses_matches_nfd_query_to_nfc_stored(
         self, db, org, anonymous_user, mock_request
     ):
-        # Stored name is NFC; query is NFD ("cafe" + combining acute).
         await _make_course(
             db, org, id=41,
             name="café Brewing",
@@ -1490,8 +1472,6 @@ class TestSearchCourses:
     async def test_search_courses_escapes_percent_wildcard(
         self, db, org, anonymous_user, mock_request
     ):
-        # A literal "%" in the query must not act as a wildcard. Only the row
-        # whose name actually contains "%" should match.
         await _make_course(
             db, org, id=42,
             name="100% Practical",
@@ -1517,9 +1497,6 @@ class TestSearchCourses:
     async def test_search_courses_escapes_underscore_wildcard(
         self, db, org, anonymous_user, mock_request
     ):
-        # `_` in LIKE matches a single character. The escape must make it
-        # literal so "a_b" only matches names that actually contain "a_b",
-        # not "aXb".
         await _make_course(
             db, org, id=44,
             name="snake_case Module",
@@ -1545,8 +1522,6 @@ class TestSearchCourses:
     async def test_search_courses_handles_backslash_in_query(
         self, db, org, anonymous_user, mock_request
     ):
-        # User typing a backslash should not break the query or trigger
-        # SQL errors. The course with a backslash in its name should match.
         await _make_course(
             db, org, id=46,
             name="C:\\path course",
@@ -1565,7 +1540,6 @@ class TestSearchCourses:
     async def test_search_courses_finds_zwj_family_emoji(
         self, db, org, anonymous_user, mock_request
     ):
-        # ZWJ family sequence: 👨‍👩‍👧  (U+1F468 U+200D U+1F469 U+200D U+1F467).
         family = "\U0001f468‍\U0001f469‍\U0001f467"
         await _make_course(
             db, org, id=47,
@@ -1585,7 +1559,6 @@ class TestSearchCourses:
     async def test_search_courses_finds_emoji_with_skin_tone_modifier(
         self, db, org, anonymous_user, mock_request
     ):
-        # Waving hand + medium-light skin tone modifier.
         waving = "\U0001f44b\U0001f3fb"
         await _make_course(
             db, org, id=48,
@@ -1843,11 +1816,9 @@ class TestGetUserCoursesAndRights:
 
         uuid_map = {"old-uuid": "new-uuid", "another-old": "another-new"}
 
-        # List at top level — exercises the list branch (line 1064)
         result = _replace_uuids_in_content(["old-uuid", "keep-me", "another-old"], uuid_map)
         assert result == ["new-uuid", "keep-me", "another-new"]
 
-        # Nested list inside dict
         result2 = _replace_uuids_in_content(
             {"blocks": ["old-uuid", "keep-me"]}, uuid_map
         )

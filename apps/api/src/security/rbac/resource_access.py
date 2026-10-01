@@ -70,9 +70,8 @@ class ResourceAccessChecker:
         self.request = request
         self.db_session = db_session
         self.current_user = current_user
-        # Per-request memoization caches. Within a single request a given course
-        # page can trigger check_resource_access 2–3 times; without these caches
-        # each call re-runs the same author/admin/usergroup/resource lookups.
+
+
         self._resource_cache: dict = {}
         self._author_cache: dict[str, bool] = {}
         self._admin_cache: dict[str, bool] = {}
@@ -99,7 +98,7 @@ class ResourceAccessChecker:
         Returns:
             AccessDecision with allowed status and reason
         """
-        # Validate input
+
         if not resource_uuid or not resource_uuid.strip():
             return AccessDecision(
                 allowed=False,
@@ -119,10 +118,7 @@ class ResourceAccessChecker:
                 context=context.value,
             )
 
-        # Superadmin bypass — platform admins act on any tenant without an org
-        # membership row. The flag is loaded onto PublicUser by get_current_user
-        # so this is a free attribute read, no DB hit. API tokens and anonymous
-        # users carry no superadmin flag and continue through the normal path.
+
         if isinstance(self.current_user, PublicUser) and self.current_user.is_superadmin:
             return AccessDecision(
                 allowed=True,
@@ -152,9 +148,11 @@ class ResourceAccessChecker:
                     await require_lesson_learning_access(course, child, self.current_user, self.db_session)
                 else:
                     await require_course_learning_access(course, self.current_user, self.db_session)
+                decision = await self.check_access(course.course_uuid, action, context, require_ownership)
+                decision.resource_uuid = resource_uuid
+                return decision
 
-        # For child resources, delegate access check to the parent resource
-        # This handles chapters -> courses, episodes -> podcasts, etc.
+
         if config.parent_resource_type:
             parent_uuid = await self._resolve_parent_resource_uuid(resource_uuid, config)
             if not parent_uuid:
@@ -165,26 +163,21 @@ class ResourceAccessChecker:
                     action=action.value,
                     context=context.value,
                 )
-            # Recursively check access on the parent
-            # The original resource_uuid is preserved in the decision for audit
+
+
             decision = await self.check_access(parent_uuid, action, context, require_ownership)
-            # Update the decision to reflect the original resource
+
             decision.resource_uuid = resource_uuid
             return decision
 
-        # Handle API token users separately
+
         if isinstance(self.current_user, APITokenUser):
             return await self._check_api_token_access(resource_uuid, action, config)
 
-        # Org-wide "require two-factor" policy. Applies only to real signed-in
-        # users: anonymous public browsing is unaffected, superadmins bypassed
-        # above, and API tokens are a separate credential class handled above.
-        # Raises rather than returning a denial so the structured error code
-        # survives to the client — the UI needs to tell "enable 2FA" apart from
-        # "you don't have permission", which a plain reason string cannot do.
+
         await self._enforce_org_mfa_policy(resource_uuid, config)
 
-        # Route to appropriate check based on action
+
         if action == AccessAction.READ:
             return await self._check_read_access(resource_uuid, context, config)
         else:
@@ -199,15 +192,15 @@ class ResourceAccessChecker:
         """Handle read access checks based on context."""
         user_id = self._get_user_id()
 
-        # Anonymous user
+
         if user_id == 0:
             return await self._check_anonymous_read_access(resource_uuid, config)
 
-        # Dashboard context: admins/authors see everything
+
         if context == AccessContext.DASHBOARD:
             return await self._check_dashboard_read_access(resource_uuid, config)
 
-        # Public view context
+
         return await self._check_public_view_read_access(resource_uuid, config)
 
     async def _check_anonymous_read_access(
@@ -218,7 +211,7 @@ class ResourceAccessChecker:
         """Check if anonymous user can read the resource."""
         is_public, is_published = await self._is_public_and_published(resource_uuid, config)
 
-        # For resources with published field, both must be true
+
         if config.has_published_field:
             if is_public and is_published:
                 return AccessDecision(
@@ -237,7 +230,7 @@ class ResourceAccessChecker:
                 action="read",
             )
 
-        # For resources without published field (communities), only check public
+
         if is_public:
             return AccessDecision(
                 allowed=True,
@@ -263,7 +256,7 @@ class ResourceAccessChecker:
         """Check dashboard read access - admins/authors see everything."""
         user_id = self._get_user_id()
 
-        # Check admin/maintainer status first
+
         is_admin = await self._is_admin_or_maintainer(resource_uuid)
         if is_admin:
             return AccessDecision(
@@ -276,7 +269,7 @@ class ResourceAccessChecker:
                 context="dashboard",
             )
 
-        # Check authorship if supported
+
         if config.supports_authorship:
             is_author = await self._is_resource_author(resource_uuid)
             if is_author:
@@ -290,9 +283,7 @@ class ResourceAccessChecker:
                     context="dashboard",
                 )
 
-        # Fall through to public view rules. Note: public_view's usergroup rule
-        # requires is_published=True, so usergroup members on unpublished
-        # resources still get denied here — which is the intended behavior.
+
         return await self._check_public_view_read_access(resource_uuid, config)
 
     async def _check_public_view_read_access(
@@ -314,7 +305,7 @@ class ResourceAccessChecker:
 
         logger.info(f"[ACCESS_CHECK] resource_uuid={resource_uuid}, user_id={user_id}, is_public={is_public}, is_published={is_published}")
 
-        # Rule 1: Public + published = OK for everyone
+
         if config.has_published_field:
             if is_public and is_published:
                 return AccessDecision(
@@ -326,7 +317,7 @@ class ResourceAccessChecker:
                     action="read",
                 )
         else:
-            # No published field (communities) - just check public
+
             if is_public:
                 return AccessDecision(
                     allowed=True,
@@ -337,7 +328,7 @@ class ResourceAccessChecker:
                     action="read",
                 )
 
-        # Rule 2: Check authorship (if supported)
+
         if config.supports_authorship:
             is_author = await self._is_resource_author(resource_uuid)
             logger.info(f"[ACCESS_CHECK] Rule 2 - is_author={is_author}")
@@ -351,7 +342,7 @@ class ResourceAccessChecker:
                     action="read",
                 )
 
-        # Rule 3: Admin/maintainer always has access
+
         is_admin = await self._is_admin_or_maintainer(resource_uuid)
         if is_admin:
             return AccessDecision(
@@ -363,8 +354,7 @@ class ResourceAccessChecker:
                 action="read",
             )
 
-        # Rule 4: Check role-based permissions (only for public resources)
-        # Non-public resources should only be accessible via authorship, admin, or usergroup membership
+
         if is_public:
             has_role_permission = await authorization_verify_based_on_roles(
                 self.request, user_id, "read", resource_uuid, self.db_session
@@ -379,12 +369,12 @@ class ResourceAccessChecker:
                     action="read",
                 )
 
-        # Rule 5: Check UserGroup membership (if supported)
+
         if config.supports_usergroups:
             has_usergroup_access = await self._check_usergroup_membership(resource_uuid, is_public)
             logger.info(f"[ACCESS_CHECK] Rule 5 - has_usergroup_access={has_usergroup_access}, is_published={is_published}")
 
-            # For resources with published field, UserGroup access requires published=True
+
             if config.has_published_field:
                 if has_usergroup_access and is_published:
                     return AccessDecision(
@@ -396,7 +386,7 @@ class ResourceAccessChecker:
                         action="read",
                     )
             else:
-                # No published field - UserGroup access is sufficient
+
                 if has_usergroup_access:
                     return AccessDecision(
                         allowed=True,
@@ -407,7 +397,7 @@ class ResourceAccessChecker:
                         action="read",
                     )
 
-        # All checks failed
+
         return AccessDecision(
             allowed=False,
             reason="User does not have access to this resource",
@@ -426,7 +416,7 @@ class ResourceAccessChecker:
         """Handle write access checks (create, update, delete)."""
         user_id = self._get_user_id()
 
-        # Anonymous users cannot write
+
         if user_id == 0:
             return AccessDecision(
                 allowed=False,
@@ -436,19 +426,15 @@ class ResourceAccessChecker:
                 action=action.value,
             )
 
-        # Special handling for NEW resource creation (e.g., "course_x", "podcast_x")
-        # These are top-level resource creations that only need role permissions
+
         if action == AccessAction.CREATE and resource_uuid.endswith("_x"):
             return await self._check_create_permission(resource_uuid, config)
 
-        # SECURITY: For CREATE actions on existing resources (content creation),
-        # require ownership. This prevents users from creating activities/chapters
-        # in courses they don't own, even if they have general "create" permission.
-        # For update/delete, always check ownership requirements.
+
         if require_ownership or action in [AccessAction.CREATE, AccessAction.UPDATE, AccessAction.DELETE]:
             return await self._check_ownership_access(resource_uuid, action, config)
 
-        # Default: check role-based permissions
+
         has_role_permission = await authorization_verify_based_on_roles(
             self.request, user_id, action.value, resource_uuid, self.db_session
         )
@@ -478,7 +464,7 @@ class ResourceAccessChecker:
         """Check if user can create new resources of this type."""
         user_id = self._get_user_id()
 
-        # Check role-based create permission
+
         has_create_permission = await authorization_verify_based_on_roles(
             self.request, user_id, "create", resource_uuid, self.db_session
         )
@@ -492,8 +478,7 @@ class ResourceAccessChecker:
                 action="create",
             )
 
-        # Check admin/maintainer status
-        # For creation, we check against a placeholder - need org context
+
         is_admin = await authorization_verify_based_on_org_admin_status(
             self.request, user_id, "create", resource_uuid, self.db_session
         )
@@ -524,7 +509,7 @@ class ResourceAccessChecker:
         """Check write access requiring ownership."""
         user_id = self._get_user_id()
 
-        # Check authorship if supported
+
         if config.supports_authorship:
             is_author = await self._is_resource_author(resource_uuid)
             if is_author:
@@ -537,7 +522,7 @@ class ResourceAccessChecker:
                     action=action.value,
                 )
 
-        # Check admin/maintainer status
+
         is_admin = await self._is_admin_or_maintainer(resource_uuid)
         if is_admin:
             return AccessDecision(
@@ -549,7 +534,7 @@ class ResourceAccessChecker:
                 action=action.value,
             )
 
-        # Check role-based permissions
+
         has_role_permission = await authorization_verify_based_on_roles(
             self.request, user_id, action.value, resource_uuid, self.db_session
         )
@@ -580,7 +565,7 @@ class ResourceAccessChecker:
         """Check API token permissions with org boundary enforcement."""
         api_token_user = self.current_user
 
-        # For creation, check if token has create permission
+
         if action == AccessAction.CREATE and resource_uuid.endswith("_x"):
             if not api_token_user.rights:
                 return AccessDecision(
@@ -612,7 +597,7 @@ class ResourceAccessChecker:
                 action=action.value,
             )
 
-        # For existing resources, verify org boundary
+
         resource = await self._get_resource(resource_uuid, config)
         if not resource:
             return AccessDecision(
@@ -622,7 +607,7 @@ class ResourceAccessChecker:
                 action=action.value,
             )
 
-        # CRITICAL: Verify resource belongs to token's organization
+
         if hasattr(resource, 'org_id') and resource.org_id != api_token_user.org_id:
             return AccessDecision(
                 allowed=False,
@@ -631,7 +616,7 @@ class ResourceAccessChecker:
                 action=action.value,
             )
 
-        # Check token's rights for this action
+
         if not api_token_user.rights:
             return AccessDecision(
                 allowed=False,
@@ -662,12 +647,11 @@ class ResourceAccessChecker:
             action=action.value,
         )
 
-    # Helper methods
 
     def _get_user_id(self) -> int:
         """Get the current user's ID."""
         if isinstance(self.current_user, APITokenUser):
-            return 0  # API tokens don't have a user ID in the same sense
+            return 0
         return self.current_user.id if self.current_user else 0
 
     async def _resolve_parent_resource_uuid(
@@ -696,25 +680,25 @@ class ResourceAccessChecker:
         if resource_uuid in self._parent_uuid_cache:
             return self._parent_uuid_cache[resource_uuid]
 
-        # Get the child resource
+
         resource = await self._get_resource(resource_uuid, config)
         if not resource:
             logger.warning(f"Child resource not found: {resource_uuid}")
             return None
 
-        # Get the parent ID from the child resource
+
         parent_id = getattr(resource, config.parent_id_field, None)
         if not parent_id:
             logger.warning(f"Parent ID field '{config.parent_id_field}' not found on {resource_uuid}")
             return None
 
-        # Get the parent config to determine how to look up the parent
+
         parent_config = RESOURCE_CONFIGS.get(config.parent_resource_type)
         if not parent_config:
             logger.error(f"Parent resource type '{config.parent_resource_type}' not found in config")
             return None
 
-        # Look up the parent resource to get its UUID
+
         parent_uuid = await self._get_parent_uuid_by_id(parent_id, parent_config)
         self._parent_uuid_cache[resource_uuid] = parent_uuid
         return parent_uuid
@@ -767,10 +751,8 @@ class ResourceAccessChecker:
         else:
             is_public = getattr(resource, 'public', False)
             is_published = getattr(resource, 'published', True) if config.has_published_field else True
-            # Media privacy is folder-aware: a file placed in ANY private folder
-            # is private even if its own `public` flag is True (most-restrictive
-            # wins). This makes a direct media read deny for a public media that
-            # lives inside a private folder, for every caller of check_access.
+
+
             if is_public and config.resource_type == "media":
                 if await self._media_in_any_private_folder(resource_uuid):
                     is_public = False
@@ -832,11 +814,8 @@ class ResourceAccessChecker:
             resource = await self._get_resource(resource_uuid, config)
             org_id = getattr(resource, "org_id", None) if resource is not None else None
         except Exception:
-            # Failing to resolve the resource here must not deny access: the
-            # normal RBAC checks below do their own lookup and will reject
-            # properly if the resource is genuinely unreachable. This policy is
-            # an extra restriction on top, never the only thing standing
-            # between a stranger and the data.
+
+
             logger.debug("MFA policy: could not resolve resource org", exc_info=True)
             return
 
@@ -876,28 +855,19 @@ class ResourceAccessChecker:
         if cached is not None:
             return cached
 
-        # Check if resource has any UserGroups linked
+
         usergroup_stmt = select(UserGroupResource).where(
             UserGroupResource.resource_uuid == resource_uuid
         )
         usergroup_resources = (await self.db_session.execute(usergroup_stmt)).scalars().all()
 
-        # If no UserGroups linked, resource is accessible to any authenticated
-        # MEMBER OF ITS ORGANIZATION.
-        #
-        # UsersOnly semantics: public=false + no linked group = signed-in users
-        # only; the anonymous branch short-circuits above via user_id == 0.
-        # "Signed-in" alone is not enough: this returned True for any account on
-        # the deployment, so an admin who set a course, folder, media item, board
-        # or community to "Users Only" was in fact publishing it to every user of
-        # every other tenant. Membership in the owning org is what the setting is
-        # understood to mean.
+
         if not usergroup_resources:
             allowed = await self._is_member_of_resource_org(resource_uuid, user_id)
             self._usergroup_cache[cache_key] = allowed
             return allowed
 
-        # Check if user is a member of any linked UserGroup
+
         usergroup_ids = [ugr.usergroup_id for ugr in usergroup_resources]
         membership_stmt = select(UserGroupUser).where(
             UserGroupUser.usergroup_id.in_(usergroup_ids),
@@ -925,8 +895,7 @@ class ResourceAccessChecker:
         resource = await self._get_resource(resource_uuid, config)
         org_id = getattr(resource, "org_id", None) if resource else None
 
-        # Nested resources (chapters, activities…) carry no org_id of their own;
-        # resolve it from the parent the same way the rest of the checker does.
+
         if org_id is None and resource is not None:
             parent_uuid = await self._resolve_parent_resource_uuid(resource_uuid, config)
             if parent_uuid:
@@ -949,7 +918,7 @@ class ResourceAccessChecker:
 
         resource = None
 
-        # Primary resources
+
         if config.resource_type == "courses":
             from src.db.courses.courses import Course
             statement = select(Course).where(Course.course_uuid == resource_uuid)
@@ -985,7 +954,7 @@ class ResourceAccessChecker:
             statement = select(Playground).where(Playground.playground_uuid == resource_uuid)
             resource = (await self.db_session.execute(statement)).scalars().first()
 
-        # Child resources
+
         elif config.resource_type == "coursechapters":
             from src.db.courses.chapters import Chapter
             statement = select(Chapter).where(Chapter.chapter_uuid == resource_uuid)
@@ -1010,8 +979,6 @@ class ResourceAccessChecker:
         return resource
 
 
-# Convenience functions for quick access checks
-
 def _get_request_checker(
     request: Request,
     db_session: AsyncSession,
@@ -1035,7 +1002,7 @@ def _get_request_checker(
     try:
         request.state.rbac_checker = checker
     except Exception:
-        # request.state may be unavailable in non-HTTP contexts (tests, tasks)
+
         pass
     return checker
 

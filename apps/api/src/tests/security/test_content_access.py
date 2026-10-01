@@ -1,16 +1,5 @@
-"""
-Unit tests for content access control (local_content.py and content_files.py).
+"""Content authorization, path traversal and enrollment regression coverage."""
 
-Tests cover:
-- Path traversal prevention
-- Public course content access for anonymous users
-- Private course content requires authentication
-- Public podcast content access
-- Private podcast content requires authentication
-- Org-level content always public
-- User avatars always public
-- Unknown paths require auth (safe default)
-"""
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
@@ -95,16 +84,19 @@ class TestCheckContentAccess:
         return podcast
 
     @pytest.mark.asyncio
-    async def test_public_course_activity_anonymous(self):
-        """Anonymous users can access activity content of public courses."""
+    async def test_public_course_activity_anonymous_denied(self):
         from src.routers.local_content import _check_content_access
+
         course = self._make_course(public=True)
         db = self._make_db_session(course=course)
-        # Should not raise
-        await _check_content_access(
-            "orgs/org1/courses/course_abc/activities/act1/video.mp4",
-            self._make_anon_user(), db
-        )
+        with pytest.raises(HTTPException) as denied:
+            await _check_content_access(
+                "orgs/org1/courses/course_abc/activities/act1/video.mp4",
+                self._make_anon_user(),
+                db,
+            )
+        assert denied.value.status_code == 401
+
 
     @pytest.mark.asyncio
     async def test_submission_file_delegates_to_access_control(self):
@@ -147,22 +139,27 @@ class TestCheckContentAccess:
         assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_private_course_activity_authenticated(self):
-        """Authenticated users can access private course activity content."""
+    async def test_private_course_activity_approved_student(
+        self, db, course, activity, org, regular_user, mock_request, enrolled_student
+    ):
         from src.routers.local_content import _check_content_access
-        course = self._make_course(public=False)
-        db = self._make_db_session(course=course)
-        # Should not raise
+
+        course.public = False
+        db.add(course)
+        await db.commit()
         await _check_content_access(
-            "orgs/org1/courses/course_abc/activities/act1/video.mp4",
-            self._make_auth_user(), db
+            f"orgs/{org.org_uuid}/courses/{course.course_uuid}/activities/{activity.activity_uuid}/video.mp4",
+            regular_user,
+            db,
+            mock_request,
         )
+
 
     @pytest.mark.asyncio
     async def test_course_not_found_anonymous_rejected(self):
         """If course doesn't exist, anonymous users are rejected."""
         from src.routers.local_content import _check_content_access
-        db = self._make_db_session()  # returns None
+        db = self._make_db_session()
         with pytest.raises(HTTPException) as exc_info:
             await _check_content_access(
                 "orgs/org1/courses/course_abc/activities/act1/video.mp4",
@@ -199,7 +196,6 @@ class TestCheckContentAccess:
         """Course thumbnails (no /activities/) are always public."""
         from src.routers.local_content import _check_content_access
         db = self._make_db_session()
-        # Should not raise even for anonymous
         await _check_content_access(
             "orgs/org1/courses/course_abc/thumbnail.png",
             self._make_anon_user(), db
@@ -303,14 +299,19 @@ class TestS3ContentAccess:
         return course
 
     @pytest.mark.asyncio
-    async def test_public_course_anonymous_allowed(self):
+    async def test_public_course_anonymous_denied(self):
         from src.routers.content_files import _check_content_access
+
         course = self._make_course(public=True)
         db = self._make_db_session(course=course)
-        await _check_content_access(
-            "orgs/org1/courses/c1/activities/a1/file.mp4",
-            self._make_anon_user(), db
-        )
+        with pytest.raises(HTTPException) as denied:
+            await _check_content_access(
+                "orgs/org1/courses/c1/activities/a1/file.mp4",
+                self._make_anon_user(),
+                db,
+            )
+        assert denied.value.status_code == 401
+
 
     @pytest.mark.asyncio
     async def test_private_course_anonymous_rejected(self):
@@ -355,8 +356,6 @@ class TestS3ContentAccess:
 
     @pytest.mark.asyncio
     async def test_unknown_path_authenticated_rejected_403(self):
-        # content_files.py line 192: an authenticated (non-anon) user hitting an
-        # unrecognized path pattern is denied with 403 (deny-by-default).
         from src.routers.content_files import _check_content_access
         db = self._make_db_session()
         with pytest.raises(HTTPException) as exc_info:

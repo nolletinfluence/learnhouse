@@ -1,5 +1,10 @@
 """Router tests for src/routers/content_files.py."""
 
+from fastapi import HTTPException
+
+from src.db.courses.activities import Activity, ActivityTypeEnum, ActivitySubTypeEnum
+
+
 from types import SimpleNamespace
 import urllib.parse
 
@@ -116,7 +121,7 @@ class TestContentFilesRouter:
             assert content_files._validate_content_path("safe.txt") is None
 
     async def test_check_content_access_course_and_podcast_branches(
-        self, db, org, admin_user
+        self, db, org, admin_user, mock_request, activity, enrolled_student
     ):
         private_course = Course(
             id=31,
@@ -169,7 +174,22 @@ class TestContentFilesRouter:
         db.add(private_podcast)
         db.add(public_podcast)
         await db.commit()
-
+        for item in (private_course, public_course):
+            db.add(
+                Activity(
+                    name="Lesson",
+                    activity_uuid=f"activity_{item.id}",
+                    activity_type=ActivityTypeEnum.TYPE_DYNAMIC,
+                    activity_sub_type=ActivitySubTypeEnum.SUBTYPE_DYNAMIC_PAGE,
+                    published=True,
+                    org_id=org.id,
+                    course_id=item.id,
+                    content={},
+                    creation_date="now",
+                    update_date="now",
+                )
+            )
+        await db.commit()
         outsider = PublicUser(
             id=99,
             username="outsider",
@@ -178,121 +198,144 @@ class TestContentFilesRouter:
             email="outsider@test.com",
             user_uuid="user_outsider",
         )
-
-        with pytest.raises(Exception) as not_found:
+        with pytest.raises(HTTPException) as not_found:
             await content_files._check_content_access(
                 "orgs/%s/courses/missing/activities/a/video.mp4" % org.org_uuid,
                 admin_user,
                 db,
+                request=mock_request,
             )
         assert not_found.value.status_code == 403
-
-        await content_files._check_content_access(
-            f"orgs/{org.org_uuid}/courses/{public_course.course_uuid}/activities/a/video.mp4",
-            AnonymousUser(),
-            db,
-        )
-
-        with pytest.raises(Exception) as anon_private_course:
+        with pytest.raises(HTTPException):
             await content_files._check_content_access(
-                f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/a/video.mp4",
+                f"orgs/{org.org_uuid}/courses/{public_course.course_uuid}/activities/activity_{public_course.id}/video.mp4",
                 AnonymousUser(),
                 db,
+                request=mock_request,
+            )
+        with pytest.raises(HTTPException) as anon_private_course:
+            await content_files._check_content_access(
+                f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/activity_{private_course.id}/video.mp4",
+                AnonymousUser(),
+                db,
+                request=mock_request,
             )
         assert anon_private_course.value.status_code == 401
-
-        with pytest.raises(Exception) as wrong_org_token:
+        with pytest.raises(HTTPException) as wrong_org_token:
             await content_files._check_content_access(
-                f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/a/video.mp4",
-                APITokenUser(org_id=org.id + 1),
+                f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/activity_{private_course.id}/video.mp4",
+                APITokenUser(
+                    org_id=org.id + 1,
+                    rights={
+                        "courses": {"action_read": True},
+                        "activities": {"action_read": True},
+                    },
+                ),
                 db,
+                request=mock_request,
             )
         assert wrong_org_token.value.status_code == 403
-
         await content_files._check_content_access(
-            f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/a/video.mp4",
-            APITokenUser(org_id=org.id),
+            f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/activity_{private_course.id}/video.mp4",
+            APITokenUser(
+                org_id=org.id,
+                rights={
+                    "courses": {"action_read": True},
+                    "activities": {"action_read": True},
+                },
+            ),
             db,
+            request=mock_request,
         )
-
-        with pytest.raises(Exception) as no_membership_course:
+        with pytest.raises(HTTPException) as no_membership_course:
             await content_files._check_content_access(
-                f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/a/video.mp4",
+                f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/activity_{private_course.id}/video.mp4",
                 outsider,
                 db,
+                request=mock_request,
             )
         assert no_membership_course.value.status_code == 403
-
         await content_files._check_content_access(
-            f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/a/video.mp4",
+            f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/activities/activity_{private_course.id}/video.mp4",
             admin_user,
             db,
+            request=mock_request,
         )
-
         await content_files._check_content_access(
             f"orgs/{org.org_uuid}/courses/{private_course.course_uuid}/thumb.png",
             AnonymousUser(),
             db,
+            request=mock_request,
         )
-
         await content_files._check_content_access(
-            "users/user_outsider/avatar.png",
-            AnonymousUser(),
-            db,
+            "users/user_outsider/avatar.png", AnonymousUser(), db, request=mock_request
         )
-
-        with pytest.raises(Exception) as not_found_podcast:
+        with pytest.raises(HTTPException) as not_found_podcast:
             await content_files._check_content_access(
                 f"orgs/{org.org_uuid}/podcasts/missing/episodes/a/audio.mp3",
                 admin_user,
                 db,
+                request=mock_request,
             )
         assert not_found_podcast.value.status_code == 403
-
         await content_files._check_content_access(
             f"orgs/{org.org_uuid}/podcasts/{public_podcast.podcast_uuid}/episodes/a/audio.mp3",
             AnonymousUser(),
             db,
+            request=mock_request,
         )
-
-        with pytest.raises(Exception) as anon_private_podcast:
+        with pytest.raises(HTTPException) as anon_private_podcast:
             await content_files._check_content_access(
                 f"orgs/{org.org_uuid}/podcasts/{private_podcast.podcast_uuid}/episodes/a/audio.mp3",
                 AnonymousUser(),
                 db,
+                request=mock_request,
             )
         assert anon_private_podcast.value.status_code == 401
-
-        with pytest.raises(Exception) as wrong_org_podcast_token:
+        with pytest.raises(HTTPException) as wrong_org_podcast_token:
             await content_files._check_content_access(
                 f"orgs/{org.org_uuid}/podcasts/{private_podcast.podcast_uuid}/episodes/a/audio.mp3",
-                APITokenUser(org_id=org.id + 1),
+                APITokenUser(
+                    org_id=org.id + 1,
+                    rights={
+                        "courses": {"action_read": True},
+                        "activities": {"action_read": True},
+                    },
+                ),
                 db,
+                request=mock_request,
             )
         assert wrong_org_podcast_token.value.status_code == 403
-
         await content_files._check_content_access(
             f"orgs/{org.org_uuid}/podcasts/{private_podcast.podcast_uuid}/episodes/a/audio.mp3",
-            APITokenUser(org_id=org.id),
+            APITokenUser(
+                org_id=org.id,
+                rights={
+                    "courses": {"action_read": True},
+                    "activities": {"action_read": True},
+                },
+            ),
             db,
+            request=mock_request,
         )
-
-        with pytest.raises(Exception) as no_membership_podcast:
+        with pytest.raises(HTTPException) as no_membership_podcast:
             await content_files._check_content_access(
                 f"orgs/{org.org_uuid}/podcasts/{private_podcast.podcast_uuid}/episodes/a/audio.mp3",
                 outsider,
                 db,
+                request=mock_request,
             )
         assert no_membership_podcast.value.status_code == 403
-
         await content_files._check_content_access(
             f"orgs/{org.org_uuid}/podcasts/{private_podcast.podcast_uuid}/episodes/a/audio.mp3",
             admin_user,
             db,
+            request=mock_request,
         )
-
-        with pytest.raises(Exception) as unknown_path_anon:
-            await content_files._check_content_access("misc/file.txt", AnonymousUser(), db)
+        with pytest.raises(HTTPException) as unknown_path_anon:
+            await content_files._check_content_access(
+                "misc/file.txt", AnonymousUser(), db, request=mock_request
+            )
         assert unknown_path_anon.value.status_code == 401
 
     async def test_stream_full_and_range_content(
@@ -456,8 +499,6 @@ class TestContentFilesRouter:
             get_response = await client.get("/content/users/u/avatar.png")
             head_response = await client.head("/content/users/u/avatar.png")
 
-        # Generic storage failures are surfaced as 502 (Bad Gateway). 404 is
-        # reserved for cases where the storage layer reported NoSuchKey.
         assert get_response.status_code == 502
         assert head_response.status_code == 502
 
@@ -478,7 +519,6 @@ class TestContentFilesRouter:
         )
         db.add(course)
         await db.commit()
-
         from src.routers import content_files
 
         with pytest.MonkeyPatch.context() as mp:
@@ -487,12 +527,10 @@ class TestContentFilesRouter:
             anon_response = await client.get(
                 f"/content/orgs/{org.org_uuid}/courses/{course.course_uuid}/activities/activity_x/video.mp4"
             )
-
             app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1)
             mp.setattr(content_files, "get_storage_client", lambda: None)
             no_storage_response = await client.get(
                 f"/content/orgs/{org.org_uuid}/courses/{course.course_uuid}/thumb.png"
             )
-
-        assert anon_response.status_code == 401
+        assert anon_response.status_code == 403
         assert no_storage_response.status_code == 500
