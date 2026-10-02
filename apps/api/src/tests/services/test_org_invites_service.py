@@ -93,7 +93,6 @@ class TestOrgInvitesService:
         assert result["invite_code"] == "ABCDEFGH"
         assert result["invite_code_uuid"] == "org_invite_code_invite-uuid"
         assert result["usergroup_id"] == usergroup.id
-        # Code creation now uses an atomic Lua script (eval) instead of SET.
         fake_redis.eval.assert_called_once()
 
     @pytest.mark.asyncio
@@ -334,8 +333,6 @@ class TestOrgInvitesService:
     async def test_get_invite_codes_skips_vanished_key(
         self, mock_request, db, org, admin_user
     ):
-        # A key found by scan_iter may expire (TTL) before r.get() is called,
-        # returning None. That key must be skipped, not crash the listing.
         invite_payload = {
             "invite_code": "LIVE1234",
             "invite_code_uuid": "org_invite_code_live",
@@ -361,7 +358,6 @@ class TestOrgInvitesService:
         ):
             result = await get_invite_codes(mock_request, org.id, admin_user, db)
 
-        # Only the live key is returned; the vanished one is silently skipped.
         assert len(result) == 1
         assert result[0]["invite_code"] == "LIVE1234"
 
@@ -533,8 +529,12 @@ class TestSendInviteEmailLangLookup:
     language from OrganizationConfig and forwards it to send_invitation_email."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("configured_language", "expected_language"),
+        [("ru", "ru"), ("en", "en"), ("fr", "ru")],
+    )
     async def test_passes_org_default_language_to_email_helper(
-        self, mock_request, db, org, admin_user
+        self, mock_request, db, org, admin_user, configured_language, expected_language
     ):
         from datetime import datetime as _dt
 
@@ -546,7 +546,7 @@ class TestSendInviteEmailLangLookup:
                 org_id=org.id,
                 config={
                     "config_version": "2.0",
-                    "customization": {"general": {"default_language": "fr"}},
+                    "customization": {"general": {"default_language": configured_language}},
                 },
                 creation_date=str(_dt.now()),
                 update_date=str(_dt.now()),
@@ -573,7 +573,7 @@ class TestSendInviteEmailLangLookup:
 
         assert result is True
         kwargs = mock_send.call_args.kwargs
-        assert kwargs["lang"] == "fr"
+        assert kwargs["lang"] == expected_language
 
     @pytest.mark.asyncio
     async def test_defaults_to_english_when_db_session_is_none(

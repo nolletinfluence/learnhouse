@@ -41,8 +41,6 @@ class TestUnsubscribeFooter:
         assert "Unsubscribe from these emails" in html
 
     def test_unsubscribe_renders_without_a_footer_note(self):
-        # The footer <div> is gated on either piece being present; an
-        # unsubscribe-only footer must still produce the divider.
         html = _email_layout(
             "Title", "<p>body</p>", unsubscribe_url="https://app.test/u?token=x"
         )
@@ -268,16 +266,15 @@ class TestNudgeRendering:
         )
         assert STYLES["button"] not in captured["body"]
         assert "https://acme.test/dash" not in captured["body"]
-        # ...but the reader can still opt out.
         assert "unsubscribe" in captured["body"].lower()
 
     def test_translated_copy_is_used(self):
-        captured = self._send(lang="fr")
-        assert "brouillon" in captured["subject"]
-        assert "Se désabonner" in captured["body"]
+        captured = self._send(lang="ru")
+        assert "черновик" in captured["subject"]
+        assert "Отписаться от этих писем" in captured["body"]
 
     def test_no_unrendered_placeholders(self):
-        for lang in ("en", "fr", "ja", "ar"):
+        for lang in ("ru", "en", "fr", "ar"):
             captured = self._send(lang=lang)
             assert "{" not in captured["body"], lang
             assert "{" not in captured["subject"], lang

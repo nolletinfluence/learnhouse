@@ -100,7 +100,6 @@ class TestEmailsService:
         assert "Acme &amp; Co" in call["subject"]
         assert "Welcome to BestDevs LMS" not in call["subject"]
         assert "Acme &amp; Co" in call["body"]
-        # Org logo replaces the mark; Academy link is gone; powered-by remains.
         assert '<img src="https://api.test/content/orgs/org_uuid/logos/logo.png"' in call["body"]
         assert "Powered by BestDevs LMS" in call["body"]
         assert "LearnHouse" not in call["subject"] + call["body"]
@@ -154,9 +153,7 @@ class TestEmailsService:
         call = send_email.call_args.kwargs
         assert "Acme &amp; Co" in call["subject"]
         assert '<img src="https://api.test/content/orgs/org_uuid/logos/logo.png"' in call["body"]
-        # The whole point of the email: a working way back into the org.
         assert "https://acme.test/home" in call["body"]
-        # Hostile username/org names are escaped, never rendered as markup.
         assert "<script>" not in call["body"]
 
     def test_org_join_email_falls_back_to_bestdevs_mark_without_logo(self):
@@ -178,10 +175,10 @@ class TestEmailsService:
                 username="learner",
                 org_name="Acme",
                 cta_url="https://acme.test/home",
-                lang="fr",
+                lang="ru",
             )
         call = send_email.call_args.kwargs
-        assert "Bienvenue" in call["subject"]
+        assert "Добро пожаловать" in call["subject"]
 
     def test_send_password_reset_email_variants_encode_params(self):
         with patch("src.services.users.emails.send_email", return_value=True) as send_email:
@@ -201,8 +198,6 @@ class TestEmailsService:
 
         first_body = send_email.call_args_list[0].kwargs["body"]
         second_body = send_email.call_args_list[1].kwargs["body"]
-        # Both variants now point at the real .io route `/reset` (the platform
-        # variant previously used `/reset-password`, which 404s on .io).
         assert "/reset?email=user%2Btag%40test.com&amp;resetCode=code%20123" in first_body
         assert "/reset?email=user%2Btag%40test.com&amp;resetCode=code%20123" in second_body
 
@@ -248,7 +243,7 @@ class TestEmailsService:
         invite_body = send_email.call_args.kwargs["body"]
         assert "Click the button below" in invite_body
 
-    def test_send_emails_in_french_when_lang_is_fr(self):
+    def test_send_emails_in_russian_when_lang_is_ru(self):
         with patch("src.services.users.emails.send_email", return_value=True) as send_email:
             send_invitation_email(
                 "invitee@test.com",
@@ -256,7 +251,7 @@ class TestEmailsService:
                 "owner",
                 "https://app.test/signup",
                 invite_code="INV-123",
-                lang="fr",
+                lang="ru",
             )
             send_password_reset_email(
                 "abcd1234",
@@ -264,27 +259,27 @@ class TestEmailsService:
                 _org(),
                 "user@test.com",
                 "https://app.test",
-                lang="fr",
+                lang="ru",
             )
             send_role_changed_email(
                 "user@test.com",
                 "member",
                 "Org & Co",
                 "Admin",
-                lang="fr",
+                lang="ru",
             )
 
         invite_call = send_email.call_args_list[0].kwargs
         reset_call = send_email.call_args_list[1].kwargs
         role_call = send_email.call_args_list[2].kwargs
 
-        assert "Vous êtes invité" in invite_call["body"]
-        assert "Vous êtes invité à rejoindre Org &amp; Co" == invite_call["subject"]
-        assert "Réinitialisez votre mot de passe" in reset_call["body"]
-        assert "Réinitialisez votre mot de passe" == reset_call["subject"]
-        assert "Votre rôle a été mis à jour" in role_call["body"]
+        assert "Вас пригласили" in invite_call["body"]
+        assert invite_call["subject"] == "Вас пригласили вступить в Org &amp; Co"
+        assert "Сброс пароля" in reset_call["body"]
+        assert reset_call["subject"] == "Сброс пароля"
+        assert "Ваша роль обновлена" in role_call["body"]
 
-    def test_send_emails_falls_back_to_english_for_unknown_lang(self):
+    def test_send_emails_falls_back_to_russian_for_unknown_lang(self):
         with patch("src.services.users.emails.send_email", return_value=True) as send_email:
             send_invitation_email(
                 "invitee@test.com",
@@ -294,7 +289,7 @@ class TestEmailsService:
                 lang="xx",
             )
         body = send_email.call_args.kwargs["body"]
-        assert "You've been invited" in body
+        assert "Вас пригласили" in body
 
 
 class TestNotificationEmailResilience:
@@ -307,8 +302,6 @@ class TestNotificationEmailResilience:
             "src.services.users.emails.send_email",
             side_effect=HTTPException(status_code=503, detail="Email service temporarily unavailable"),
         ):
-            # A signup whose welcome email fails still returns — the account is
-            # already created, so a dead mail provider must not 5xx the caller.
             assert send_account_creation_email(_user(), "user@test.com") is False
 
     def test_password_reset_email_still_raises(self):

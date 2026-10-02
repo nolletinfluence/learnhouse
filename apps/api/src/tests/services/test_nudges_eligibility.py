@@ -44,7 +44,7 @@ class TestSnapshotShape:
         assert snap.member_count == 0
         assert snap.admins == ()
         assert snap.plan == "free"
-        assert snap.lang == "en"
+        assert snap.lang == "ru"
 
     async def test_course_counts_and_flags(self, db, org, course):
         snap = await _snapshot(db, org)
@@ -54,7 +54,6 @@ class TestSnapshotShape:
         assert snap.public_course_count == 1
         assert snap.newest_course_uuid == "course_test"
         assert snap.newest_course_name == "Test Course"
-        # Published, so there is no draft to link to.
         assert snap.oldest_draft_course_uuid is None
 
     async def test_draft_course_is_identified_for_deep_linking(self, db, org):
