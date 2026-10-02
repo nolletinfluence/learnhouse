@@ -1,5 +1,8 @@
 {
-  "school": {"calendar": "Календарь", "applications": "Заявки на курсы"},
+  "school": {
+    "calendar": "Календарь",
+    "applications": "Заявки на курсы"
+  },
   "common": {
     "hello": "Привет",
     "home": "Главная",
@@ -117,20 +120,20 @@
           "title": "Функция Enterprise"
         },
         "boards": {
-          "title": "Standard Feature",
-          "description": "Boards is a premium feature available only to organizations on our Standard plan or higher. Upgrade to unlock collaborative boards for real-time brainstorming and planning."
+          "title": "Функция Standard",
+          "description": "Доски доступны на тарифе Standard и выше. Смените тариф, чтобы совместно обсуждать идеи и планировать работу."
         },
         "playgrounds": {
-          "title": "Standard Feature",
-          "description": "Playgrounds is a premium feature available only to organizations on our Standard plan or higher. Upgrade to create interactive AI-generated experiences for your learners."
+          "title": "Функция Standard",
+          "description": "Песочницы доступны на тарифе Standard и выше. Смените тариф, чтобы создавать интерактивные задания с ИИ."
         },
         "scorm": {
-          "title": "Enterprise Feature",
-          "description": "SCORM support is a premium feature available only to organizations on our Enterprise plan. Upgrade to import and deliver SCORM packages alongside your courses."
+          "title": "Функция Enterprise",
+          "description": "Поддержка SCORM доступна на тарифе Enterprise. Смените тариф, чтобы импортировать пакеты SCORM в курсы."
         },
         "webhooks": {
-          "title": "Pro Feature",
-          "description": "Automations is a premium feature available only to organizations on our Pro plan or higher. Upgrade to wire your courses up to webhooks and external integrations."
+          "title": "Функция Pro",
+          "description": "Автоматизации доступны на тарифе Pro и выше. Смените тариф, чтобы подключить вебхуки и внешние интеграции."
         },
         "api_access": {
           "title": "Функция Pro",
@@ -151,7 +154,7 @@
           "payments": "Платежи",
           "trail": "Отслеживание прогресса",
           "boards": "Доски",
-          "playgrounds": "Playgrounds",
+          "playgrounds": "Песочницы",
           "library": "Библиотека",
           "folders": "Библиотека"
         },
@@ -202,7 +205,7 @@
     "boards": "Доски",
     "close": "Закрыть",
     "optional": "необязательно",
-    "playgrounds": "Playgrounds",
+    "playgrounds": "Песочницы",
     "analytics": "Аналитика",
     "add": "Добавить",
     "choose_an_organization_to_continue": "Выберите организацию, чтобы продолжить",
@@ -210,9 +213,9 @@
     "powered_by": "Работает на",
     "results": "результат",
     "no_content_yet": "Контента пока нет",
-    "other": "Other",
-    "disabled": "Disabled",
-    "store": "Store",
+    "other": "Другое",
+    "disabled": "Отключено",
+    "store": "Магазин",
     "organizations": "Организации",
     "billing": "Оплата",
     "create_organization": "Создать организацию",
@@ -229,7 +232,15 @@
     "leave_organization_title": "Покинуть организацию?",
     "leave_organization_desc": "Вы потеряете доступ к {{org}} и будете удалены из участников. Вы сможете присоединиться снова по приглашению.",
     "leave_organization_error": "Не удалось покинуть организацию. Попробуйте ещё раз.",
-    "leaving": "Выход…"
+    "leaving": "Выход…",
+    "select": "Выберите…",
+    "continue": "Продолжить",
+    "dismiss": "Закрыть",
+    "sign_out": "Выйти",
+    "move_up": "Переместить вверх",
+    "move_down": "Переместить вниз",
+    "less": "Меньше",
+    "more": "Больше"
   },
   "org_not_found": {
     "title": "Введите вашу организацию",
@@ -398,7 +409,31 @@
     "image_subtitle_signup": "Создайте аккаунт и запустите первый курс за считаные минуты.",
     "image_title_verify": "Подтвердите свою почту.",
     "image_subtitle_verify": "Один быстрый шаг, чтобы защитить аккаунт и начать работу.",
-    "turnstile_failed": "Проверка не пройдена. Пожалуйста, попробуйте ещё раз."
+    "turnstile_failed": "Проверка не пройдена. Пожалуйста, попробуйте ещё раз.",
+    "no_sign_up_method_available": "Регистрация в этой школе ограничена. Обратитесь к администратору.",
+    "continue_to_dashboard": "Перейти в панель управления",
+    "mfa_invalid_code": "Неверный код. Включите автоматическую настройку времени на устройстве и попробуйте следующий код.",
+    "mfa_title": "Двухэтапная проверка",
+    "mfa_subtitle_backup": "Введите один из сохранённых резервных кодов.",
+    "mfa_subtitle": "Введите шестизначный код из приложения-аутентификатора.",
+    "mfa_backup_code": "Резервный код",
+    "mfa_code": "Код подтверждения",
+    "mfa_verify": "Проверить",
+    "mfa_use_authenticator": "Использовать приложение-аутентификатор",
+    "mfa_use_backup": "Использовать резервный код",
+    "mfa_back_to_login": "Вернуться ко входу",
+    "magic_title": "Вход по ссылке",
+    "magic_sent_title": "Проверьте почту",
+    "magic_sent_body": "Если для {{email}} существует аккаунт, мы отправили ссылку для входа. Используйте её скорее: срок действия ограничен.",
+    "magic_back_to_login": "Вернуться ко входу",
+    "magic_subtitle": "Укажите почту — мы отправим ссылку для входа без пароля.",
+    "magic_send": "Получить ссылку для входа",
+    "magic_use_password": "Войти с паролем",
+    "choose_sign_in_method": "Выберите способ входа.",
+    "no_sign_in_method_available": "Доступные способы входа в этой школе ограничены. Обратитесь к администратору.",
+    "complete_profile": {
+      "title": "Заполните профиль"
+    }
   },
   "validation": {
     "required": "Обязательно",
@@ -406,7 +441,9 @@
     "password_min_length": "Пароль должен состоять минимум из 8 символов",
     "username_min_length": "Имя пользователя должно состоять минимум из 4 символов",
     "title_required": "Заголовок обязателен",
-    "content_required": "Содержание обязательно"
+    "content_required": "Содержание обязательно",
+    "invalid_number": "Введите число",
+    "invalid_option": "Выберите один из доступных вариантов"
   },
   "courses": {
     "my_courses": "Мои курсы",
@@ -1016,7 +1053,13 @@
     "save_answers": "Сохранить ответы",
     "markdown": "Markdown",
     "custom": "Пользовательский",
-    "scorm": "SCORM"
+    "scorm": "SCORM",
+    "grid_columns_2": "2 столбца",
+    "grid_columns_3": "3 столбца",
+    "grid_columns_4": "4 столбца",
+    "add_card": "Добавить карточку",
+    "ungroup_cards": "Разгруппировать карточки",
+    "group_into_grid": "Объединить в сетку"
   },
   "assignments": {
     "submit_assignment": "Сдать задание",
@@ -1124,7 +1167,7 @@
       "users": "Участники",
       "communities": "Сообщества",
       "discussions": "Обсуждения",
-      "playgrounds": "Playgrounds",
+      "playgrounds": "Песочницы",
       "podcasts": "Подкасты"
     }
   },
@@ -1260,7 +1303,8 @@
           "industry": "Отрасль",
           "expertise": "Экспертиза",
           "community": "Сообщество"
-        }
+        },
+        "signin_again": "Войдите снова"
       },
       "password": {
         "title": "Изменить пароль",
@@ -1271,7 +1315,8 @@
         "updating": "Обновление...",
         "password_updated": "Пароль успешно обновлён",
         "relogin_message": "Пожалуйста, войдите снова с вашим новым паролем",
-        "logout_warning": "Вы будете выйдены после изменения вашего пароля"
+        "logout_warning": "Вы будете выйдены после изменения вашего пароля",
+        "update_failed": "Не удалось изменить пароль. Войдите снова."
       },
       "profile_builder": {
         "title": "Конструктор профиля",
@@ -1411,7 +1456,61 @@
         "current_session_title": "Текущий сеанс",
         "current_session_subtitle": "Устройство, с которого вы сейчас вошли.",
         "this_device": "Это устройство",
-        "sign_out": "Выйти"
+        "sign_out": "Выйти",
+        "mfa": {
+          "rate_limited": "Слишком много попыток. Подождите немного и повторите.",
+          "status_error": "Не удалось загрузить настройки двухфакторной аутентификации.",
+          "copy_failed": "Не удалось скопировать. Выделите текст и скопируйте его вручную.",
+          "codes_file_header": "Резервные коды двухфакторной аутентификации BestDevs LMS. Каждый код можно использовать один раз.",
+          "already_enabled": "Двухфакторная аутентификация уже включена.",
+          "setup_failed": "Не удалось начать настройку. Попробуйте снова.",
+          "enabled_toast": "Двухфакторная аутентификация включена.",
+          "invalid_code": "Неверный код. Попробуйте снова.",
+          "regenerate_failed": "Не удалось обновить резервные коды. Попробуйте снова.",
+          "disabled_toast": "Двухфакторная аутентификация отключена.",
+          "disable_failed": "Не удалось отключить двухфакторную аутентификацию. Попробуйте снова.",
+          "retry_in": "Повторите через {{seconds}} с.",
+          "code_label": "Код аутентификации",
+          "code_hint": "Введите шестизначный код из приложения-аутентификатора.",
+          "title": "Двухфакторная аутентификация",
+          "subtitle": "При входе потребуется одноразовый код из приложения-аутентификатора.",
+          "retry": "Повторить",
+          "codes_once_title": "Эти коды показываются только один раз.",
+          "codes_once_body": "Сохраните коды в надёжном месте. Каждый код позволяет один раз войти при потере доступа к приложению-аутентификатору. После закрытия этого экрана увидеть коды снова нельзя — потребуется создать новые.",
+          "copied": "Скопировано",
+          "copy_all": "Копировать всё",
+          "download": "Скачать .txt",
+          "codes_ack": "Я сохранил эти коды в надёжном месте.",
+          "done": "Готово",
+          "step_password_title": "Подтвердите пароль",
+          "step_password_body": "Для безопасности введите текущий пароль.",
+          "continue": "Продолжить",
+          "step_scan_title": "Отсканируйте код приложением-аутентификатором",
+          "step_scan_body": "Откройте приложение-аутентификатор (1Password, Google Authenticator, Authy и т. п.) и отсканируйте код ниже.",
+          "qr_alt": "QR-код настройки двухфакторной аутентификации",
+          "qr_failed": "Не удалось показать QR-код. Используйте ключ настройки.",
+          "secret_label": "Или введите ключ настройки вручную",
+          "copy_secret": "Копировать ключ настройки",
+          "secret_hint": "Для приложений на компьютере, которые не умеют сканировать QR-коды.",
+          "step_verify_title": "Подтвердите код из приложения",
+          "back": "Назад",
+          "wait_seconds": "Подождите {{seconds}} с",
+          "verify_and_enable": "Подтвердить и включить",
+          "enabled": "Включено",
+          "enabled_since": "С {{date}}",
+          "enabled_hint": "Для входа потребуется код из приложения-аутентификатора.",
+          "regenerate": "Обновить резервные коды",
+          "disable": "Отключить",
+          "codes_remaining": "Осталось резервных кодов: {{remaining}}",
+          "codes_low": "создайте новые, чтобы не потерять доступ.",
+          "regenerate_body": "После создания новых кодов все предыдущие сразу перестанут работать.",
+          "regenerate_confirm": "Создать новые коды",
+          "disable_warning": "Отключение уберёт второй этап входа и удалит резервные коды.",
+          "disable_confirm": "Отключить двухфакторную аутентификацию",
+          "not_enabled": "Не включена",
+          "not_enabled_hint": "Защитите аккаунт одноразовым кодом из приложения-аутентификатора.",
+          "enable": "Включить"
+        }
       }
     },
     "sign_out": "Выйти",
@@ -2112,7 +2211,10 @@
           "publish_all_success": "Все занятия успешно опубликованы",
           "unpublish_all": "Снять все с публикации",
           "unpublish_all_success": "Все занятия успешно сняты с публикации",
-          "publish_all_error": "Не удалось обновить некоторые занятия"
+          "publish_all_error": "Не удалось обновить некоторые занятия",
+          "back": "Назад",
+          "save_name": "Сохранить название",
+          "rename_chapter": "Переименовать раздел"
         },
         "bulk_actions": {
           "selected": "{{count}} выбрано",
@@ -2127,7 +2229,9 @@
           "publish_error": "Не удалось опубликовать некоторые занятия",
           "unpublish_success": "{{count}} занятий успешно снято с публикации",
           "unpublish_error": "Не удалось снять с публикации некоторые занятия",
-          "partial_error": "Не удалось обновить {{failed}} из {{total}} занятий"
+          "partial_error": "Не удалось обновить {{failed}} из {{total}} занятий",
+          "publish_tooltip": "Опубликовать выбранное",
+          "unpublish_tooltip": "Снять выбранное с публикации"
         },
         "chapter_element": {
           "chapter_name_placeholder": "Название главы"
@@ -2147,7 +2251,7 @@
             "dynamic_page": "Динамическая страница",
             "scorm": "Scorm",
             "markdown": "Markdown",
-            "embed": "Embed",
+            "embed": "Встроить",
             "resource": "Материал",
             "custom": "Пользовательский"
           },
@@ -2300,8 +2404,8 @@
           "usage": "Использование",
           "seo": "SEO",
           "automations": "Автоматизация",
-          "api": "API Access",
-          "menu": "Menu",
+          "api": "Доступ к API",
+          "menu": "Меню",
           "danger": "Опасная зона"
         },
         "pages": {
@@ -2342,16 +2446,19 @@
             "title": "Использование"
           },
           "api": {
-            "title": "API Access",
-            "subtitle": "Manage API tokens and programmatic access"
+            "title": "Доступ к API",
+            "subtitle": "Управление токенами API и программным доступом"
           },
           "menu": {
-            "title": "Public menu",
-            "subtitle": "Choose and order the links shown in your public navigation"
+            "title": "Публичное меню",
+            "subtitle": "Выберите ссылки и их порядок в публичном меню"
           },
           "danger": {
             "title": "Опасная зона",
             "subtitle": "Необратимые и деструктивные действия для этой организации"
+          },
+          "seo": {
+            "subtitle": "Настройки поисковой оптимизации"
           }
         },
         "name": "Название организации",
@@ -2492,11 +2599,11 @@
           "save_success": "Настройки ИИ успешно обновлены",
           "save_error": "Не удалось обновить настройки ИИ"
         },
-        "ai_copilot": "AI Copilot",
-        "ai_copilot_description": "Let learners ask questions about course content. Uses indexed material to provide grounded answers with source citations.",
-        "feature_editor_description": "AI-powered content editing assistance for course creators.",
-        "feature_activity_description": "AI assistant available within activities to help learners.",
-        "always_on": "Always on"
+        "ai_copilot": "ИИ-помощник",
+        "ai_copilot_description": "Ответы на вопросы студентов по материалам курса со ссылками на источники.",
+        "feature_editor_description": "Помощь ИИ при редактировании материалов курса.",
+        "feature_activity_description": "ИИ-помощник для студентов на занятиях.",
+        "always_on": "Всегда включено"
       },
       "features": {
         "title": "Настройки функций",
@@ -2521,12 +2628,12 @@
             "title": "Подкасты"
           },
           "boards": {
-            "title": "Boards",
-            "description": "Create collaborative boards with lists and cards for project management"
+            "title": "Доски",
+            "description": "Совместные доски со списками и карточками для управления проектами"
           },
           "playgrounds": {
-            "title": "Playgrounds",
-            "description": "Create interactive AI-generated experiences for your learners"
+            "title": "Песочницы",
+            "description": "Интерактивные задания для студентов, созданные с помощью ИИ"
           }
         },
         "toasts": {
@@ -2598,7 +2705,7 @@
       "landing": {
         "title": "Лендинг",
         "subtitle": "Настройте лендинг вашей организации",
-        "beta": "BETA",
+        "beta": "БЕТА",
         "save_changes": "Сохранить изменения",
         "saving": "Сохранение...",
         "saved_success": "Лендинг успешно сохранен",
@@ -2607,7 +2714,7 @@
         "select_section": "Выберите секцию для редактирования или добавьте новую",
         "section_types": {
           "hero": {
-            "label": "Hero",
+            "label": "Первый экран",
             "description": "Добавьте hero-секцию с заголовком и призывом к действию"
           },
           "text_and_image": {
@@ -2745,7 +2852,7 @@
           "select": "Выбрать"
         },
         "org_id_not_found": "ID организации не найден",
-        "unknown_section_type": "Unknown section type"
+        "unknown_section_type": "Неизвестный тип раздела"
       },
       "theme": {
         "primary_color": "Основной цвет",
@@ -2824,7 +2931,7 @@
         "org_seo": {
           "quick_links": "Быстрые ссылки",
           "important_seo_urls": "Важные SEO-адреса вашей организации",
-          "sitemap": "Sitemap:",
+          "sitemap": "Карта сайта:",
           "robots_txt": "Robots.txt:",
           "default_meta_tags": "Мета-теги по умолчанию",
           "set_default_metadata": "Установить метаданные по умолчанию для всех страниц",
@@ -2832,7 +2939,7 @@
           "title_suffix_hint": "Добавляется ко всем заголовкам, напр. \" | Моя Академия\"",
           "default_description": "Описание по умолчанию",
           "default_description_hint": "Запасное описание когда у страницы нет своего",
-          "social_open_graph": "Social & Open Graph",
+          "social_open_graph": "Социальные сети и Open Graph",
           "social_open_graph_hint": "Управляйте отображением страниц при публикации в соцсетях",
           "default_og_image": "OG-изображение по умолчанию",
           "default_og_image_hint": "Изображение по умолчанию для соцсетей (1200x630 рекомендуется)",
@@ -2912,7 +3019,7 @@
         "expires": "Истекает"
       },
       "automations": {
-        "webhooks_title": "Webhooks",
+        "webhooks_title": "Вебхуки",
         "webhooks_subtitle": "Отправка уведомлений в реальном времени во внешние сервисы",
         "webhooks_description": "Webhook-эндпоинты получают HTTP POST запросы при событиях в вашей организации."
       },
@@ -2927,60 +3034,136 @@
         "base_credits": "Базовые кредиты",
         "purchased": "Куплено",
         "used": "Использовано",
-        "remaining": "Осталось"
+        "remaining": "Осталось",
+        "upsell": {
+          "title": "Больше возможностей на другом тарифе",
+          "subtitle": "Смените тариф, чтобы увеличить лимиты и открыть новые функции.",
+          "popular": "Популярный",
+          "compare": "Сравнить все тарифы"
+        }
       },
       "api_access": {
-        "title": "API Access",
-        "api_tokens": "API Tokens",
-        "docs_playground": "Documentation & Playground",
-        "something_not_working": "Something not working as expected?",
-        "tokens_description": "API tokens allow external applications to access your organization's data securely.",
-        "create_token": "Create Token",
-        "no_tokens_yet": "No API tokens yet",
-        "create_first_token": "Create your first token to get started",
-        "create_api_token": "Create API Token",
-        "token_name": "Token Name *",
-        "expires": "Expires",
-        "never": "Never",
-        "revoked": "Revoked",
-        "revoke": "Revoke",
-        "api_docs_title": "API Documentation & Playground",
-        "create_token_desc": "Create a new API token for programmatic access. The token will only be shown once.",
-        "token_name_label": "Token Name *",
-        "description_label": "Description",
-        "expiration_label": "Expiration Date (optional)",
-        "expiration_hint": "Leave empty for a token that never expires",
-        "permissions_label": "Permissions",
-        "read_only": "Read Only",
-        "full_access": "Full Access",
-        "custom": "Custom",
-        "cancel": "Cancel",
-        "save_token_warning": "Save your token now!",
-        "save_token_hint": "This is the only time you'll see this token. Copy it and store it securely.",
-        "your_api_token": "Your API Token",
-        "done": "Done"
+        "title": "Доступ к API",
+        "api_tokens": "Токены API",
+        "docs_playground": "Документация и песочница",
+        "something_not_working": "Что-то работает не так?",
+        "tokens_description": "Токены API позволяют внешним приложениям безопасно работать с данными школы.",
+        "create_token": "Создать токен",
+        "no_tokens_yet": "Токенов API пока нет",
+        "create_first_token": "Создайте первый токен",
+        "create_api_token": "Создать токен API",
+        "token_name": "Название токена *",
+        "expires": "Истекает",
+        "never": "Бессрочно",
+        "revoked": "Отозван",
+        "revoke": "Отозвать",
+        "api_docs_title": "Документация API и песочница",
+        "create_token_desc": "Создайте токен для программного доступа. Он будет показан только один раз.",
+        "token_name_label": "Название токена *",
+        "description_label": "Описание",
+        "expiration_label": "Срок действия (необязательно)",
+        "expiration_hint": "Оставьте пустым для бессрочного токена",
+        "permissions_label": "Права доступа",
+        "read_only": "Только чтение",
+        "full_access": "Полный доступ",
+        "custom": "Пользовательский",
+        "cancel": "Отмена",
+        "save_token_warning": "Сохраните токен сейчас!",
+        "save_token_hint": "Этот токен показывается только один раз. Скопируйте его и сохраните в надёжном месте.",
+        "your_api_token": "Ваш токен API",
+        "done": "Готово"
       },
       "general": {
         "validation": {
-          "short_description_required": "Short description is required",
-          "short_description_max": "Short description must be 100 characters or less",
-          "about_max": "About text must be 400 characters or less",
-          "label_required": "Organization label is required"
+          "short_description_required": "Укажите краткое описание",
+          "short_description_max": "Краткое описание должно быть не длиннее 100 символов",
+          "about_max": "Текст о школе должен быть не длиннее 400 символов",
+          "label_required": "Укажите название школы"
         }
       },
       "menu": {
-        "title": "Public navigation",
-        "subtitle": "Toggle, reorder, rename links and add your own. Links only appear if the related feature is on your plan and enabled.",
-        "save": "Save changes",
-        "saving": "Saving menu…",
-        "saved": "Menu updated",
-        "error": "Couldn't update the menu",
-        "add_custom": "Add a custom link",
-        "add": "Add",
-        "label_placeholder": "Label",
-        "custom_required": "A label and a URL are required",
-        "plan_locked": "Requires {{plan}} plan",
-        "feature_off": "Feature is off"
+        "title": "Публичная навигация",
+        "subtitle": "Включайте, переставляйте, переименовывайте ссылки и добавляйте свои. Ссылки видны, если соответствующая функция включена и доступна на тарифе.",
+        "save": "Сохранить изменения",
+        "saving": "Сохраняем меню…",
+        "saved": "Меню обновлено",
+        "error": "Не удалось обновить меню",
+        "add_custom": "Добавить свою ссылку",
+        "add": "Добавить",
+        "label_placeholder": "Ярлык",
+        "custom_required": "Укажите название и URL",
+        "plan_locked": "Нужен тариф {{plan}}",
+        "feature_off": "Функция отключена"
+      },
+      "danger_zone": {
+        "delete_org_tooltip": "Безвозвратно удалить школу"
+      },
+      "security": {
+        "saving": "Сохраняем настройки безопасности…",
+        "save_error": "Не удалось сохранить настройки безопасности.",
+        "save_success": "Настройки безопасности обновлены",
+        "admin_mfa_first": "Включите двухфакторную аутентификацию для своего аккаунта, прежде чем требовать её от школы.",
+        "admin_mfa_first_why": "Иначе после сохранения вы потеряете доступ к своей школе, и не останется администратора, который сможет отменить это требование.",
+        "admin_mfa_first_cta": "Настроить двухфакторную аутентификацию",
+        "not_admin_title": "У вас нет доступа к этой настройке",
+        "not_admin_body": "Только администраторы школы могут менять требование двухфакторной аутентификации.",
+        "read_only": "Вы можете просмотреть настройки, но менять их может только администратор школы.",
+        "methods_title": "Разрешённые способы входа",
+        "methods_description": "Выберите способы входа в школу. Оставьте все включёнными, чтобы не ограничивать вход.",
+        "methods_empty_warning": "Ни один способ входа не выбран — войти в школу будет невозможно. Выберите хотя бы один.",
+        "methods_effect": "Отключённые способы исчезнут со страницы входа. Пользователям, вошедшим таким способом, потребуется снова войти разрешённым способом.",
+        "session_sharing_label": "Разрешить общую сессию с BestDevs LMS",
+        "session_sharing_hint": "Если выключено, вход через BestDevs LMS не открывает доступ к школе. Участники должны войти со страницы школы разрешённым способом.",
+        "saving_short": "Сохранение…",
+        "save": "Сохранить изменения",
+        "cancel": "Отмена",
+        "load_error": "Не удалось загрузить состояние двухфакторной аутентификации школы.",
+        "reset_error": "Не удалось сбросить двухфакторную аутентификацию участника.",
+        "load_error_title": "Что-то пошло не так",
+        "retry": "Повторить",
+        "subtitle": "Требовать двухфакторную аутентификацию от всех участников школы.",
+        "compliance_title": "Подключение двухфакторной аутентификации",
+        "compliance_count": "Двухфакторная аутентификация включена у {{enabled}} из {{total}} участников",
+        "refresh": "Обновить",
+        "stat_enrolled": "Подключена",
+        "stat_exempt": "Исключения (внешний вход)",
+        "stat_blocked": "Будут заблокированы",
+        "blocked_hint_active": "Эти участники потеряют доступ после окончания льготного периода, если не подключат двухфакторную аутентификацию.",
+        "members_title": "Участники",
+        "members_sorted": "сначала без двухфакторной аутентификации",
+        "members_empty": "В школе пока нет участников.",
+        "you": "вы",
+        "badge_enrolled": "Подключена",
+        "badge_exempt": "Исключение — {{method}}",
+        "badge_not_enrolled": "Не подключена",
+        "reset_hint": "Сбросить двухфакторную аутентификацию участника, чтобы он настроил её заново",
+        "resetting": "Сбрасываем…",
+        "reset_confirm": "Подтвердить сброс?",
+        "reset_2fa": "Сбросить 2FA",
+        "show_less": "Показать меньше",
+        "show_all": "Показать всех участников: {{count}}",
+        "policy_title": "Требовать двухфакторную аутентификацию",
+        "policy_description": "Участники без второго фактора потеряют доступ после льготного периода. Их аккаунты и доступ к другим школам сохранятся. Доступ восстановится после подключения второго фактора.",
+        "active_since": "Правило действует с {{date}}",
+        "active_no_date": "Правило действует",
+        "no_restart_note": "Сохранение действующего правила не перезапускает льготный период. Сроки сохраняются относительно указанной даты. Отсчёт начнётся заново только после отключения и повторного включения требования.",
+        "grace_label": "Льготный период",
+        "grace_immediately": "Сразу",
+        "grace_days": "{{count}} дн.",
+        "grace_hint_immediate": "Участники без второго фактора потеряют доступ сразу после сохранения.",
+        "grace_hint_days": "У участников будет {{count}} дн. для подключения второго фактора. Новые участники получают такой же срок с момента вступления.",
+        "exempt_label": "Исключить пользователей, входящих через Google или SSO",
+        "exempt_hint": "Их провайдер входа уже обеспечивает многофакторную аутентификацию.",
+        "self_blocking": "Ваш срок истёк. Подключите второй фактор, чтобы сохранить доступ к школе.",
+        "self_days_left": "У вас осталось {{count}} дн. для подключения второго фактора.",
+        "confirm_title": "Требовать второй фактор от всех?",
+        "confirm_none": "У всех участников включён второй фактор или действует исключение. Никто не потеряет доступ.",
+        "confirm_immediate": "{{count}} из {{total}} участников потеряют доступ сразу после сохранения.",
+        "confirm_deadline": "{{count}} из {{total}} участников потеряют доступ {{date}}, если не подключат второй фактор до этой даты.",
+        "confirm_list_title": "Кого это затронет",
+        "confirm_exempt_note": "Для {{count}} участников действует исключение: они входят через внешнего провайдера.",
+        "confirm_reversible": "Требование можно отменить — доступ восстановится сразу.",
+        "confirm_button": "Да, требовать второй фактор"
       }
     },
     "users": {
@@ -2991,7 +3174,10 @@
           "roles": "Роли",
           "signups": "Регистрации и инвайт-коды",
           "add": "Пригласить участников",
-          "audit_logs": "Логи аудита"
+          "audit_logs": "Логи аудита",
+          "analytics": "Аналитика",
+          "sign_in": "Вход",
+          "two_factor": "Двухфакторная аутентификация"
         },
         "pages": {
           "users": {
@@ -3017,6 +3203,18 @@
           "audit_logs": {
             "title": "Логи аудита",
             "subtitle": "Отслеживайте и контролируйте все действия внутри вашей организации"
+          },
+          "analytics": {
+            "title": "Учебная активность студента",
+            "subtitle": "Полная история учебной активности с возможностью экспорта"
+          },
+          "two_factor": {
+            "title": "Двухфакторная аутентификация",
+            "subtitle": "Требовать двухфакторную аутентификацию от участников школы"
+          },
+          "sign_in": {
+            "title": "Вход",
+            "subtitle": "Выберите разрешённые способы входа в школу"
           }
         },
         "mobile": {
@@ -3037,19 +3235,143 @@
         "failed_load": "Не удалось загрузить досье студента.",
         "back_to_students": "Назад к студентам",
         "no_behavioral": "Нет поведенческих данных (аналитика может быть не настроена для этого периода).",
-        "ranges": { "d30": "30 дней", "d90": "90 дней", "y1": "1 год" },
-        "kpi": { "courses": "Курсы", "completed": "{{count}} завершено", "avg_progress": "Средний прогресс", "time_spent": "Затраченное время", "assignments": "Задания", "avg_grade": "средняя {{grade}}", "certificates": "Сертификаты", "connections": "Подключения", "last": "последнее {{date}}" },
-        "tabs": { "connections": "Подключения", "courses": "Курсы", "assignments": "Задания", "code": "Код", "community": "Сообщество", "certificates": "Сертификаты", "behavior": "Поведение" },
-        "identity": { "verified": "Подтверждён", "unverified": "Не подтверждён", "via": "через {{method}}" },
-        "connections": { "title": "Подключения", "empty": "Пока нет записанных подключений." },
-        "courses": { "title": "Прогресс по курсам", "empty": "Не записан ни на один курс.", "activities": "{{done}}/{{total}} активностей", "enrolled": "Записан {{date}}" },
-        "assignments": { "title": "Задания", "empty": "Нет отправленных заданий.", "attempt": "попытка {{number}}", "feedback": "Отзыв:" },
-        "code": { "title": "Задания по коду", "empty": "Нет отправленного кода.", "activity": "Активность", "result": "Результат", "tests": "Тесты", "time": "Время", "when": "Когда", "passed": "Пройдено", "failed": "Не пройдено" },
-        "community": { "title": "Участие в сообществе", "empty": "Нет активности в сообществе.", "discussions": "Обсуждения", "comments": "Комментарии" },
-        "certificates": { "title": "Полученные сертификаты", "empty": "Нет полученных сертификатов." },
-        "behavior": { "title": "Поведенческая аналитика", "time_by_course": "Затраченное время по курсам", "searches": "Поиски" },
-        "status": { "completed": "завершено", "in_progress": "в процессе", "paused": "приостановлено", "cancelled": "отменено", "graded": "оценено", "submitted": "отправлено", "pending": "ожидает", "late": "с опозданием", "not_submitted": "не отправлено" },
-        "comparison": { "student": "Студент", "enrolled": "Записан", "completed": "Завершено", "certificates": "Сертификаты", "last_connection": "Последнее подключение", "view": "Просмотр" }
+        "ranges": {
+          "d30": "30 дней",
+          "d90": "90 дней",
+          "y1": "1 год"
+        },
+        "kpi": {
+          "courses": "Курсы",
+          "completed": "{{count}} завершено",
+          "avg_progress": "Средний прогресс",
+          "time_spent": "Затраченное время",
+          "assignments": "Задания",
+          "avg_grade": "средняя {{grade}}",
+          "certificates": "Сертификаты",
+          "connections": "Подключения",
+          "last": "последнее {{date}}"
+        },
+        "tabs": {
+          "connections": "Подключения",
+          "courses": "Курсы",
+          "assignments": "Задания",
+          "code": "Код",
+          "community": "Сообщество",
+          "certificates": "Сертификаты",
+          "behavior": "Поведение"
+        },
+        "identity": {
+          "verified": "Подтверждён",
+          "unverified": "Не подтверждён",
+          "via": "через {{method}}"
+        },
+        "connections": {
+          "title": "Подключения",
+          "empty": "Пока нет записанных подключений.",
+          "device": "Устройство",
+          "raw_agent": "Строка User-Agent",
+          "unknown_device": "Неизвестное устройство"
+        },
+        "courses": {
+          "title": "Прогресс по курсам",
+          "empty": "Не записан ни на один курс.",
+          "activities": "{{done}}/{{total}} активностей",
+          "enrolled": "Записан {{date}}"
+        },
+        "assignments": {
+          "title": "Задания",
+          "empty": "Нет отправленных заданий.",
+          "attempt": "попытка {{number}}",
+          "feedback": "Отзыв:",
+          "tasks": "Сдано заданий: {{done}}/{{total}}",
+          "no_tasks": "В этой работе пока нет заданий."
+        },
+        "code": {
+          "title": "Задания по коду",
+          "empty": "Нет отправленного кода.",
+          "activity": "Активность",
+          "result": "Результат",
+          "tests": "Тесты",
+          "time": "Время",
+          "when": "Когда",
+          "passed": "Пройдено",
+          "failed": "Не пройдено",
+          "language": "Язык",
+          "course": "Курс",
+          "untitled_activity": "Занятие без названия"
+        },
+        "community": {
+          "title": "Участие в сообществе",
+          "empty": "Нет активности в сообществе.",
+          "discussions": "Обсуждения",
+          "comments": "Комментарии",
+          "in_discussion": "В обсуждении «{{title}}»",
+          "community": "Сообщество"
+        },
+        "certificates": {
+          "title": "Полученные сертификаты",
+          "empty": "Нет полученных сертификатов.",
+          "credential_id": "Идентификатор сертификата"
+        },
+        "behavior": {
+          "title": "Поведенческая аналитика",
+          "time_by_course": "Затраченное время по курсам",
+          "searches": "Поиски",
+          "views": "Просмотры страниц и материалов",
+          "untitled_course": "Курс без названия"
+        },
+        "status": {
+          "completed": "завершено",
+          "in_progress": "в процессе",
+          "paused": "приостановлено",
+          "cancelled": "отменено",
+          "graded": "оценено",
+          "submitted": "отправлено",
+          "pending": "ожидает",
+          "late": "с опозданием",
+          "not_submitted": "не отправлено"
+        },
+        "comparison": {
+          "student": "Студент",
+          "enrolled": "Записан",
+          "completed": "Завершено",
+          "certificates": "Сертификаты",
+          "last_connection": "Последнее подключение",
+          "view": "Просмотр"
+        },
+        "export_include_raw": "Включить исходные данные ответов",
+        "answer": {
+          "question": "Вопрос",
+          "answered": "Ответ дан",
+          "expected": "Ожидаемый ответ",
+          "no_answer": "Ответ не дан",
+          "correct": "Правильно",
+          "incorrect": "Неправильно",
+          "correct_answer": "Правильный ответ",
+          "not_graded": "Не оценено автоматически",
+          "score": "Правильных ответов: {{correct}}/{{total}}",
+          "explanation": "Пояснение",
+          "raw_note": "Произвольное задание — показаны исходные поля",
+          "not_submitted": "Не отправлено",
+          "manual": "оценено вручную",
+          "source_code": "Отправленный код",
+          "test_cases": "Тестовые примеры",
+          "hidden_test": "Скрытый тест {{number}}",
+          "test_passed": "Пройдено",
+          "test_failed": "Не удалось",
+          "actual": "Результат",
+          "download_file": "Скачать файл"
+        },
+        "task_types": {
+          "QUIZ": "Тест",
+          "FORM": "Заполнить пропуски",
+          "SHORT_ANSWER": "Короткий ответ",
+          "NUMBER_ANSWER": "Числовой ответ",
+          "FILE_SUBMISSION": "Загрузка файла",
+          "CODE": "Задание по программированию",
+          "CUSTOM": "Произвольное задание",
+          "OTHER": "Другое"
+        }
       },
       "active_users": {
         "title": "Активные пользователи",
@@ -3068,7 +3390,8 @@
           "remove_error": "Ошибка при удалении пользователя",
           "updating_role": "Обновление роли...",
           "role_update_success": "Роль успешно обновлена",
-          "role_update_error": "Ошибка обновления роли"
+          "role_update_error": "Ошибка обновления роли",
+          "export_csv": "Экспорт пользователей (CSV)"
         },
         "modals": {
           "update_role": {
@@ -3086,8 +3409,12 @@
         "no_users": "В этой организации пока нет пользователей",
         "pagination": {
           "showing": "Показано {{start}}-{{end}} из {{total}}",
-          "page": "Страница {{current}} из {{total}}"
-        }
+          "page": "Страница {{current}} из {{total}}",
+          "previous": "Предыдущая страница",
+          "next": "Следующая страница"
+        },
+        "beyond_included": "Сверх тарифа: {{count}}",
+        "beyond_included_tooltip": "Число участников превышает включённый лимит. Учитываются только активные в этом месяце. Подробности — в разделе оплаты."
       },
       "signups": {
         "title": "Метод присоединения",
@@ -3417,7 +3744,9 @@
                 "coursechapters": "Главы курса",
                 "activities": "Занятия",
                 "roles": "Роли",
-                "dashboard": "Панель управления"
+                "dashboard": "Панель управления",
+                "folders": "Папки",
+                "media": "Медиафайлы"
               },
               "actions": {
                 "create": "создать",
@@ -3480,7 +3809,9 @@
                 "organizations": "Организации",
                 "roles": "Роли",
                 "usergroups": "Группы пользователей",
-                "users": "Пользователи"
+                "users": "Пользователи",
+                "folders": "Папки",
+                "media": "Медиафайлы"
               },
               "select": "Выбрать",
               "select_all": "Выбрать все",
@@ -3511,9 +3842,43 @@
             "organizations": "Организации",
             "roles": "Роли",
             "usergroups": "Группы пользователей",
-            "users": "Пользователи"
+            "users": "Пользователи",
+            "folders": "Папки",
+            "media": "Медиафайлы"
           }
         }
+      },
+      "security": {
+        "two_factor_title": "Двухфакторная аутентификация"
+      },
+      "signup_fields": {
+        "no_rights": "У вас нет прав на изменение полей регистрации.",
+        "label_required": "Укажите название каждого поля.",
+        "duplicate_key": "Два поля имеют одинаковый ключ. Укажите разные названия.",
+        "options_required": "Добавьте хотя бы один вариант для выпадающего списка.",
+        "saving": "Сохраняем поля регистрации…",
+        "saved": "Поля регистрации обновлены.",
+        "save_error": "Не удалось сохранить поля регистрации. Попробуйте снова.",
+        "title": "Дополнительные поля регистрации",
+        "subtitle": "Дополнительные вопросы при вступлении. Ответы сохраняются в профиле участника.",
+        "public_notice": "Названия, подсказки и варианты видны всем на странице регистрации. Не добавляйте конфиденциальную информацию.",
+        "empty": "Дополнительных полей нет. Форма регистрации содержит только стандартные вопросы.",
+        "label_placeholder": "Название вопроса",
+        "badge_saved": "используется",
+        "badge_new": "новое",
+        "type": "Тип поля",
+        "required": "Обязательное поле",
+        "delete_confirm": "После удаления собранные ответы потеряют связь с полем. Нажмите корзину ещё раз для подтверждения.",
+        "key": "Ключ",
+        "key_locked": "Ключ зафиксирован: его изменение нарушит связь с собранными ответами.",
+        "key_hint": "Создаётся автоматически из названия.",
+        "help_text": "Подсказка",
+        "max_length": "Максимальная длина",
+        "min_value": "Минимум",
+        "max_value": "Максимум",
+        "add": "Добавить поле",
+        "options": "Варианты (по одному на строку)",
+        "options_placeholder": "Первый вариант\\nВторой вариант"
       }
     },
     "assignments": {
@@ -3873,7 +4238,10 @@
             "allow_retries_description": "Позвольте учащимся сбросить и повторить задание после оценки. Каждая повторная попытка удаляет предыдущие ответы и считается новой попыткой.",
             "max_retries_label": "Максимальное количество попыток",
             "max_retries_unlimited": "0 означает неограниченные попытки",
-            "max_retries_bounded": "Всего оценённых попыток (начальная отправка + повторные попытки)"
+            "max_retries_bounded": "Всего оценённых попыток (начальная отправка + повторные попытки)",
+            "pass_threshold_label": "Проходной балл",
+            "pass_threshold_description": "Минимальный результат для зачёта. Оставьте пустым для стандартного порога: 50%, или 60% при буквенных оценках.",
+            "pass_threshold_placeholder": "Автоматически"
           },
           "toasts": {
             "updating": "Обновление задания...",
@@ -3950,7 +4318,7 @@
         "users": "Пользователи",
         "communities": "Сообщества",
         "discussions": "Обсуждения",
-        "playgrounds": "Playgrounds",
+        "playgrounds": "Песочницы",
         "podcasts": "Подкасты"
       },
       "entries": {
@@ -4103,11 +4471,31 @@
         "org_api": {
           "description": "Токены API и программный доступ",
           "keywords": "api, токены, доступ, программный, ключи"
+        },
+        "users_analytics": {
+          "description": "Учебная активность и история действий студента",
+          "keywords": "аналитика, аудит, студент, прогресс, активность, экспорт, право, соответствие"
         }
       }
     },
     "developers": {
       "breadcrumb": "Разработчики"
+    },
+    "nav": {
+      "sidebar_navigation": "Боковое меню панели управления",
+      "mobile_navigation": "Мобильное меню панели управления",
+      "top_navigation": "Верхнее меню",
+      "collapse_sidebar": "Свернуть боковое меню",
+      "expand_sidebar": "Развернуть боковое меню",
+      "open_courses_menu": "Открыть меню курсов",
+      "open_assignments_menu": "Открыть меню заданий",
+      "open_users_menu": "Открыть меню пользователей",
+      "open_organization_menu": "Открыть меню школы",
+      "open_organizations_menu": "Открыть меню школ",
+      "open_developers_menu": "Открыть меню разработчиков",
+      "open_language_menu": "Выбрать язык",
+      "open_help_menu": "Открыть помощь",
+      "other": "Другое"
     }
   },
   "editor": {
@@ -4274,7 +4662,11 @@
         "reset_answers": "Сбросить ответы",
         "mark_correct": "Отметить как верно",
         "mark_incorrect": "Отметить как неверно",
-        "delete_answer": "Удалить ответ"
+        "delete_answer": "Удалить ответ",
+        "question_label": "Вопрос",
+        "delete_question": "Удалить вопрос",
+        "empty_editable": "Вопросов пока нет. Добавьте первый.",
+        "empty_readonly": "В этом тесте пока нет вопросов."
       },
       "math_block": {
         "templates": "Шаблоны",
@@ -4301,7 +4693,8 @@
         "paste_directly": "Вставьте любой URL встроенного объекта напрямую",
         "how_to_embed": "Как встроить {{name}}",
         "paste_code": "Вставьте код встроенного объекта (iframe, скрипт встроенного объекта и т. д.)",
-        "paste_iframe": "Вставьте iframe или код встроенного объекта с любой платформы"
+        "paste_iframe": "Вставьте iframe или код встроенного объекта с любой платформы",
+        "remove_embed": "Удалить встраивание"
       },
       "web_preview_block": {
         "website_preview": "Предпросмотр веб-сайта",
@@ -4365,7 +4758,9 @@
       },
       "button_block": {
         "enter_link_url": "Введите URL ссылки"
-      }
+      },
+      "library": "Библиотека",
+      "flipcard_grid": "Сетка карточек"
     },
     "ai_panel": {
       "add_definition": "Добавить определение",
@@ -4474,7 +4869,7 @@
         "last_seen": "Последний визит"
       },
       "signups_table": {
-        "email": "Email",
+        "email": "Электронная почта",
         "method": "Метод"
       }
     },
@@ -5296,20 +5691,20 @@
   "playgrounds": {
     "no_playgrounds_yet": "Playgrounds пока нет",
     "playgrounds_description": "Создавайте интерактивные AI-генерируемые материалы для ваших учеников.",
-    "new_playground": "New Playground",
-    "search_placeholder": "Search playgrounds...",
-    "no_results_for": "No results for",
-    "try_different_search": "Try a different search term",
-    "new_playground_modal_title": "New Playground",
-    "new_playground_modal_desc": "Give your playground a name to get started.",
-    "creating": "Creating...",
-    "create": "Create",
-    "failed_create": "Failed to create playground",
+    "new_playground": "Новая песочница",
+    "search_placeholder": "Найти песочницу…",
+    "no_results_for": "Ничего не найдено по запросу",
+    "try_different_search": "Попробуйте другой поисковый запрос",
+    "new_playground_modal_title": "Новая песочница",
+    "new_playground_modal_desc": "Укажите название песочницы.",
+    "creating": "Создание...",
+    "create": "Создать",
+    "failed_create": "Не удалось создать песочницу",
     "view": {
       "open_editor_to_generate": "Откройте редактор для создания контента.",
       "check_back_later": "Загляните позже.",
       "open_editor": "Открыть редактор",
-      "breadcrumb": "Playgrounds",
+      "breadcrumb": "Песочницы",
       "about": "О проекте",
       "author": "Автор",
       "access": "Доступ",
@@ -5325,85 +5720,85 @@
     }
   },
   "library": {
-    "library": "Library",
-    "my_library": "My Library",
-    "new_folder": "New Folder",
+    "library": "Библиотека",
+    "my_library": "Моя библиотека",
+    "new_folder": "Новая папка",
     "tabs": {
-      "courses": "Courses",
-      "podcasts": "Podcasts",
-      "communities": "Communities",
-      "boards": "Boards",
-      "playgrounds": "Playgrounds",
-      "media": "Media"
+      "courses": "Курсы",
+      "podcasts": "Подкасты",
+      "communities": "Сообщества",
+      "boards": "Доски",
+      "playgrounds": "Песочницы",
+      "media": "Медиафайлы"
     },
-    "add_content": "Add content",
-    "upload_media": "Upload media",
-    "empty_folder": "This folder is empty",
-    "error_loading": "Couldn't load the library. Please refresh to try again.",
-    "folder": "Folder",
-    "folders": "Folders",
-    "items": "items",
-    "move": "Move",
-    "rename": "Rename",
-    "manage_access": "Manage access",
-    "delete_folder": "Delete folder",
-    "delete_folder_confirm": "Are you sure you want to delete this folder and everything inside it?",
-    "folder_name": "Folder name",
-    "enter_folder_name": "Enter folder name",
-    "create_folder": "Create folder",
-    "description": "Description",
-    "add": "Add",
-    "added": "Added",
-    "content_add_error": "Failed to add content",
-    "content_added": "Content added",
-    "content_remove_error": "Failed to remove content",
-    "content_removed": "Content removed",
-    "creating_folder": "Creating folder…",
-    "deleting_folder": "Deleting folder…",
-    "empty_folder_description": "Add sub-folders or content to get started.",
-    "folder_created_error": "Failed to create folder",
-    "folder_created_success": "Folder created",
-    "folder_deleted_error": "Failed to delete folder",
-    "folder_deleted_success": "Folder deleted",
-    "folder_name_required": "Folder name is required",
-    "folder_not_found": "Folder not found",
-    "folder_updated_error": "Failed to update folder",
-    "folder_updated_success": "Folder updated",
-    "no_items": "Your library is empty",
-    "no_items_description": "Create a folder or upload media to organize your content.",
-    "no_resources": "No resources available",
-    "open": "Open",
-    "private": "Private",
-    "public": "Public",
-    "remove_from_folder": "Remove from folder",
-    "remove_from_folder_confirm": "Remove this item from the folder? The item itself won't be deleted.",
-    "removing_content": "Removing…",
-    "rename_folder": "Rename folder",
-    "save": "Save",
-    "saving_folder": "Saving…",
-    "search": "Search",
-    "untitled": "Untitled",
-    "visibility": "Visibility",
-    "resources_label": "Resources",
-    "no_results": "No results",
-    "color": "Color",
-    "thumbnail": "Cover image",
-    "remove_thumbnail": "Remove cover",
+    "add_content": "Добавить контент",
+    "upload_media": "Загрузить медиафайл",
+    "empty_folder": "Эта папка пуста",
+    "error_loading": "Не удалось загрузить библиотеку. Обновите страницу.",
+    "folder": "Папка",
+    "folders": "Папки",
+    "items": "элементов",
+    "move": "Переместить",
+    "rename": "Переименовать",
+    "manage_access": "Управление доступом",
+    "delete_folder": "Удалить папку",
+    "delete_folder_confirm": "Удалить эту папку и всё её содержимое?",
+    "folder_name": "Название папки",
+    "enter_folder_name": "Введите название папки",
+    "create_folder": "Создать папку",
+    "description": "Описание",
+    "add": "Добавить",
+    "added": "Добавлен",
+    "content_add_error": "Не удалось добавить материал",
+    "content_added": "Материал добавлен",
+    "content_remove_error": "Не удалось удалить материал",
+    "content_removed": "Материал удалён",
+    "creating_folder": "Создаём папку…",
+    "deleting_folder": "Удаляем папку…",
+    "empty_folder_description": "Добавьте вложенные папки или материалы.",
+    "folder_created_error": "Не удалось создать папку",
+    "folder_created_success": "Папка создана",
+    "folder_deleted_error": "Не удалось удалить папку",
+    "folder_deleted_success": "Папка удалена",
+    "folder_name_required": "Укажите название папки",
+    "folder_not_found": "Папка не найдена",
+    "folder_updated_error": "Не удалось обновить папку",
+    "folder_updated_success": "Папка обновлена",
+    "no_items": "Ваша библиотека пуста",
+    "no_items_description": "Создайте папку или загрузите медиафайлы, чтобы упорядочить материалы.",
+    "no_resources": "Материалов пока нет",
+    "open": "Открытый",
+    "private": "Приватный",
+    "public": "Публичный",
+    "remove_from_folder": "Убрать из папки",
+    "remove_from_folder_confirm": "Убрать этот элемент из папки? Сам элемент останется доступен.",
+    "removing_content": "Убираем…",
+    "rename_folder": "Переименовать папку",
+    "save": "Сохранить",
+    "saving_folder": "Сохранение…",
+    "search": "Поиск",
+    "untitled": "Без названия",
+    "visibility": "Видимость",
+    "resources_label": "Материалы",
+    "no_results": "Ничего не найдено",
+    "color": "Цвет",
+    "thumbnail": "Обложка",
+    "remove_thumbnail": "Удалить обложку",
     "filters": {
-      "all": "All",
-      "folders": "Folders",
-      "courses": "Courses",
-      "media": "Media"
+      "all": "Все",
+      "folders": "Папки",
+      "courses": "Курсы",
+      "media": "Медиафайлы"
     },
-    "edit": "Edit",
-    "edit_folder": "Edit folder",
-    "share": "Share",
-    "copy_link": "Copy link",
-    "link_copied": "Link copied to clipboard",
-    "link_copy_error": "Couldn't copy the link",
-    "thumbnail_error": "Couldn't upload the cover image",
-    "open_resource": "Open",
-    "replace_cover": "Replace",
+    "edit": "Редактировать",
+    "edit_folder": "Редактировать папку",
+    "share": "Поделиться",
+    "copy_link": "Копировать ссылку",
+    "link_copied": "Ссылка скопирована",
+    "link_copy_error": "Не удалось скопировать ссылку",
+    "thumbnail_error": "Не удалось загрузить обложку",
+    "open_resource": "Открытый",
+    "replace_cover": "Заменить",
     "cover_hint": "PNG, JPG, WEBP",
     "sort": {
       "sort_by": "Сортировать по",
@@ -5415,77 +5810,88 @@
       "drag_to_reorder": "Перетащите, чтобы изменить порядок",
       "sort_error": "Не удалось обновить порядок сортировки",
       "reorder_error": "Не удалось сохранить новый порядок"
-    }
+    },
+    "preview": "Предпросмотр",
+    "no_access": "У вас нет доступа к этому файлу.",
+    "choose_from_library": "Выбрать из библиотеки",
+    "upload_to_library": "Загрузка",
+    "upload_to_library_hint": "Загруженные файлы сохраняются в библиотеке и доступны для повторного использования.",
+    "no_resource_selected": "Материал из библиотеки не выбран.",
+    "private_media_warning": "Закрытый материал — студенты без доступа его не увидят.",
+    "replace_resource": "Заменить",
+    "remove_resource": "Удалить",
+    "show_as_card": "Показать карточкой",
+    "show_inline": "Показать в тексте"
   },
   "media": {
-    "media": "Media",
-    "file": "File",
-    "embed": "Embed",
-    "download": "Download",
-    "add_media": "Add media",
-    "upload": "Upload",
-    "media_name": "Media name",
+    "media": "Медиафайлы",
+    "file": "Файл",
+    "embed": "Встроить",
+    "download": "Скачать",
+    "add_media": "Добавить медиафайл",
+    "upload": "Загрузка",
+    "media_name": "Название медиафайла",
     "media_url": "URL",
-    "delete_media": "Delete media",
-    "delete_media_confirm": "Are you sure you want to delete this media?",
-    "choose_file": "Choose a file",
-    "deleting_media": "Deleting…",
-    "description": "Description",
-    "file_required": "A file is required",
-    "media_deleted_error": "Failed to delete media",
-    "media_deleted_success": "Media deleted",
-    "media_uploaded_error": "Failed to add media",
-    "media_uploaded_success": "Media added",
-    "name": "Name",
-    "name_required": "Name is required",
-    "public": "Public",
-    "upload_file": "Upload file",
-    "upload_media": "Upload media",
-    "uploading_media": "Uploading…",
+    "delete_media": "Удалить медиафайл",
+    "delete_media_confirm": "Удалить этот медиафайл?",
+    "choose_file": "Выберите файл",
+    "deleting_media": "Удаление…",
+    "description": "Описание",
+    "file_required": "Выберите файл",
+    "media_deleted_error": "Не удалось удалить медиафайл",
+    "media_deleted_success": "Медиафайл удалён",
+    "media_uploaded_error": "Не удалось добавить медиафайл",
+    "media_uploaded_success": "Медиафайл добавлен",
+    "name": "Название",
+    "name_required": "Укажите название",
+    "public": "Публичный",
+    "upload_file": "Загрузить файл",
+    "upload_media": "Загрузить медиафайл",
+    "uploading_media": "Загружаем…",
     "url": "URL",
-    "url_required": "A URL is required",
-    "upload_hint": "Images, video, audio, PDF, Office docs & ZIP",
-    "remove": "Remove",
-    "open_pdf": "Open PDF"
+    "url_required": "Укажите URL",
+    "upload_hint": "Изображения, видео, аудио, PDF, документы Office и ZIP",
+    "remove": "Удалить",
+    "open_pdf": "Открыть PDF"
   },
   "access": {
     "public": {
-      "title": "Public",
-      "description": "Anyone can view this.",
-      "confirmation_title": "Make public?",
-      "confirmation_message": "This will be visible to everyone.",
-      "confirmation_button": "Make public"
+      "title": "Публичный",
+      "description": "Доступно всем.",
+      "confirmation_title": "Открыть общий доступ?",
+      "confirmation_message": "Материал станет виден всем.",
+      "confirmation_button": "Открыть общий доступ"
     },
     "users_only": {
-      "title": "Users only",
-      "description": "Only signed-in members (and selected groups) can view this.",
-      "confirmation_title": "Restrict access?",
-      "confirmation_message": "Only authenticated users and linked groups will be able to view this.",
-      "confirmation_button": "Restrict access"
+      "title": "Только пользователям",
+      "description": "Доступно только вошедшим участникам и выбранным группам.",
+      "confirmation_title": "Ограничить доступ?",
+      "confirmation_message": "Материал будет доступен только авторизованным пользователям и связанным группам.",
+      "confirmation_button": "Ограничить доступ"
     },
-    "active": "Active",
-    "visibility_update_error": "Failed to update visibility",
-    "visibility_updated": "Visibility updated",
+    "active": "Активна",
+    "visibility_update_error": "Не удалось изменить видимость",
+    "visibility_updated": "Видимость обновлена",
     "usergroups": {
-      "title": "User groups",
-      "subtitle": "Restrict access to specific user groups.",
-      "link_to_usergroup": "Link a user group",
-      "table_name": "Name",
-      "table_actions": "Actions",
-      "usergroup_name": "Group",
-      "delete_link": "Unlink",
-      "warning": "Members of linked groups will be able to access this resource.",
-      "no_usergroups": "No user groups linked yet.",
-      "create_usergroup": "Create a user group",
-      "link_button": "Link",
-      "link_title": "Link a user group",
-      "link_success": "User group linked",
-      "link_error": "Failed to link user group",
-      "unlink_button": "Unlink",
-      "unlink_title": "Unlink user group",
-      "unlink_message": "Remove this group's access?",
-      "unlink_success": "User group unlinked",
-      "unlink_error": "Failed to unlink user group"
+      "title": "Группы пользователей",
+      "subtitle": "Ограничьте доступ выбранными группами пользователей.",
+      "link_to_usergroup": "Связать с группой",
+      "table_name": "Название",
+      "table_actions": "Действия",
+      "usergroup_name": "Группа",
+      "delete_link": "Удалить",
+      "warning": "Участники связанных групп получат доступ к этому материалу.",
+      "no_usergroups": "Связанных групп пока нет.",
+      "create_usergroup": "Создать группу",
+      "link_button": "Ссылка",
+      "link_title": "Связать с группой",
+      "link_success": "Группа пользователей связана",
+      "link_error": "Не удалось связать группу",
+      "unlink_button": "Удалить",
+      "unlink_title": "Отвязать группу",
+      "unlink_message": "Убрать доступ этой группы?",
+      "unlink_success": "Группа пользователей отвязана",
+      "unlink_error": "Не удалось отвязать группу"
     }
   },
   "plan": {
@@ -5599,7 +6005,33 @@
     "scheduled_desc": "Ваш план переключится на {{plan}} в конце текущего цикла выставления счетов. Вы сохраните полный доступ до того момента.",
     "plan_plus_purchased": "План: {{plan}} + Приобретено: {{purchased}}",
     "base_plus_purchased": "База: {{base}} + Приобретено: {{purchased}}",
-    "pack_ai_desc": "{{quantity}} дополнительных AI-кредитов добавлено в вашу организацию"
+    "pack_ai_desc": "{{quantity}} дополнительных AI-кредитов добавлено в вашу организацию",
+    "addons_subtitle": "Дополнительные кредиты ИИ по ежемесячной подписке.",
+    "unlimited_lower": "без ограничений",
+    "limit_reached_upgrade": "Лимит исчерпан — смените тариф для продолжения",
+    "remaining": "Осталось: {{n}}",
+    "remaining_nearing": "Осталось: {{n}} — лимит почти исчерпан",
+    "usage_subtitle_free": "На бесплатном тарифе действуют лимиты. Смените тариф для их увеличения.",
+    "usage_subtitle_paid": "Эти объёмы включены в тариф. Превышение лимита участников разрешено и оплачивается отдельно.",
+    "members_hint": "Все участники вашей школы.",
+    "members_beyond_plan": "Включено: {{included}} · сверх тарифа: {{beyond}}",
+    "members_within_plan": "В тариф включено: {{included}}",
+    "active_members": "Активные участники",
+    "active_members_short": "Активные участники",
+    "active_members_hint": "Учитываются участники, активные не менее двух дней в этом месяце. Включённые {{included}} мест бесплатны; каждый активный участник сверх лимита стоит $1 в месяц.",
+    "overage_this_month": "${{amount}} за текущий месяц",
+    "no_extra_charges": "В этом месяце дополнительных начислений нет",
+    "admin_seats_hint": "Участники с доступом к панели управления. Входят в общее число участников.",
+    "credits_reset_on": "Обновится {{date}}",
+    "next_invoice": "Следующий счёт",
+    "due_on": "оплатить до {{date}}",
+    "line_subscription": "Подписка",
+    "accruing_this_month": "Активные участники за месяц (оплата при следующем продлении)",
+    "packs_billed_separately": "Дополнения оплачиваются отдельно по собственному графику.",
+    "invoice_history": "История счетов",
+    "view": "Просмотр",
+    "checkout_settling": "Оплата получена — новый тариф будет доступен в ближайшее время.",
+    "checkout_settling_delayed": "Оплата получена, но тариф ещё не обновился. Обновите страницу немного позже. Если проблема останется, обратитесь в поддержку."
   },
   "hub_new": {
     "useType": {
@@ -5761,5 +6193,20 @@
     "folder_count_one": "{{count}} папка",
     "item_count": "{{count}} элементов",
     "item_count_one": "{{count}} элемент"
+  },
+  "mfa": {
+    "policy": {
+      "banner_message_overdue": "В {{org}} требуется двухфакторная аутентификация, и срок истёк. Включите её ниже, чтобы восстановить доступ.",
+      "banner_message_today": "В {{org}} требуется двухфакторная аутентификация. Настройте её сегодня.",
+      "banner_message_one_day": "В {{org}} требуется двухфакторная аутентификация. На настройку остался 1 день.",
+      "banner_message": "В {{org}} требуется двухфакторная аутентификация. На настройку осталось {{days}} дн.",
+      "set_up_now": "Настроить сейчас",
+      "blocked_title": "Требуется двухфакторная аутентификация",
+      "blocked_description": "Срок настройки двухфакторной аутентификации в {{org}} истёк. Добавьте второй фактор к аккаунту, чтобы продолжить работу в {{org}}.",
+      "blocked_scope_note": "Это касается только {{org}}. Доступ к другим школам сохраняется.",
+      "set_up_2fa": "Настроить двухфакторную аутентификацию",
+      "signed_in_as": "Вы вошли как {{email}}",
+      "sign_in_to_org": "Войти в эту школу"
+    }
   }
 }

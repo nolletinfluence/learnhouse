@@ -1,5 +1,7 @@
 'use client'
 
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import React, {
   forwardRef,
   useEffect,
@@ -23,6 +25,7 @@ import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
 
 const SlashCommandsList = forwardRef<SlashCommandsListRef, SlashCommandsListProps>(
   ({ items, command, currentPlan = 'free' }, ref) => {
+    const { t: st } = useSchoolTranslation()
     const { track } = useLHAnalytics('editor')
     const [selectedIndex, setSelectedIndex] = useState(0)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -94,12 +97,11 @@ const SlashCommandsList = forwardRef<SlashCommandsListRef, SlashCommandsListProp
     if (items.length === 0) {
       return (
         <div className="slash-commands-menu">
-          <div className="slash-commands-empty">No results found</div>
+          <div className="slash-commands-empty">{st("No results found")}</div>
         </div>
       )
     }
 
-    // Track overall index for keyboard navigation
     let overallIndex = 0
 
     return (
@@ -107,7 +109,7 @@ const SlashCommandsList = forwardRef<SlashCommandsListRef, SlashCommandsListProp
         {Array.from(groupedCommands.entries()).map(([category, categoryItems]) => (
           <div key={category} className="slash-commands-category">
             <div className="slash-commands-category-label">
-              {categoryLabels[category]}
+              {st(categoryLabels[category])}
             </div>
             {categoryItems.map((item) => {
               const currentIndex = overallIndex
@@ -133,7 +135,7 @@ const SlashCommandsList = forwardRef<SlashCommandsListRef, SlashCommandsListProp
                   <div className={`slash-commands-item-icon ${!available ? 'grayscale' : ''}`}>{item.icon}</div>
                   <div className="slash-commands-item-content">
                     <div className="slash-commands-item-title flex items-center gap-2">
-                      <span className={!available ? 'text-gray-400' : ''}>{item.title}</span>
+                      <span className={!available ? 'text-gray-400' : ''}>{st(item.title)}</span>
                       {item.requiredPlan && (
                         <PlanBadge
                           currentPlan={currentPlan}
@@ -143,7 +145,7 @@ const SlashCommandsList = forwardRef<SlashCommandsListRef, SlashCommandsListProp
                       )}
                     </div>
                     <div className={`slash-commands-item-description ${!available ? 'text-gray-400' : ''}`}>
-                      {item.description}
+                      {st(item.description)}
                     </div>
                   </div>
                 </button>

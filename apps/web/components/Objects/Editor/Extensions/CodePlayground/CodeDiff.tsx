@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import React from 'react'
 
 interface Props {
@@ -39,12 +41,13 @@ const bgMap = {
 const prefixMap = { same: ' ', added: '+', removed: '-' }
 
 export default function CodeDiff({ studentCode, solutionCode }: Props) {
+  const { t: st } = useSchoolTranslation()
   const lines = diffLines(studentCode, solutionCode)
 
   return (
     <div className="rounded-lg border border-neutral-200 overflow-hidden nice-shadow">
       <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-50 border-b border-neutral-200">
-        <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Your Code vs Solution</span>
+        <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">{st("Your Code vs Solution")}</span>
       </div>
       <pre className="text-[11px] font-mono leading-relaxed overflow-x-auto">
         {lines.map((line, i) => (

@@ -15,7 +15,7 @@ import {
 import { getMenuColorClasses } from '@services/utils/ts/colorUtils'
 
 const LanguageSwitcher = ({ primaryColor = '' }: { primaryColor?: string }) => {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { track } = useLHAnalytics()
   const colors = getMenuColorClasses(primaryColor)
   const [mounted, setMounted] = React.useState(false)
@@ -26,7 +26,7 @@ const LanguageSwitcher = ({ primaryColor = '' }: { primaryColor?: string }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className={`flex items-center space-x-1.5 px-2.5 py-2 rounded-lg transition-colors text-sm font-bold outline-none ${colors.iconBtn}`}>
+        <button aria-label={t("dashboard.nav.open_language_menu")} className={`flex items-center space-x-1.5 px-2.5 py-2 rounded-lg transition-colors text-sm font-bold outline-none ${colors.iconBtn}`}>
           <Languages size={16} strokeWidth={2.5} />
           <span suppressHydrationWarning>{currentLangCode}</span>
           <ChevronDown size={12} className="opacity-50" />

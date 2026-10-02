@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewWrapper } from '@tiptap/react'
 import React, { useEffect } from 'react'
 import { Resizable } from 're-resizable'
@@ -20,6 +23,7 @@ const UNSPLASH_UTM = '?utm_source=BestDevs_LMS&utm_medium=referral'
 const withUtm = (url?: string | null) => (url ? `${url}${UNSPLASH_UTM}` : '')
 
 function ImageBlockComponent(props: any) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const org = useOrg() as any
   const course = useCourse() as any
@@ -174,7 +178,7 @@ function ImageBlockComponent(props: any) {
 
   const unsplashCredit = unsplashUrl && unsplashPhotographerName ? (
     <p className="mt-2 text-[11px] text-neutral-500">
-      Photo by{' '}
+       {st("Photo by")}{' '}
       <a
         href={withUtm(unsplashPhotographerUrl) || withUtm(unsplashPhotoUrl)}
         target="_blank"
@@ -183,7 +187,7 @@ function ImageBlockComponent(props: any) {
       >
         {unsplashPhotographerName}
       </a>
-      {' '}on{' '}
+      {' '}{st("on")}{' '}
       <a
         href={`https://unsplash.com/${UNSPLASH_UTM}`}
         target="_blank"
@@ -360,8 +364,8 @@ function ImageBlockComponent(props: any) {
                     <path d="M448,230.17V480H0V230.17H137.6V355.09H310.4V230.17ZM310.4,32H137.6V156.91H310.4Z" />
                   </svg>
                   <div>
-                    <p className="text-sm font-medium text-neutral-700">Browse Unsplash</p>
-                    <p className="text-xs text-neutral-500 mt-1">Free high-quality photos</p>
+                    <p className="text-sm font-medium text-neutral-700">{st("Browse Unsplash")}</p>
+                    <p className="text-xs text-neutral-500 mt-1">{st("Free high-quality photos")}</p>
                   </div>
                 </div>
               </button>

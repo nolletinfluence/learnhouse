@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import { useEditorProvider } from '@components/Contexts/Editor/EditorContext'
 import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import {
@@ -73,6 +75,7 @@ function resolveType(node: any): CalloutType {
 }
 
 function CalloutComponent(props: any) {
+  const { t: st } = useSchoolTranslation()
   const editorState = useEditorProvider() as any
   const isEditable = editorState?.isEditable ?? false
   const [dismissed, setDismissed] = useState(false)
@@ -143,7 +146,7 @@ function CalloutComponent(props: any) {
                 setShowPicker((v) => !v)
               }}
               className={`${config.iconColor} mt-[3px] hover:opacity-70 transition-opacity cursor-pointer`}
-              title="Change callout type"
+              title={st("Change callout type")}
             >
               <Icon size={18} weight="fill" />
             </button>

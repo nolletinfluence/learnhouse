@@ -3,17 +3,13 @@
     ar: 1, fa: 1, he: 1, iw: 1, ur: 1, ps: 1,
     sd: 1, ug: 1, yi: 1, dv: 1, ckb: 1,
   };
-  var SUPPORTED = {
-    en: 1, fr: 1, de: 1, es: 1, ar: 1, ja: 1, pt: 1, ru: 1, zh: 1,
-    hi: 1, ko: 1, it: 1, tr: 1, vi: 1, id: 1, pl: 1, uk: 1, nl: 1,
-    th: 1, bn: 1, fa: 1, sk: 1,
-  };
+  var SUPPORTED = { en: 1, ru: 1 };
 
   function normalize(value) {
     var code = typeof value === 'string'
       ? value.trim().toLowerCase().replace('_', '-').split('-')[0]
       : '';
-    return SUPPORTED[code] ? code : 'en';
+    return SUPPORTED[code] ? code : null;
   }
 
   function detect() {
@@ -23,19 +19,20 @@
     } catch {
       stored = null;
     }
-    if (stored) return stored;
+    if (normalize(stored)) return stored;
 
     var cookie = document.cookie.match(/(?:^|;\s*)i18next=([^;]*)/);
     if (cookie) {
-      try { return decodeURIComponent(cookie[1]) } catch { return 'en'; }
+      try {
+        var value = decodeURIComponent(cookie[1]);
+        if (normalize(value)) return value;
+      } catch { cookie = null; }
     }
 
-    try {
-      var qs = new URLSearchParams(location.search).get('lng');
-      if (qs) return qs;
-    } catch { return 'en'; }
+    var qs = new URLSearchParams(location.search).get('lng');
+    if (normalize(qs)) return qs;
 
-    return (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+    return normalize(document.documentElement.getAttribute('data-default-locale')) || 'ru';
   }
 
   var code = normalize(detect());

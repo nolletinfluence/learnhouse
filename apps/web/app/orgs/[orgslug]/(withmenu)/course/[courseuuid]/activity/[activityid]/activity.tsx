@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import Link from 'next/link'
 import { getUriWithOrg } from '@services/config/config'
 import { BookOpenCheck, CheckCircle, ChevronLeft, ChevronRight, MessageSquare, UserRoundPen, Edit2, Loader2, Maximize2, Minimize2, Trophy, Sparkles, XCircle, Lock, RotateCcw, Infinity as InfinityIcon } from 'lucide-react'
@@ -218,6 +220,7 @@ function ActivityActions({ activity, activityid, course, orgslug, assignment, sh
 }
 
 function ActivityClient(props: ActivityClientProps) {
+  const { t: st } = useSchoolTranslation()
   const { t, i18n } = useTranslation()
   // Slide offsets are physical pixels; flip their sign in RTL.
   const { x: dx } = useDirection()
@@ -354,8 +357,7 @@ function ActivityClient(props: ActivityClientProps) {
         if (isManagement) {
           return (
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-6 text-sm text-blue-900">
-              Задание открыто в режиме предпросмотра. Отправка ответа и оценивание от имени текущего аккаунта отключены.
-            </div>
+               {st("Задание открыто в режиме предпросмотра. Отправка ответа и оценивание от имени текущего аккаунта отключены.")} </div>
           )
         }
         return assignment ? (
@@ -379,8 +381,7 @@ function ActivityClient(props: ActivityClientProps) {
         if (isManagement) {
           return (
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-6 text-sm text-blue-900">
-              Интерактивный SCORM-модуль отключён в управленческом предпросмотре, чтобы не записывать learner-прогресс.
-            </div>
+               {st("Интерактивный SCORM-модуль отключён в управленческом предпросмотре, чтобы не записывать learner-прогресс.")} </div>
           )
         }
         return (
@@ -782,7 +783,7 @@ function ActivityClient(props: ActivityClientProps) {
                                 nextActivity
                                   ? `${t('common.next')}: ${nextActivity.name}`
                                   : isLastActivity
-                                    ? 'Итоги курса'
+                                    ? st("Итоги курса")
                                     : t('activities.no_next_activity')
                               }
                             >
@@ -792,7 +793,7 @@ function ActivityClient(props: ActivityClientProps) {
                                   {nextActivity
                                     ? nextActivity.name
                                     : isLastActivity
-                                      ? 'Итоги курса'
+                                      ? st("Итоги курса")
                                       : t('activities.no_next_activity')}
                                 </span>
                               </div>
@@ -811,14 +812,13 @@ function ActivityClient(props: ActivityClientProps) {
                 {activityid === 'end' ? (
                   isManagement ? (
                     <div className="mx-auto my-16 max-w-2xl rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center text-blue-950">
-                      <h1 className="text-xl font-semibold">Предпросмотр курса завершён</h1>
-                      <p className="mt-2 text-sm text-blue-800">Сертификат и learner-прогресс для управляющего аккаунта не создаются.</p>
+                      <h1 className="text-xl font-semibold">{st("Предпросмотр курса завершён")}</h1>
+                      <p className="mt-2 text-sm text-blue-800">{st("Сертификат и learner-прогресс для управляющего аккаунта не создаются.")}</p>
                       <Link
                         href={getUriWithOrg(orgslug, '') + `/course/${courseuuid}`}
                         className="mt-5 inline-flex rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
                       >
-                        Вернуться к курсу
-                      </Link>
+                         {st("Вернуться к курсу")} </Link>
                     </div>
                   ) : (
                     <CourseEndView
@@ -1114,13 +1114,15 @@ export function MarkStatus(props: {
   orgslug: string,
   trailData: any
 }) {
+  const { t: st } = useSchoolTranslation()
   const step = props.trailData?.runs?.flatMap((run: any) => run.steps || [])
     .find((entry: any) => entry.activity_id === props.activity?.id)
   return <span className="text-xs text-neutral-500 px-3 py-2">{step?.complete && step?.teacher_verified
-    ? 'Посещение подтверждено ментором' : 'Посещение отмечает ментор'}</span>
+    ? st("Посещение подтверждено ментором") : st("Посещение отмечает ментор")}</span>
 }
 
 function NextActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation();
   const router = useRouter();
   const _isMobile = useMediaQuery('(max-width: 768px)');
@@ -1176,7 +1178,7 @@ function NextActivityButton({ course, currentActivityId, orgslug }: { course: an
       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.next')}</span>
       <div className="flex items-center space-x-1">
         <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">
-          {isLastActivity ? 'Итоги курса' : nextActivity.name}
+          {isLastActivity ? st("Итоги курса") : nextActivity.name}
         </span>
         <ChevronRight size={17} className="shrink-0" />
       </div>

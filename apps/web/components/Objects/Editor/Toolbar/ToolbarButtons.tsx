@@ -1,3 +1,4 @@
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { DividerVerticalIcon } from '@radix-ui/react-icons'
 import {
   ArrowCounterClockwise,
@@ -47,6 +48,7 @@ import { useTranslation } from 'react-i18next'
 
 export const ToolbarButtons = React.memo(({ editor }: any) => {
   const { t } = useTranslation()
+  const { t: st } = useSchoolTranslation()
   const [showTableMenu, setShowTableMenu] = React.useState(false)
   const [showListMenu, setShowListMenu] = React.useState(false)
   const [showCodeMenu, setShowCodeMenu] = React.useState(false)
@@ -157,30 +159,30 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
 
   return (
     <div className="flex flex-row items-center justify-start flex-wrap gap-[7px] max-[1200px]:gap-[5px]">
-      <div className="editor-tool-btn" onClick={() => editor.chain().focus().undo().run()} aria-label="Undo last action">
+      <div className="editor-tool-btn" onClick={() => editor.chain().focus().undo().run()} aria-label={st("Undo last action")}>
         <ArrowCounterClockwise size={15} />
       </div>
-      <div className="editor-tool-btn" onClick={() => editor.chain().focus().redo().run()} aria-label="Redo last action">
+      <div className="editor-tool-btn" onClick={() => editor.chain().focus().redo().run()} aria-label={st("Redo last action")}>
         <ArrowClockwise size={15} />
       </div>
       <div
         onClick={() => editor.chain().focus().toggleBold().run()}
         className={`editor-tool-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
-        aria-label="Toggle bold formatting"
+        aria-label={st("Toggle bold formatting")}
       >
         <TextB size={15} />
       </div>
       <div
         onClick={() => editor.chain().focus().toggleItalic().run()}
         className={`editor-tool-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
-        aria-label="Toggle italic formatting"
+        aria-label={st("Toggle italic formatting")}
       >
         <TextItalic size={15} />
       </div>
       <div
         onClick={() => editor.chain().focus().toggleStrike().run()}
         className={`editor-tool-btn ${editor.isActive('strike') ? 'is-active' : ''}`}
-        aria-label="Toggle strikethrough formatting"
+        aria-label={st("Toggle strikethrough formatting")}
       >
         <TextStrikethrough size={15} />
       </div>
@@ -188,7 +190,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
         <div
           onClick={() => setShowListMenu(!showListMenu)}
           className={`editor-tool-btn ${showListMenu || editor.isActive('bulletList') || editor.isActive('orderedList') ? 'is-active' : ''}`}
-          aria-label="Insert list"
+          aria-label={st("Insert list")}
         >
           <ListBullets size={15} />
           <CaretDown size={10} />
@@ -242,7 +244,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
         <div
           onClick={() => setShowTableMenu(!showTableMenu)}
           className={`editor-tool-btn ${showTableMenu ? 'is-active' : ''}`}
-          aria-label="Insert table"
+          aria-label={st("Insert table")}
         >
           <Table size={15} />
           <CaretDown size={10} />
@@ -279,7 +281,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
               ? 'is-active'
               : ''
           }`}
-          aria-label="Callout"
+          aria-label={st("Callout")}
         >
           <Info size={15} />
           <CaretDown size={10} />
@@ -365,7 +367,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
           <VideoCamera size={15} weight="fill" />
         </div>
       </ToolTip>
-      <ToolTip content="Audio">
+      <ToolTip content={st("Audio")}>
         <div
           className="editor-tool-btn editor-tool-btn-media"
           onClick={() =>
@@ -377,7 +379,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
               })
               .run()
           }
-          aria-label="Audio"
+          aria-label={st("Audio")}
         >
           <Headphones size={15} weight="fill" />
         </div>
@@ -474,7 +476,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
               className={`editor-menu-item ${editor.isActive('codeBlock') ? 'is-active' : ''}`}
             >
               <span className="icon"><Code size={15} weight="fill" /></span>
-              <span className="label">Basic</span>
+              <span className="label">{st("Basic")}</span>
             </div>
             <div
               onClick={() => {
@@ -493,7 +495,7 @@ export const ToolbarButtons = React.memo(({ editor }: any) => {
               className="editor-menu-item"
             >
               <span className="icon"><BracketsCurly size={15} weight="fill" /></span>
-              <span className="label">Playground</span>
+              <span className="label">{st("Playground")}</span>
             </div>
           </div>
         )}

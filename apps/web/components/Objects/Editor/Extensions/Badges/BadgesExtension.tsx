@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import React, { useState, useRef, useEffect, lazy, Suspense } from 'react'
 const Picker = lazy(() => import('@emoji-mart/react'))
@@ -6,6 +9,7 @@ import { twMerge } from 'tailwind-merge'
 import { useEditorProvider } from '@components/Contexts/Editor/EditorContext'
 
 const BadgesExtension: React.FC = (props: any) => {
+  const { t: st } = useSchoolTranslation()
   const [color, setColor] = useState(props.node.attrs.color)
   const [emoji, setEmoji] = useState(props.node.attrs.emoji)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -202,7 +206,7 @@ const BadgesExtension: React.FC = (props: any) => {
 
       {isEditable && showEmojiPicker && (
         <div ref={pickerRef}>
-          <Suspense fallback={<div className="p-4 text-gray-400 text-sm">Loading...</div>}>
+          <Suspense fallback={<div className="p-4 text-gray-400 text-sm">{st("Loading...")}</div>}>
             <Picker
               searchPosition="top"
               theme="light"

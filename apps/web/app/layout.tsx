@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@lib/locale'
 import '../styles/globals.css'
 import React from 'react'
 import Providers from '@components/Providers'
@@ -25,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       className={`${onest.variable} ${tajawal.variable}`}
-      lang="en"
+      lang={DEFAULT_LOCALE} dir="ltr" data-default-locale={DEFAULT_LOCALE}
       suppressHydrationWarning
     >
       <head>

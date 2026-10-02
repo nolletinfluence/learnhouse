@@ -1,3 +1,6 @@
+"use client";
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Node } from '@tiptap/core'
 import { X, Edit3, Expand, GripHorizontal, Lock } from 'lucide-react'
@@ -53,6 +56,7 @@ interface ExtendedNodeViewProps extends Omit<NodeViewProps, 'extension'> {
 }
 
 function MagicBlockComponent(props: ExtendedNodeViewProps) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const { node, extension, updateAttributes } = props
   const editorState = useEditorProvider() as EditorState
@@ -275,7 +279,7 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
           {!htmlContent ? (
             // No content - show create button or plan restriction
             <div className="text-center py-8">
-              <p className="text-sm text-white/50">Интерактивный материал пока не добавлен.</p>
+              <p className="text-sm text-white/50">{st("Интерактивный материал пока не добавлен.")}</p>
               {/*
               {canUseAI ? (
                 <div className="inline-flex flex-col items-center gap-3">
@@ -378,7 +382,7 @@ function MagicBlockComponent(props: ExtendedNodeViewProps) {
                     title={t('editor.blocks.magic_block_content.drag_resize')}
                   >
                     <GripHorizontal className="w-3 h-3" />
-                    <span className="text-xs font-medium">{height}px</span>
+                    <span className="text-xs font-medium">{height}{st("px")}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">

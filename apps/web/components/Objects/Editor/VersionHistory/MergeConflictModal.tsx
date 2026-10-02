@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import React from 'react'
 import { X, Clock, User, GitMerge, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
@@ -31,6 +33,7 @@ function MergeConflictModal({
   activity,
   courseUuid,
 }: MergeConflictModalProps) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = React.useState<'mine' | 'theirs'>('theirs')
 
@@ -122,7 +125,7 @@ function MergeConflictModal({
               }`}
             >
               <User size={16} />
-              {t('editor.versioning.conflict.your_version')} (v{localVersion})
+              {t('editor.versioning.conflict.your_version')}  {st("(v")}{localVersion})
             </button>
             <button
               onClick={() => setActiveTab('theirs')}
@@ -136,7 +139,7 @@ function MergeConflictModal({
               {remoteAuthor
                 ? t('editor.versioning.conflict.author_version', { author: remoteAuthor })
                 : t('editor.versioning.conflict.their_version')
-              } (v{remoteVersion})
+              }  {st("(v")}{remoteVersion})
             </button>
           </div>
 

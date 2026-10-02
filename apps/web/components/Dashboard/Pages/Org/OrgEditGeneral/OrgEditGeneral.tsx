@@ -7,6 +7,8 @@ import {
   updateOrgFooterTextConfig,
   updateOrgDefaultLanguageConfig,
 } from '@services/settings/org'
+import { useSchoolTranslation } from '@lib/school-i18n'
+import { normalizeLocale } from '@lib/locale'
 import { AVAILABLE_LANGUAGES } from '@/lib/languages'
 import { revalidateTags } from '@services/utils/ts/requests'
 import { useRouter } from 'next/navigation'
@@ -77,6 +79,7 @@ interface OrganizationValues {
 
 const OrgEditGeneral: React.FC = () => {
   const { t } = useTranslation()
+  const { t: st } = useSchoolTranslation()
   const _router = useRouter()
   const session = useLHSession() as any
   const access_token = session?.data?.tokens?.access_token
@@ -88,11 +91,9 @@ const OrgEditGeneral: React.FC = () => {
   const [footerText, setFooterText] = React.useState<string>(org?.config?.config?.customization?.general?.footer_text || org?.config?.config?.general?.footer_text || '')
   const [_isFooterSaving, _setIsFooterSaving] = React.useState(false)
 
-  // Default language state
   const [defaultLanguage, setDefaultLanguage] = React.useState<string>(
-    org?.config?.config?.customization?.general?.default_language ||
-    org?.config?.config?.general?.default_language ||
-    'en'
+    normalizeLocale(org?.config?.config?.customization?.general?.default_language ||
+      org?.config?.config?.general?.default_language)
   )
 
   const initialValues: OrganizationValues = {
@@ -163,7 +164,7 @@ const OrgEditGeneral: React.FC = () => {
                         maxLength={60}
                       />
                       {touched.name && errors.name && (
-                        <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+                        <p className="text-red-500 text-sm mt-1">{st(errors.name)}</p>
                       )}
                     </div>
 
@@ -183,7 +184,7 @@ const OrgEditGeneral: React.FC = () => {
                         maxLength={100}
                       />
                       {touched.description && errors.description && (
-                        <p className="text-red-500 text-sm mt-1">{errors.description}</p>
+                        <p className="text-red-500 text-sm mt-1">{st(errors.description)}</p>
                       )}
                     </div>
 
@@ -199,13 +200,13 @@ const OrgEditGeneral: React.FC = () => {
                         <SelectContent>
                           {ORG_LABELS.map((type) => (
                             <SelectItem key={type.value} value={type.value}>
-                              {type.label}
+                              {st(type.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       {touched.label && errors.label && (
-                        <p className="text-red-500 text-sm mt-1">{errors.label}</p>
+                        <p className="text-red-500 text-sm mt-1">{st(errors.label)}</p>
                       )}
                     </div>
 
@@ -226,7 +227,7 @@ const OrgEditGeneral: React.FC = () => {
                         maxLength={400}
                       />
                       {touched.about && errors.about && (
-                        <p className="text-red-500 text-sm mt-1">{errors.about}</p>
+                        <p className="text-red-500 text-sm mt-1">{st(errors.about)}</p>
                       )}
                     </div>
 

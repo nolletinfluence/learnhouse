@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
@@ -7,6 +7,7 @@ const webRoot = path.resolve(import.meta.dirname, '..')
 const read = (file) => fs.readFileSync(path.join(webRoot, file), 'utf8')
 const layoutSource = read('app/layout.tsx')
 const i18nSource = read('lib/i18n.ts')
+const localeSource = read('lib/locale.ts')
 const providerSource = read('components/Contexts/I18nContext.tsx')
 const dirInitSource = read('public/dir-init.js')
 const orgNotFoundSource = read('components/Objects/StyledElements/Error/OrgNotFound.tsx')
@@ -18,6 +19,7 @@ function runDirInit({ stored, cookie = '', search = '', languages = [], language
     document: {
       cookie,
       documentElement: {
+        getAttribute: () => 'ru',
         setAttribute: (name, value) => attributes.set(name, value),
         style: { setProperty: (name, value) => style.set(name, value) },
       },
@@ -41,47 +43,48 @@ describe('pre-hydration bootstrap', () => {
     expect(layoutSource).not.toMatch(/<script\s+src=/)
   })
 
-  test('defers language detection until after the fixed English hydration render', () => {
-    expect(i18nSource).toMatch(/lng:\s*['"]en['"]/,)
+  test('defers language detection until after the fixed Russian default hydration render', () => {
+    expect(i18nSource).toMatch(/lng:\s*DEFAULT_LOCALE/,)
     expect(i18nSource).not.toMatch(/\.use\(LanguageDetector\)/)
     expect(providerSource).toMatch(/useEffect\([\s\S]*initializeLanguage/)
   })
 
   test('keeps locale preparation and document updates synchronized', () => {
-    expect(i18nSource).toMatch(/export function normalizeLocale\(value: unknown\): string/)
+    expect(localeSource).toMatch(/export function normalizeLocale\(value: unknown\): Locale/)
     expect(i18nSource).toMatch(/export function detectPreferredLocale\(\): string/)
     expect(i18nSource).toMatch(/export async function prepareLocale\(language: string\): Promise<boolean>/)
     const prepareLocale = i18nSource.match(/export async function prepareLocale[\s\S]*?\n\}/)?.[0]
-    expect(prepareLocale).toMatch(/loadLocale\(locale\)/)
+    expect(i18nSource).toContain('school: schoolRu')
+    expect(i18nSource).toContain('school: schoolEn')
     expect(prepareLocale).toMatch(/loadDateLocale\(locale\)/)
     expect(prepareLocale).toMatch(/applyDocumentDirection\(locale\)/)
   })
 
   test('uses the same ordered preference sources in runtime and pre-paint detection', () => {
-    for (const source of [i18nSource, dirInitSource]) {
+    for (const source of [localeSource, dirInitSource]) {
       const positions = ['i18nextLng', 'document.cookie', 'URLSearchParams'].map((term) => source.indexOf(term))
       expect(positions.every((position) => position >= 0)).toBe(true)
       expect(positions).toEqual([...positions].sort((a, b) => a - b))
     }
-    expect(i18nSource).not.toContain('navigator')
+    expect(localeSource).not.toContain('navigator')
   })
 
-  test('falls back to English LTR for missing or malformed locale preferences', () => {
+  test('falls back to Russian LTR for missing or malformed locale preferences', () => {
     for (const result of [
       runDirInit(),
       runDirInit({ stored: 'not-a-locale' }),
       runDirInit({ cookie: 'i18next=%E0%A4%A' }),
     ]) {
-      expect(result.attributes.get('lang')).toBe('en')
+      expect(result.attributes.get('lang')).toBe('ru')
       expect(result.attributes.get('dir')).toBe('ltr')
       expect(result.style.get('--dir')).toBe('1')
     }
   })
 
-  test('applies persisted Russian, Arabic, and English direction preferences', () => {
+  test('applies persisted Russian and English preferences and ignores legacy Arabic', () => {
     for (const [locale, lang, dir, multiplier] of [
       ['ru', 'ru', 'ltr', '1'],
-      ['ar', 'ar', 'rtl', '-1'],
+      ['ar', 'ru', 'ltr', '1'],
       ['en', 'en', 'ltr', '1'],
     ]) {
       const result = runDirInit({ stored: locale })
@@ -120,12 +123,12 @@ describe('pre-hydration bootstrap', () => {
       const { changeLanguage, default: i18n } = await import('../lib/i18n.ts')
       const { default: dayjs } = await import('dayjs')
 
-      for (const [locale, dir, multiplier] of [
-        ['ru', 'ltr', '1'],
-        ['ar', 'rtl', '-1'],
-        ['en', 'ltr', '1'],
+      for (const [requested, locale, dir, multiplier] of [
+        ['ru', 'ru', 'ltr', '1'],
+        ['ar', 'ru', 'ltr', '1'],
+        ['en', 'en', 'ltr', '1'],
       ]) {
-        await changeLanguage(locale)
+        await changeLanguage(requested)
         expect(i18n.language).toBe(locale)
         expect(i18n.hasResourceBundle(locale, 'common')).toBe(true)
         expect(dayjs.locale()).toBe(locale)
@@ -143,7 +146,7 @@ describe('pre-hydration bootstrap', () => {
     }
   })
 
-  test('keeps the prior locale state when a translation resource cannot load', async () => {
+  test('normalizes an unsupported locale without loading its archived bundle', async () => {
     const attributes = new Map([['lang', 'en'], ['dir', 'ltr']])
     const style = new Map([['--dir', '1']])
     const storage = new Map([['i18nextLng', 'en']])
@@ -152,9 +155,6 @@ describe('pre-hydration bootstrap', () => {
     const originalWindow = globalThis.window
     const originalDocument = globalThis.document
 
-    mock.module('../locales/fr.json', () => {
-      throw new Error('French resource is unavailable')
-    })
     globalThis.window = {
       localStorage: {
         getItem: (key) => storage.get(key) ?? null,
@@ -176,19 +176,18 @@ describe('pre-hydration bootstrap', () => {
       const { default: dayjs } = await import('dayjs')
       const changed = await changeLanguage('fr')
 
-      expect(changed).toBe(false)
-      expect(i18n.language).toBe('en')
-      expect(dayjs.locale()).toBe('en')
-      expect(attributes).toEqual(new Map([['lang', 'en'], ['dir', 'ltr']]))
+      expect(changed).toBe(true)
+      expect(i18n.language).toBe('ru')
+      expect(dayjs.locale()).toBe('ru')
+      expect(attributes).toEqual(new Map([['lang', 'ru'], ['dir', 'ltr']]))
       expect(style).toEqual(new Map([['--dir', '1']]))
-      expect(storage.get('i18nextLng')).toBe('en')
-      expect(document.cookie).toBe('i18next=en')
+      expect(storage.get('i18nextLng')).toBe('ru')
+      expect(document.cookie).toContain('i18next=ru')
     } finally {
       if (hadWindow) globalThis.window = originalWindow
       else delete globalThis.window
       if (hadDocument) globalThis.document = originalDocument
       else delete globalThis.document
-      mock.restore()
     }
   })
 

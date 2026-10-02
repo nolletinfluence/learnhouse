@@ -8,20 +8,9 @@ before being formatted in.
 from typing import Final
 
 
-SUPPORTED_LANGUAGES: Final[tuple[str, ...]] = (
-    "en", "fr", "de", "es", "ar", "ja", "pt", "ru", "zh", "hi",
-    "ko", "it", "tr", "vi", "id", "pl", "uk", "nl", "th", "bn",
-)
-
-# Locales selectable as an organisation's UI language; mirrors
-# apps/web/lib/languages.ts. A UI locale need not have an email-translation
-# bundle — emails for any locale without one fall back to English (see `t()`).
-SUPPORTED_UI_LANGUAGES: Final[tuple[str, ...]] = (
-    "en", "fr", "de", "es", "ar", "ja", "pt", "ru", "zh", "hi",
-    "ko", "it", "tr", "vi", "id", "pl", "uk", "nl", "th", "bn", "sk", "fa",
-)
-
-DEFAULT_LANGUAGE: Final[str] = "en"
+SUPPORTED_LANGUAGES: Final[tuple[str, ...]] = ("ru", "en")
+SUPPORTED_UI_LANGUAGES: Final[tuple[str, ...]] = SUPPORTED_LANGUAGES
+DEFAULT_LANGUAGE: Final[str] = "ru"
 
 
 EMAIL_TRANSLATIONS: dict[str, dict[str, str]] = {
@@ -364,6 +353,19 @@ EMAIL_TRANSLATIONS: dict[str, dict[str, str]] = {
         "email_verification.footer": "Esta ligação expira em 1 hora. Se não criou uma conta BestDevs LMS, pode ignorar este e-mail.",
     },
     "ru": {
+        "org_created.subject": "Ваша школа {org_name} готова",
+        "org_created.heading": "Школа {org_name} создана!",
+        "org_created.body": "Ваша школа готова к работе. Пригласите команду и создайте первый курс.",
+        "org_created.cta": "Открыть панель управления",
+        "org_created.footer": "Вы получили это письмо, потому что создали школу в BestDevs LMS.",
+        "org_deleted.subject": "Школа {org_name} удалена",
+        "org_deleted.heading": "Школа {org_name} удалена",
+        "org_deleted.body": "Ваша школа и все её материалы безвозвратно удалены из BestDevs LMS. Если вы этого не делали, срочно обратитесь в поддержку.",
+        "org_deleted.footer": "Вы получили это письмо, потому что были администратором этой школы.",
+        "account_deleted.subject": "Ваш аккаунт BestDevs LMS удалён",
+        "account_deleted.heading": "Ваш аккаунт удалён",
+        "account_deleted.body": "Ваш аккаунт и персональные данные безвозвратно удалены из BestDevs LMS. Если вы этого не делали, срочно обратитесь в поддержку.",
+        "account_deleted.footer": "Это подтверждение удаления вашего аккаунта.",
         "account_creation.subject": "Добро пожаловать в BestDevs LMS, {username}!",
         "account_creation.heading": "Добро пожаловать, {username}!",
         "account_creation.body": "Ваш аккаунт BestDevs LMS готов. Начните, создав свою организацию или присоединившись к существующей.",
@@ -964,8 +966,6 @@ EMAIL_TRANSLATIONS: dict[str, dict[str, str]] = {
 }
 
 
-# Lifecycle nudge copy lives in its own module to keep this bundle readable,
-# but shares the same namespace and the same `t()` lookup.
 from src.services.email.nudge_translations import NUDGE_TRANSLATIONS  # noqa: E402
 
 for _nudge_lang, _nudge_keys in NUDGE_TRANSLATIONS.items():
@@ -973,18 +973,18 @@ for _nudge_lang, _nudge_keys in NUDGE_TRANSLATIONS.items():
 
 
 def normalize_language(lang: str | None) -> str:
-    """Return a supported locale code, falling back to English."""
+    """Return a supported locale code, falling back to Russian."""
     if not lang:
         return DEFAULT_LANGUAGE
-    code = lang.split("-")[0].lower()
+    code = lang.strip().lower().replace("_", "-").split("-")[0]
     return code if code in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
 
 
 def t(lang: str | None, key: str, **fmt) -> str:
-    """Translate `key` for `lang`, falling back to English on missing locale or key."""
+    """Translate `key` for `lang`, using Russian by default and English for missing keys."""
     code = normalize_language(lang)
     bundle = EMAIL_TRANSLATIONS.get(code, EMAIL_TRANSLATIONS[DEFAULT_LANGUAGE])
-    template = bundle.get(key) or EMAIL_TRANSLATIONS[DEFAULT_LANGUAGE].get(key, key)
+    template = bundle.get(key) or EMAIL_TRANSLATIONS["en"].get(key, key)
     if key == "academy_link_text":
         template = "BestDevs LMS"
     try:

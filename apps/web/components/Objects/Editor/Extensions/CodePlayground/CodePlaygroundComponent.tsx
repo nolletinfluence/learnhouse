@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import { NodeViewWrapper } from '@tiptap/react'
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
@@ -424,6 +426,7 @@ const markdownComponents = {
 }
 
 const CodePlaygroundComponent: React.FC = (props: any) => {
+  const { t: st } = useSchoolTranslation()
   const { node, updateAttributes } = props
   const editorState = useEditorProvider() as any
   const session = useLHSession() as any
@@ -991,12 +994,13 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
 
   // ── Copy button helper ──────────────────────────────────────────
   const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
+  const { t: st } = useSchoolTranslation()
     const { copied, copy } = useCopyToClipboard()
     return (
       <button
         onClick={() => copy(text)}
         className={`p-1 rounded-md transition-colors ${copied ? 'text-emerald-400' : 'text-neutral-500 hover:text-neutral-300'} ${className}`}
-        title="Copy to clipboard"
+        title={st("Copy to clipboard")}
       >
         {copied ? <ClipboardText weight="duotone" size={12} /> : <Copy weight="duotone" size={12} />}
       </button>
@@ -1010,20 +1014,18 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
         <>
           <div>
             <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">
-              Description
-            </label>
+               {st("Description")} </label>
             <textarea
               value={description}
               onChange={(e) => updateAttributes({ description: e.target.value })}
               className="w-full text-[13px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-3 outline-none focus:border-neutral-300 resize-none transition-all leading-relaxed font-mono nice-shadow"
               rows={5}
-              placeholder="Describe the challenge... (supports Markdown)"
+              placeholder={st("Describe the challenge... (supports Markdown)")}
             />
           </div>
           <div>
             <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">
-              Difficulty
-            </label>
+               {st("Difficulty")} </label>
             <div className="flex gap-2">
               {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => {
                 const c = DIFFICULTY_CONFIG[d]
@@ -1046,10 +1048,9 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Hints</label>
+              <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">{st("Hints")}</label>
               <button onClick={addHint} className="flex items-center gap-1 text-[11px] font-medium text-neutral-400 hover:text-neutral-600 transition-colors">
-                <Plus weight="duotone" size={11} /> Add
-              </button>
+                <Plus weight="duotone" size={11} />  {st("Add")} </button>
             </div>
             {hints.map((hint, i) => (
               <div key={i} className="flex gap-2 mb-2">
@@ -1070,8 +1071,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
           {isSqlLanguage && (
             <div>
               <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">
-                SQLite Database
-              </label>
+                 {st("SQLite Database")} </label>
               {sqliteDbPath ? (
                 <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 nice-shadow">
                   <Database weight="duotone" size={14} className="text-neutral-500 shrink-0" />
@@ -1106,8 +1106,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                 className="hidden"
               />
               <p className="text-[10px] text-neutral-400 mt-1">
-                Students' SQL queries will run against this database.
-              </p>
+                 {st("Students' SQL queries will run against this database.")} </p>
             </div>
           )}
 
@@ -1118,44 +1117,43 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
               className="flex items-center gap-2 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider hover:text-neutral-600 transition-colors w-full"
             >
               <GearSix weight="duotone" size={12} />
-              Advanced
-              <CaretRight weight="duotone" size={12} className={`ml-auto transition-transform ${showAdvanced ? 'rotate-90' : ''}`} data-dir-flip />
+               {st("Advanced")} <CaretRight weight="duotone" size={12} className={`ml-auto transition-transform ${showAdvanced ? 'rotate-90' : ''}`} data-dir-flip />
             </button>
             {showAdvanced && (
               <div className="mt-3 space-y-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Solution Code</label>
-                  <p className="text-[11px] text-neutral-400 mb-1.5">Revealed to learners after enough attempts.</p>
+                  <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Solution Code")}</label>
+                  <p className="text-[11px] text-neutral-400 mb-1.5">{st("Revealed to learners after enough attempts.")}</p>
                   <textarea
                     value={solutionCode}
                     onChange={(e) => updateAttributes({ solutionCode: e.target.value })}
                     className="w-full text-[12px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-3 outline-none focus:border-neutral-300 resize-none transition-all font-mono nice-shadow"
                     rows={4}
-                    placeholder="Paste model solution..."
+                    placeholder={st("Paste model solution...")}
                   />
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Attempts to unlock</label>
+                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Attempts to unlock")}</label>
                     <input type="number" min={1} value={maxAttemptsBeforeReveal} onChange={(e) => updateAttributes({ maxAttemptsBeforeReveal: parseInt(e.target.value) || 3 })} className="w-full text-[12px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-neutral-300 transition-colors nice-shadow" />
                   </div>
                   <div className="flex-1">
-                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Time Limit</label>
+                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Time Limit")}</label>
                     <div className="relative">
                       <input type="number" min={1000} step={1000} value={timeLimitMs} onChange={(e) => updateAttributes({ timeLimitMs: parseInt(e.target.value) || 10000 })} className="w-full text-[12px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 pr-10 outline-none focus:border-neutral-300 transition-colors nice-shadow" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400">ms</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400">{st("ms")}</span>
                     </div>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Expected Speed</label>
+                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Expected Speed")}</label>
                     <select value={timeComplexity} onChange={(e) => updateAttributes({ timeComplexity: e.target.value })} className="w-full text-[12px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-neutral-300 transition-colors appearance-none cursor-pointer nice-shadow">
                       {COMPLEXITY_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                     </select>
                   </div>
                   <div className="flex-1">
-                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Expected Memory</label>
+                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Expected Memory")}</label>
                     <select value={spaceComplexity} onChange={(e) => updateAttributes({ spaceComplexity: e.target.value })} className="w-full text-[12px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-neutral-300 transition-colors appearance-none cursor-pointer nice-shadow">
                       {COMPLEXITY_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                     </select>
@@ -1163,8 +1161,8 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Timed Challenge</label>
-                    <p className="text-[10px] text-neutral-400">Add a countdown timer to the challenge.</p>
+                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Timed Challenge")}</label>
+                    <p className="text-[10px] text-neutral-400">{st("Add a countdown timer to the challenge.")}</p>
                   </div>
                   <button
                     onClick={() => updateAttributes({ timedMode: !timedMode })}
@@ -1175,7 +1173,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                 </div>
                 {timedMode && (
                   <div>
-                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Duration (minutes)</label>
+                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Duration (minutes)")}</label>
                     <input
                       type="number"
                       min={1}
@@ -1188,12 +1186,11 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                 )}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Additional Files</label>
+                    <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">{st("Additional Files")}</label>
                     <button onClick={addAdditionalFile} className="flex items-center gap-1 text-[11px] font-medium text-neutral-400 hover:text-neutral-600 transition-colors">
-                      <Plus weight="duotone" size={11} /> Add File
-                    </button>
+                      <Plus weight="duotone" size={11} />  {st("Add File")} </button>
                   </div>
-                  <p className="text-[10px] text-neutral-400 mb-2">Files available to the student's code (e.g., data.txt, utils.py).</p>
+                  <p className="text-[10px] text-neutral-400 mb-2">{st("Files available to the student's code (e.g., data.txt, utils.py).")}</p>
                   {additionalFiles.map((file, i) => (
                     <div key={i} className="mb-2 rounded-lg border border-neutral-200 p-2.5 bg-neutral-50/50">
                       <div className="flex items-center gap-2 mb-1.5">
@@ -1201,7 +1198,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                           value={file.name}
                           onChange={(e) => updateAdditionalFile(i, 'name', e.target.value)}
                           className="flex-1 text-[11px] font-mono text-neutral-700 bg-white border border-neutral-200 rounded px-2 py-1 outline-none focus:border-neutral-300"
-                          placeholder="filename.ext"
+                          placeholder={st("filename.ext")}
                         />
                         <button onClick={() => removeAdditionalFile(i)} className="p-1 hover:bg-red-50 rounded transition-colors">
                           <Trash weight="duotone" size={11} className="text-red-400" />
@@ -1212,7 +1209,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                         onChange={(e) => updateAdditionalFile(i, 'content', e.target.value)}
                         className="w-full text-[11px] font-mono text-neutral-700 bg-white border border-neutral-200 rounded px-2 py-1.5 outline-none focus:border-neutral-300 resize-none"
                         rows={4}
-                        placeholder="File contents..."
+                        placeholder={st("File contents...")}
                       />
                     </div>
                   ))}
@@ -1230,13 +1227,13 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
               </ReactMarkdown>
             </div>
           ) : (
-            <div className="text-[13px] text-neutral-400 italic text-center py-8">No description provided.</div>
+            <div className="text-[13px] text-neutral-400 italic text-center py-8">{st("No description provided.")}</div>
           )}
 
           {isSqlLanguage && sqliteDbPath && (
             <div className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg text-neutral-500 bg-neutral-50 border border-neutral-100 nice-shadow w-fit">
               <Database weight="duotone" size={10} className="text-neutral-400" />
-              Runs against: {sqliteDbName || 'database.sqlite'}
+               {st("Runs against:")} {sqliteDbName || 'database.sqlite'}
             </div>
           )}
 
@@ -1245,13 +1242,13 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
               {timeComplexity && (
                 <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg text-neutral-500 border border-neutral-100 nice-shadow">
                   <Clock weight="duotone" size={10} className="text-neutral-400" />
-                  Speed: {getComplexityLabel(timeComplexity)}
+                   {st("Speed:")} {getComplexityLabel(timeComplexity)}
                 </span>
               )}
               {spaceComplexity && (
                 <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg text-neutral-500 border border-neutral-100 nice-shadow">
                   <Memory weight="duotone" size={10} className="text-neutral-400" />
-                  Memory: {getComplexityLabel(spaceComplexity)}
+                   {st("Memory:")} {getComplexityLabel(spaceComplexity)}
                 </span>
               )}
             </div>
@@ -1259,7 +1256,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
 
           {additionalFiles.length > 0 && (
             <div className="space-y-1">
-              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Available Files</span>
+              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">{st("Available Files")}</span>
               {additionalFiles.map((f, i) => (
                 <div key={i} className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg text-neutral-500 bg-neutral-50 border border-neutral-100 nice-shadow w-fit">
                   <FileText weight="duotone" size={10} className="text-neutral-400" />
@@ -1282,7 +1279,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
               ) : (
                 <div className="flex items-center gap-2 text-[11px] text-neutral-400">
                   <Lock weight="duotone" size={11} />
-                  <span>Solution available after {maxAttemptsBeforeReveal - attemptCount} more {maxAttemptsBeforeReveal - attemptCount === 1 ? 'attempt' : 'attempts'}</span>
+                  <span>{st("Solution available after")} {maxAttemptsBeforeReveal - attemptCount}  {st("more")} {maxAttemptsBeforeReveal - attemptCount === 1 ? 'attempt' : 'attempts'}</span>
                 </div>
               )}
               {showSolution && canRevealSolution && (
@@ -1292,14 +1289,12 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                       onClick={() => setSolutionView('diff')}
                       className={`text-[10px] font-semibold px-2 py-1 rounded transition-colors ${solutionView === 'diff' ? 'bg-neutral-200 text-neutral-700' : 'text-neutral-400 hover:text-neutral-600'}`}
                     >
-                      Diff
-                    </button>
+                       {st("Diff")} </button>
                     <button
                       onClick={() => setSolutionView('solution')}
                       className={`text-[10px] font-semibold px-2 py-1 rounded transition-colors ${solutionView === 'solution' ? 'bg-neutral-200 text-neutral-700' : 'text-neutral-400 hover:text-neutral-600'}`}
                     >
-                      Solution
-                    </button>
+                       {st("Solution")} </button>
                   </div>
                   {solutionView === 'diff' ? (
                     <CodeDiff studentCode={code} solutionCode={solutionCode} />
@@ -1318,13 +1313,12 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
           {hints.length > 0 && (
             <div className="space-y-2">
               <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Lightbulb weight="duotone" size={12} className="text-amber-400" /> Hints
-              </span>
+                <Lightbulb weight="duotone" size={12} className="text-amber-400" />  {st("Hints")} </span>
               {hints.map((hint, i) => (
                 <button key={i} onClick={() => toggleHint(i)} className="w-full text-left">
                   <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-amber-50/60 border border-amber-100 hover:bg-amber-50 transition-colors nice-shadow">
                     <Lightbulb weight="duotone" size={12} className="text-amber-400 flex-shrink-0" />
-                    <span className="text-[12px] font-medium text-amber-700 flex-1">Hint {i + 1}</span>
+                    <span className="text-[12px] font-medium text-amber-700 flex-1">{st("Hint")} {i + 1}</span>
                     <CaretRight weight="duotone" size={12} className={`text-amber-300 transition-transform ${expandedHints.has(i) ? 'rotate-90' : ''}`} data-dir-flip />
                   </div>
                   {expandedHints.has(i) && (
@@ -1345,8 +1339,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
       {isEditable && (
         <div className="flex justify-end mb-1">
           <button onClick={addTestCase} className="flex items-center gap-1 text-[11px] font-medium text-neutral-400 hover:text-neutral-600 transition-colors">
-            <Plus weight="duotone" size={12} /> Add Test Case
-          </button>
+            <Plus weight="duotone" size={12} />  {st("Add Test Case")} </button>
         </div>
       )}
       {testCases.length === 0 ? (
@@ -1372,7 +1365,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                   )}
                   <div className="flex-1 min-w-0">
                     {isEditable ? (
-                      <input value={tc.label} onChange={(e) => updateTestCase(tc.id, 'label', e.target.value)} className="text-[13px] font-semibold text-neutral-700 bg-transparent outline-none w-full" placeholder="Test label" />
+                      <input value={tc.label} onChange={(e) => updateTestCase(tc.id, 'label', e.target.value)} className="text-[13px] font-semibold text-neutral-700 bg-transparent outline-none w-full" placeholder={st("Test label")} />
                     ) : (
                       <span className="text-[13px] font-semibold text-neutral-700">{tc.label}</span>
                     )}
@@ -1388,24 +1381,24 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                 </div>
                 <div className="px-3.5 pb-3 space-y-2 border-t border-neutral-100">
                   <div className="pt-2.5">
-                    <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Input</label>
+                    <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Input")}</label>
                     {isEditable ? (
-                      <textarea value={tc.stdin} onChange={(e) => updateTestCase(tc.id, 'stdin', e.target.value)} className="w-full text-[12px] font-mono text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 outline-none focus:border-neutral-300 resize-none transition-colors" rows={2} placeholder="stdin..." />
+                      <textarea value={tc.stdin} onChange={(e) => updateTestCase(tc.id, 'stdin', e.target.value)} className="w-full text-[12px] font-mono text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 outline-none focus:border-neutral-300 resize-none transition-colors" rows={2} placeholder={st("stdin...")} />
                     ) : (
                       <pre className="text-[12px] font-mono text-neutral-600 bg-neutral-50 rounded-lg p-2.5 whitespace-pre-wrap">{tc.stdin || '(empty)'}</pre>
                     )}
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">Expected Output</label>
+                    <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 block">{st("Expected Output")}</label>
                     {isEditable ? (
-                      <textarea value={tc.expectedStdout} onChange={(e) => updateTestCase(tc.id, 'expectedStdout', e.target.value)} className="w-full text-[12px] font-mono text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 outline-none focus:border-neutral-300 resize-none transition-colors" rows={2} placeholder="expected stdout..." />
+                      <textarea value={tc.expectedStdout} onChange={(e) => updateTestCase(tc.id, 'expectedStdout', e.target.value)} className="w-full text-[12px] font-mono text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 outline-none focus:border-neutral-300 resize-none transition-colors" rows={2} placeholder={st("expected stdout...")} />
                     ) : (
                       <pre className="text-[12px] font-mono text-neutral-600 bg-neutral-50 rounded-lg p-2.5 whitespace-pre-wrap">{tc.expectedStdout || '(empty)'}</pre>
                     )}
                   </div>
                   {r && !r.passed && r.actual_stdout != null && (
                     <div>
-                      <label className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1 block">Your Output</label>
+                      <label className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1 block">{st("Your Output")}</label>
                       <pre className="text-[12px] font-mono text-red-600 bg-red-50 border border-red-100 rounded-lg p-2.5 whitespace-pre-wrap">{r.actual_stdout || '(no output)'}</pre>
                     </div>
                   )}
@@ -1419,17 +1412,15 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
         <div className="mt-4 pt-3 border-t border-neutral-100">
           <div className="flex items-center justify-between mb-2">
             <label className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-              Your Test Cases
-            </label>
+               {st("Your Test Cases")} </label>
             <button
               onClick={addStudentTestCase}
               className="flex items-center gap-1 text-[11px] font-medium text-blue-500 hover:text-blue-600 transition-colors"
             >
-              <Plus weight="duotone" size={11} /> Add
-            </button>
+              <Plus weight="duotone" size={11} />  {st("Add")} </button>
           </div>
           {studentTestCases.length === 0 && (
-            <p className="text-[11px] text-neutral-400 italic">Add your own test cases to verify edge cases.</p>
+            <p className="text-[11px] text-neutral-400 italic">{st("Add your own test cases to verify edge cases.")}</p>
           )}
           {studentTestCases.map((tc) => (
             <div key={tc.id} className="mb-3 rounded-lg border border-blue-100 bg-blue-50/20 p-2.5">
@@ -1445,23 +1436,23 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
               </div>
               <div className="space-y-1.5">
                 <div>
-                  <label className="text-[9px] font-semibold text-neutral-400 uppercase">Input (stdin)</label>
+                  <label className="text-[9px] font-semibold text-neutral-400 uppercase">{st("Input (stdin)")}</label>
                   <textarea
                     value={tc.stdin}
                     onChange={(e) => updateStudentTestCase(tc.id, 'stdin', e.target.value)}
                     className="w-full text-[11px] font-mono text-neutral-700 bg-white border border-neutral-200 rounded px-2 py-1.5 outline-none focus:border-blue-300 resize-none"
                     rows={2}
-                    placeholder="Input..."
+                    placeholder={st("Input...")}
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] font-semibold text-neutral-400 uppercase">Expected Output</label>
+                  <label className="text-[9px] font-semibold text-neutral-400 uppercase">{st("Expected Output")}</label>
                   <textarea
                     value={tc.expectedStdout}
                     onChange={(e) => updateStudentTestCase(tc.id, 'expectedStdout', e.target.value)}
                     className="w-full text-[11px] font-mono text-neutral-700 bg-white border border-neutral-200 rounded px-2 py-1.5 outline-none focus:border-blue-300 resize-none"
                     rows={2}
-                    placeholder="Expected output..."
+                    placeholder={st("Expected output...")}
                   />
                 </div>
               </div>
@@ -1526,11 +1517,11 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
           ) : null}
           {stderr && <pre className="text-[12px] font-mono text-red-400 whitespace-pre-wrap mt-2">{stderr}</pre>}
           {compileOut && <pre className="text-[12px] font-mono text-amber-400 whitespace-pre-wrap mt-2">{compileOut}</pre>}
-          {!stdout && !stderr && !compileOut && <pre className="text-[12px] font-mono text-neutral-500 italic">(no output)</pre>}
+          {!stdout && !stderr && !compileOut && <pre className="text-[12px] font-mono text-neutral-500 italic">{st("(no output)")}</pre>}
           {time && (
             <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-white/5">
               <Clock weight="duotone" size={10} className="text-neutral-500" />
-              <span className="text-[10px] font-mono text-neutral-500">{(parseFloat(time) * 1000).toFixed(0)}ms</span>
+              <span className="text-[10px] font-mono text-neutral-500">{(parseFloat(time) * 1000).toFixed(0)}{st("ms")}</span>
             </div>
           )}
         </div>
@@ -1542,7 +1533,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
         {!results ? (
           <div className="flex flex-col items-center justify-center py-14 text-neutral-300">
             <Terminal weight="duotone" size={24} className="mb-2" />
-            <span className="text-[13px] text-neutral-400">Run your code to see output</span>
+            <span className="text-[13px] text-neutral-400">{st("Run your code to see output")}</span>
           </div>
         ) : (
           <>
@@ -1552,7 +1543,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
             {testCases.length > 0 && !isEditable && results && (
               <div className="rounded-lg p-3.5 border border-neutral-100 nice-shadow">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Score</span>
+                  <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">{st("Score")}</span>
                   <span className="text-[15px] font-bold text-neutral-800">{Math.round((passedCount / totalCount) * 100)}%</span>
                 </div>
                 <div className="w-full h-1.5 bg-neutral-100 rounded-full overflow-hidden">
@@ -1578,13 +1569,13 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                   </span>
                   <div className="ml-auto flex items-center gap-2">
                     {r.time && <span className="text-[10px] text-neutral-400 font-mono">{r.time}s</span>}
-                    {r.memory && <span className="text-[10px] text-neutral-400 font-mono">{Math.round(r.memory)}KB</span>}
+                    {r.memory && <span className="text-[10px] text-neutral-400 font-mono">{Math.round(r.memory)}{st("KB")}</span>}
                   </div>
                 </div>
                 {r.actual_stdout != null && (
                   <div className="px-3.5 pb-2.5">
                     <div className="flex items-center justify-between mb-0.5">
-                      <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-wider">Output</label>
+                      <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-wider">{st("Output")}</label>
                       <CopyButton text={r.actual_stdout || ''} />
                     </div>
                     {isSqlLanguage && r.actual_stdout && r.actual_stdout.includes('|') ? (
@@ -1619,7 +1610,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                 )}
                 {!r.passed && r.expected_stdout && (
                   <div className="px-3.5 pb-2.5">
-                    <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-wider mb-0.5 block">Expected</label>
+                    <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-wider mb-0.5 block">{st("Expected")}</label>
                     <pre className="text-[11px] font-mono text-emerald-700 bg-emerald-50/50 border border-emerald-100 rounded-lg p-2 whitespace-pre-wrap nice-shadow">{r.expected_stdout}</pre>
                   </div>
                 )}
@@ -1664,16 +1655,14 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
           {timedMode && !isEditable && !challengeStarted && (
             <div className="absolute inset-0 z-20 bg-[#1a1b26]/95 flex flex-col items-center justify-center gap-4">
               <Clock weight="duotone" size={32} className="text-neutral-400" />
-              <span className="text-[14px] font-semibold text-neutral-200">Timed Challenge</span>
+              <span className="text-[14px] font-semibold text-neutral-200">{st("Timed Challenge")}</span>
               <span className="text-[12px] text-neutral-400">
-                You have {Math.floor(timedDurationMs / 60000)} minutes to complete this challenge.
-              </span>
+                 {st("You have")} {Math.floor(timedDurationMs / 60000)}  {st("minutes to complete this challenge.")} </span>
               <button
                 onClick={() => { setChallengeStarted(true); setChallengeTimeLeft(timedDurationMs) }}
                 className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-neutral-200 rounded-lg text-[13px] font-semibold transition-all"
               >
-                Start Challenge
-              </button>
+                 {st("Start Challenge")} </button>
             </div>
           )}
           {/* ── Left: Code ─────────────────────────────────────── */}
@@ -1700,8 +1689,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
               <div className="flex items-center gap-2.5 py-3">
                 <Code weight="duotone" size={14} className="text-neutral-500" />
                 <span className="text-[12px] font-semibold text-neutral-300 tracking-tight">
-                  Code Playground
-                </span>
+                   {st("Code Playground")} </span>
                 <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${diff.darkBg} ${diff.darkText}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${diff.dot}`} />
                   {diff.label}
@@ -1744,7 +1732,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                   <button
                     onClick={resetCode}
                     className="flex items-center text-neutral-500 hover:text-neutral-300 py-1.5 px-1 text-[12px] transition-colors outline-none"
-                    title="Reset code"
+                    title={st("Reset code")}
                   >
                     <ArrowCounterClockwise weight="duotone" size={13} />
                   </button>
@@ -1763,8 +1751,7 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                   }`}
                 >
                   <Code weight="duotone" size={12} />
-                  main
-                </button>
+                   {st("main")} </button>
                 {additionalFiles.map((file, i) => (
                   <button
                     key={i}
@@ -1848,17 +1835,16 @@ const CodePlaygroundComponent: React.FC = (props: any) => {
                   {isEditable ? 'Test Run' : 'Run Code'}
                 </button>
                 <span className="text-[10px] text-neutral-500 hidden sm:inline">
-                  {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '\u2318' : 'Ctrl'}+Enter
-                </span>
+                  {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '\u2318' : 'Ctrl'}{st("+Enter")} </span>
                 {isRunning && (
                   <span className="text-[11px] font-mono text-neutral-500">
-                    {(elapsedMs / 1000).toFixed(1)}s / {(timeLimitMs / 1000).toFixed(0)}s
+                    {(elapsedMs / 1000).toFixed(1)}{st("s /")} {(timeLimitMs / 1000).toFixed(0)}s
                   </span>
                 )}
                 {allPassed && !isEditable && !isRunning && (
                   <div className="flex items-center gap-1.5">
                     <CheckCircle weight="duotone" size={13} className="text-emerald-400" />
-                    <span className="text-[12px] font-semibold text-emerald-400">All passed</span>
+                    <span className="text-[12px] font-semibold text-emerald-400">{st("All passed")}</span>
                   </div>
                 )}
                 {timedMode && challengeStarted && !isEditable && (

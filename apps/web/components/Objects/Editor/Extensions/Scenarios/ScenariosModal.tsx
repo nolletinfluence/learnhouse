@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import React, { useState } from 'react'
 import toast from 'react-hot-toast'
 import { Plus, Trash2, Settings, Play, RotateCcw, ArrowRight, CheckCircle, Save, GitBranch, Image as ImageIcon } from 'lucide-react'
@@ -34,6 +37,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
   currentScenarioId: initialCurrentScenarioId,
   onSave
 }) => {
+  const { t: st } = useSchoolTranslation()
   const [title, setTitle] = useState(initialTitle)
   const [scenarios, setScenarios] = useState<Scenario[]>(initialScenarios)
   const [currentScenarioId, setCurrentScenarioId] = useState(initialCurrentScenarioId)
@@ -205,7 +209,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-                <p className="text-sm text-slate-600">Interactive Preview</p>
+                <p className="text-sm text-slate-600">{st("Interactive Preview")}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -214,15 +218,13 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                 className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg transition-all text-sm font-medium shadow-sm"
               >
                 <RotateCcw size={14} />
-                Reset
-              </button>
+                 {st("Reset")} </button>
               <button
                 onClick={() => setShowPreview(false)}
                 className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-all text-sm font-medium shadow-sm"
               >
                 <Settings size={14} />
-                Back to Edit
-              </button>
+                 {st("Back to Edit")} </button>
             </div>
           </div>
         </div>
@@ -234,17 +236,15 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle size={24} className="text-emerald-600" />
               </div>
-              <h4 className="text-xl font-bold text-slate-900 mb-2">Scenario Complete!</h4>
+              <h4 className="text-xl font-bold text-slate-900 mb-2">{st("Scenario Complete!")}</h4>
               <p className="text-slate-600 mb-6 leading-relaxed">
-                You've successfully navigated through this interactive scenario.
-              </p>
+                 {st("You've successfully navigated through this interactive scenario.")} </p>
               <button
                 onClick={resetPreview}
                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-all font-medium text-sm shadow-sm hover:shadow-md mx-auto"
               >
                 <RotateCcw size={16} />
-                Start Over
-              </button>
+                 {st("Start Over")} </button>
             </div>
           ) : previewScenario ? (
             <div className="w-full max-w-xl mx-auto space-y-4 p-4">
@@ -295,8 +295,8 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
               <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <GitBranch size={20} className="text-slate-400" />
               </div>
-              <h3 className="text-base font-medium text-slate-900 mb-2">Scenario Not Found</h3>
-              <p className="text-slate-500 text-sm">Please check your scenario configuration and try again.</p>
+              <h3 className="text-base font-medium text-slate-900 mb-2">{st("Scenario Not Found")}</h3>
+              <p className="text-slate-500 text-sm">{st("Please check your scenario configuration and try again.")}</p>
             </div>
           )}
         </div>
@@ -311,14 +311,13 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div className="flex-1 min-w-0">
             <label className="block text-sm font-semibold text-slate-900 mb-2">
-              Scenario Title
-            </label>
+               {st("Scenario Title")} </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400 bg-white text-slate-900 placeholder-slate-400 transition-all"
-              placeholder="Enter your scenario title..."
+              placeholder={st("Enter your scenario title...")}
             />
           </div>
           <div className="flex items-center gap-2">
@@ -333,16 +332,14 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
               className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-medium text-sm shadow-sm hover:shadow-md"
             >
               <Play size={14} />
-              Preview
-            </button>
+               {st("Preview")} </button>
             <button
               onClick={addNewScenario}
               disabled={scenarios.length >= 40}
               className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-all font-medium text-sm shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-900"
             >
               <Plus size={14} />
-              Add
-            </button>
+               {st("Add")} </button>
           </div>
         </div>
       </div>
@@ -361,12 +358,11 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                         <span className="text-sm font-bold text-slate-700">{scenarioIndex + 1}</span>
                       </div>
                       <div>
-                        <h3 className="text-base font-semibold text-slate-900">Scenario {scenario.id}</h3>
+                        <h3 className="text-base font-semibold text-slate-900">{st("Scenario")} {scenario.id}</h3>
                         {scenario.id === currentScenarioId && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full mt-1">
                             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                            Starting Point
-                          </span>
+                             {st("Starting Point")} </span>
                         )}
                       </div>
                     </div>
@@ -378,7 +374,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                             ? 'bg-emerald-500 text-white shadow-sm' 
                             : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                         }`}
-                        title="Set as starting scenario"
+                        title={st("Set as starting scenario")}
                       >
                         {scenario.id === currentScenarioId ? 'Start' : 'Set Start'}
                       </button>
@@ -386,7 +382,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                         onClick={() => deleteScenario(scenario.id)}
                         disabled={scenarios.length <= 1}
                         className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-                        title="Delete scenario"
+                        title={st("Delete scenario")}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -400,8 +396,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-medium text-slate-700">
-                        Scenario Description
-                      </label>
+                         {st("Scenario Description")} </label>
                       <button
                         onClick={() => toggleImageInput(scenario.id)}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-medium border ${
@@ -429,7 +424,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                       onChange={(e) => updateScenario(scenario.id, { text: e.target.value })}
                       className="w-full p-3 border border-slate-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400 bg-white text-slate-900 placeholder-slate-400 transition-all"
                       rows={2}
-                      placeholder="Describe what happens in this scenario..."
+                      placeholder={st("Describe what happens in this scenario...")}
                     />
                   </div>
 
@@ -437,8 +432,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                   {showImageInputs[scenario.id] && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Image URL
-                      </label>
+                         {st("Image URL")} </label>
                       <input
                         type="url"
                         value={scenario.imageUrl || ''}
@@ -465,17 +459,16 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <label className="text-sm font-medium text-slate-700">
-                        Response Options ({scenario.options.length}/4)
+                         {st("Response Options (")}{scenario.options.length}/4)
                       </label>
                       <button
                         onClick={() => addOption(scenario.id)}
                         disabled={scenario.options.length >= 4}
                         className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-all text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-100"
-                        title="Add response option"
+                        title={st("Add response option")}
                       >
                         <Plus size={12} />
-                        Add
-                      </button>
+                         {st("Add")} </button>
                     </div>
                     
                     <div className="space-y-2">
@@ -493,7 +486,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                                 value={option.text}
                                 onChange={(e) => updateOption(scenario.id, option.id, { text: e.target.value })}
                                 className="w-full px-2 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400 bg-white placeholder-slate-400 transition-all"
-                                placeholder="Enter response option..."
+                                placeholder={st("Enter response option...")}
                               />
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-slate-500 font-medium">→</span>
@@ -504,10 +497,10 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                                   })}
                                   className="flex-1 px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400 bg-white transition-all"
                                 >
-                                  <option value="">End scenario</option>
+                                  <option value="">{st("End scenario")}</option>
                                   {scenarios.map((s) => (
                                     <option key={s.id} value={s.id}>
-                                      Scenario {s.id}
+                                       {st("Scenario")} {s.id}
                                     </option>
                                   ))}
                                 </select>
@@ -517,7 +510,7 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                               onClick={() => deleteOption(scenario.id, option.id)}
                               disabled={scenario.options.length <= 1}
                               className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover:opacity-100 disabled:opacity-0 disabled:cursor-not-allowed flex-shrink-0"
-                              title="Delete option"
+                              title={st("Delete option")}
                             >
                               <Trash2 size={12} />
                             </button>
@@ -535,15 +528,14 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
                 <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <GitBranch size={20} className="text-slate-400" />
                 </div>
-                <h3 className="text-base font-medium text-slate-900 mb-2">No scenarios yet</h3>
-                <p className="text-slate-500 text-sm mb-4">Create your first scenario to get started.</p>
+                <h3 className="text-base font-medium text-slate-900 mb-2">{st("No scenarios yet")}</h3>
+                <p className="text-slate-500 text-sm mb-4">{st("Create your first scenario to get started.")}</p>
                 <button
                   onClick={addNewScenario}
                   className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-all font-medium text-sm shadow-sm hover:shadow-md mx-auto"
                 >
                   <Plus size={14} />
-                  Create First Scenario
-                </button>
+                   {st("Create First Scenario")} </button>
               </div>
             )}
           </div>
@@ -567,14 +559,12 @@ const ScenariosModal: React.FC<ScenariosModalProps> = ({
             onClick={handleClose}
             className="bg-gray-200 text-gray-700 hover:bg-gray-300"
           >
-            Cancel
-          </ButtonBlack>
+             {st("Cancel")} </ButtonBlack>
           {!showPreview && (
             <ButtonBlack onClick={handleSave}>
               <div className="flex items-center gap-2">
                 <Save size={16} />
-                Save Changes
-              </div>
+                 {st("Save Changes")} </div>
             </ButtonBlack>
           )}
         </>

@@ -49,15 +49,14 @@ class TestUpdateOrgDefaultLanguageConfig:
             return_value=True,
         ):
             result = await update_org_default_language_config(
-                mock_request, "fr", other_org.id, admin_user, db
+                mock_request, "ru", other_org.id, admin_user, db
             )
 
         assert result == {"detail": "Default language updated"}
 
         stmt = select(OrganizationConfig).where(OrganizationConfig.org_id == other_org.id)
         stored = (await db.execute(stmt)).scalars().first()
-        assert stored.config["customization"]["general"]["default_language"] == "fr"
-        # Pre-existing customization keys are preserved.
+        assert stored.config["customization"]["general"]["default_language"] == "ru"
         assert stored.config["customization"]["general"]["color"] == "#000"
 
     @pytest.mark.asyncio
@@ -81,20 +80,21 @@ class TestUpdateOrgDefaultLanguageConfig:
             return_value=True,
         ):
             await update_org_default_language_config(
-                mock_request, "de", org.id, admin_user, db
+                mock_request, "en", org.id, admin_user, db
             )
 
         stmt = select(OrganizationConfig).where(OrganizationConfig.org_id == org.id)
         stored = (await db.execute(stmt)).scalars().first()
-        assert stored.config["general"]["default_language"] == "de"
+        assert stored.config["general"]["default_language"] == "en"
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("language", ["klingon", "fr", "de", "ar", "sk", "en-US"])
     async def test_rejects_unsupported_language_with_400(
-        self, mock_request, db, org, admin_user
+        self, mock_request, db, org, admin_user, language
     ):
         with pytest.raises(HTTPException) as exc:
             await update_org_default_language_config(
-                mock_request, "klingon", org.id, admin_user, db
+                mock_request, language, org.id, admin_user, db
             )
         assert exc.value.status_code == 400
         assert "Unsupported language" in exc.value.detail
@@ -114,7 +114,6 @@ class TestUpdateOrgDefaultLanguageConfig:
     async def test_raises_404_when_config_missing(
         self, mock_request, db, org, admin_user
     ):
-        # Org exists but no OrganizationConfig row was created.
         with patch(
             "src.services.orgs.orgs.rbac_check",
             new_callable=AsyncMock,
@@ -136,10 +135,10 @@ class TestGetOrgDefaultLanguage:
             org,
             {
                 "config_version": "2.0",
-                "customization": {"general": {"default_language": "ja"}},
+                "customization": {"general": {"default_language": "en"}},
             },
         )
-        assert get_org_default_language(row) == "ja"
+        assert get_org_default_language(row) == "en"
 
     @pytest.mark.asyncio
     async def test_falls_back_to_v1_general_branch(self, db, org):
@@ -148,27 +147,33 @@ class TestGetOrgDefaultLanguage:
             org,
             {
                 "config_version": "1.4",
-                "general": {"default_language": "es"},
+                "general": {"default_language": "ru"},
             },
         )
-        assert get_org_default_language(row) == "es"
+        assert get_org_default_language(row) == "ru"
 
     @pytest.mark.asyncio
-    async def test_returns_en_when_key_absent(self, db, org):
+    async def test_returns_ru_when_key_absent(self, db, org):
         row = await _make_org_config(
             db,
             org,
             {"config_version": "2.0", "customization": {"general": {}}},
         )
-        assert get_org_default_language(row) == "en"
+        assert get_org_default_language(row) == "ru"
 
-    def test_returns_en_when_org_config_is_none(self):
-        assert get_org_default_language(None) == "en"
+    def test_returns_ru_when_org_config_is_none(self):
+        assert get_org_default_language(None) == "ru"
 
     @pytest.mark.asyncio
-    async def test_returns_en_when_config_is_empty(self, db, org):
+    async def test_returns_ru_when_config_is_empty(self, db, org):
         row = await _make_org_config(db, org, {})
-        assert get_org_default_language(row) == "en"
+        assert get_org_default_language(row) == "ru"
+
+    @pytest.mark.asyncio
+    async def test_legacy_language_uses_russian_without_changing_config(self, db, org):
+        row = await _make_org_config(db, org, {"general": {"default_language": "fr"}})
+        assert get_org_default_language(row) == "ru"
+        assert row.config["general"]["default_language"] == "fr"
 
 
 class TestApiUpdateOrgDefaultLanguageRouterWrapper:
@@ -184,12 +189,12 @@ class TestApiUpdateOrgDefaultLanguageRouterWrapper:
             result = await api_update_org_default_language_config(
                 mock_request,
                 org.id,
-                "fr",
+                "ru",
                 admin_user,
                 db,
             )
 
         mocked.assert_awaited_once_with(
-            mock_request, "fr", org.id, admin_user, db
+            mock_request, "ru", org.id, admin_user, db
         )
         assert result == {"detail": "Default language updated"}

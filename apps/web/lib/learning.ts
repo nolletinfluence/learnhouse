@@ -1,3 +1,4 @@
+import { normalizeLocale } from './locale'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
@@ -17,16 +18,16 @@ export function lessonDateInput(value: string | undefined, zone = 'Asia/Bishkek'
   return value ? dayjs(value).tz(zone).format('YYYY-MM-DDTHH:mm') : ''
 }
 
-export function lessonDateISO(value: string, zone = 'Asia/Bishkek') {
+export function lessonDateISO(value: string, zone = 'Asia/Bishkek', language?: string) {
   if (!value) return null
   const result = dayjs.tz(value, zone)
-  if (!result.isValid() || result.format('YYYY-MM-DDTHH:mm') !== value) throw new Error('Проверьте дату и время занятия')
+  if (!result.isValid() || result.format('YYYY-MM-DDTHH:mm') !== value) throw new Error(normalizeLocale(language) === 'en' ? 'Check the lesson date and time' : 'Проверьте дату и время занятия')
   return result.toISOString()
 }
 
-export function lessonDateLabel(value?: string, zone = 'Asia/Bishkek') {
-  if (!value) return 'Дата ещё не назначена'
-  return new Intl.DateTimeFormat('ru', {
+export function lessonDateLabel(value?: string, zone = 'Asia/Bishkek', language?: string) {
+  if (!value) return normalizeLocale(language) === 'en' ? 'Date not scheduled yet' : 'Дата ещё не назначена'
+  return new Intl.DateTimeFormat(normalizeLocale(language), {
     timeZone: zone, day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value))
 }

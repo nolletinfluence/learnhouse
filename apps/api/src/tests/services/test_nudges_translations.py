@@ -28,7 +28,7 @@ def _placeholders(template: str) -> set[str]:
 
 class TestCoverage:
     def test_every_supported_locale_has_a_bundle(self):
-        assert set(NUDGE_TRANSLATIONS) == set(SUPPORTED_LANGUAGES)
+        assert set(SUPPORTED_LANGUAGES) <= set(NUDGE_TRANSLATIONS)
 
     def test_every_nudge_has_the_keys_it_needs(self):
         for spec in NUDGE_CATALOG:

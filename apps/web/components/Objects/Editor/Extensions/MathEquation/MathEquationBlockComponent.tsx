@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewWrapper } from '@tiptap/react'
 import React, { lazy, Suspense } from 'react'
 const BlockMath = lazy(() => {
@@ -84,6 +87,7 @@ const mathSymbols = [
 ];
 
 function MathEquationBlockComponent(props: any) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const [equation, setEquation] = React.useState(props.node.attrs.math_equation)
   const [isEditing] = React.useState(true)
@@ -166,7 +170,7 @@ function MathEquationBlockComponent(props: any) {
     return (
       <NodeViewWrapper className="block-math-equation" dir="ltr">
         <div className="bg-neutral-50 rounded-xl p-5 nice-shadow">
-          <Suspense fallback={<div className="text-gray-400 text-sm p-2">Loading math...</div>}><BlockMath>{equation}</BlockMath></Suspense>
+          <Suspense fallback={<div className="text-gray-400 text-sm p-2">{st("Loading math...")}</div>}><BlockMath>{equation}</BlockMath></Suspense>
         </div>
       </NodeViewWrapper>
     )
@@ -187,7 +191,7 @@ function MathEquationBlockComponent(props: any) {
 
         {/* Equation Display */}
         <div className="bg-white p-4 rounded-lg nice-shadow">
-          <Suspense fallback={<div className="text-gray-400 text-sm p-2">Loading math...</div>}><BlockMath>{equation}</BlockMath></Suspense>
+          <Suspense fallback={<div className="text-gray-400 text-sm p-2">{st("Loading math...")}</div>}><BlockMath>{equation}</BlockMath></Suspense>
         </div>
 
         {/* Editor Controls */}
@@ -277,22 +281,22 @@ function MathEquationBlockComponent(props: any) {
                     </div>
                     <div className="p-3 text-xs space-y-2 text-neutral-600">
                       <div>
-                        <span className="font-medium">Fractions:</span> \frac{'{'}numerator{'}'}{'{'}denominator{'}'}
+                        <span className="font-medium">{st("Fractions:")}</span> \frac{'{'}{st("numerator")}{'}'}{'{'}{st("denominator")}{'}'}
                       </div>
                       <div>
-                        <span className="font-medium">Exponents:</span> x^{'{'}power{'}'}
+                        <span className="font-medium">{st("Exponents:")}</span>  {st("x^")}{'{'}{st("power")}{'}'}
                       </div>
                       <div>
-                        <span className="font-medium">Subscripts:</span> x_{'{'}subscript{'}'}
+                        <span className="font-medium">{st("Subscripts:")}</span>  {st("x_")}{'{'}{st("subscript")}{'}'}
                       </div>
                       <div>
-                        <span className="font-medium">Square root:</span> \sqrt{'{'}x{'}'}
+                        <span className="font-medium">{st("Square root:")}</span> \sqrt{'{'}x{'}'}
                       </div>
                       <div>
-                        <span className="font-medium">Summation:</span> \sum_{'{'}lower{'}'}^{'{'}upper{'}'}
+                        <span className="font-medium">{st("Summation:")}</span> \sum_{'{'}{st("lower")}{'}'}^{'{'}{st("upper")}{'}'}
                       </div>
                       <div>
-                        <span className="font-medium">Integral:</span> \int_{'{'}lower{'}'}^{'{'}upper{'}'}
+                        <span className="font-medium">{st("Integral:")}</span> \int_{'{'}{st("lower")}{'}'}^{'{'}{st("upper")}{'}'}
                       </div>
                       <div className="pt-2 border-t border-neutral-100">
                         <Link

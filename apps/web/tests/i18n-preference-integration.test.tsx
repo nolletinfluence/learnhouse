@@ -87,9 +87,9 @@ afterEach(async () => {
 
 describe('I18nProvider and OrgLanguageSync preference precedence', () => {
   for (const preference of [
-    { label: 'local storage', state: { stored: 'de-DE' }, expected: 'de' },
-    { label: 'cookie', state: { cookie: 'es-MX' }, expected: 'es' },
-    { label: 'query', state: { query: '?lng=uk-UA' }, expected: 'uk' },
+    { label: 'local storage', state: { stored: 'en-US' }, expected: 'en' },
+    { label: 'cookie', state: { cookie: 'en-GB' }, expected: 'en' },
+    { label: 'query', state: { query: '?lng=en_US' }, expected: 'en' },
   ]) {
     test(`${preference.label} preference survives organization synchronization`, async () => {
       installBrowserState(preference.state)
@@ -109,12 +109,12 @@ describe('I18nProvider and OrgLanguageSync preference precedence', () => {
     await mountProvider()
     await waitForLanguage('ru')
     await act(async () => {
-      await changeLanguage('de')
+      await changeLanguage('en')
     })
     assert.equal(localStorage.getItem('i18nextLng_userPicked'), '1')
     await mountOrganizationDefault('ru')
     await act(() => new Promise((resolve) => setTimeout(resolve, 100)))
-    assert.equal(i18n.language.split('-')[0], 'de')
+    assert.equal(i18n.language.split('-')[0], 'en')
   })
 
   test('a clean session remains Russian for the BestDevs organization', async () => {
@@ -125,4 +125,14 @@ describe('I18nProvider and OrgLanguageSync preference precedence', () => {
     await mountOrganizationDefault('ru')
     await waitForLanguage('ru')
   })
+  test('an unsupported legacy preference does not lock out the organization default', async () => {
+    installBrowserState({ stored: 'ar' })
+    localStorage.setItem('i18nextLng_userPicked', '1')
+    await mountProvider()
+    await waitForLanguage('ru')
+    await mountOrganizationDefault('en')
+    await waitForLanguage('en')
+    assert.equal(document.documentElement.dir, 'ltr')
+  })
+
 })

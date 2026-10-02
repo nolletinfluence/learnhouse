@@ -1,5 +1,8 @@
 {
-  "school": {"calendar": "Calendar", "applications": "Course applications"},
+  "school": {
+    "calendar": "Calendar",
+    "applications": "Course applications"
+  },
   "common": {
     "hello": "Hello",
     "home": "Home",
@@ -408,6 +411,28 @@
     "no_sign_in_method_available": "This organization has restricted how members sign in, and none of the allowed methods are available here. Contact an administrator.",
     "complete_profile": {
       "title": "Complete your profile"
+    },
+    "email_not_verified_description": "Check your inbox for a verification email or request a new one",
+    "verification_sent": "Verification email sent",
+    "account_locked_description": "Too many failed sign-in attempts. Try again in {minutes} minutes",
+    "rate_limited_description": "Please wait before trying again",
+    "check_email": "Check your email",
+    "check_email_description": "We sent a verification link to your email. Verify it to continue.",
+    "password_requirements": "Password requirements",
+    "password_min_length": "At least 8 characters",
+    "password_uppercase": "At least one uppercase letter",
+    "password_lowercase": "At least one lowercase letter",
+    "password_number": "At least one number",
+    "password_special": "At least one special character",
+    "verify_email": {
+      "title": "Email verification",
+      "verifying": "Verifying your email…",
+      "success": "Email verified",
+      "success_description": "Your email has been verified. You can now sign in.",
+      "error": "Verification failed",
+      "error_description": "The verification link is invalid or has expired.",
+      "go_to_login": "Go to sign in",
+      "request_new_link": "Request a new verification link"
     }
   },
   "validation": {
@@ -2918,7 +2943,9 @@
         "watermark_label": "\"Made with BestDevs LMS\" watermark",
         "watermark_desc": "Show the BestDevs LMS branding watermark on your organization pages",
         "watermark_free_plan": "Watermark is always shown on the free plan",
-        "watermark_ee": "Hidden by your Enterprise Edition license"
+        "watermark_ee": "Hidden by your Enterprise Edition license",
+        "showcase_explore": "Show in BestDevs LMS Explore",
+        "showcase_description": "Share your school's courses and content with the BestDevs LMS community to help students discover your learning resources."
       },
       "images": {
         "title": "Images & Previews",
@@ -5193,7 +5220,12 @@
         "suggestion_timeline_prompt": "Create an interactive timeline showing major historical events with expandable details"
       },
       "library": "Library",
-      "flipcard_grid": "Flashcard Grid"
+      "flipcard_grid": "Flashcard Grid",
+      "flipcard_block": {
+        "front": "Front",
+        "back": "Back",
+        "click_to_flip": "Click to flip"
+      }
     }
   },
   "analytics": {

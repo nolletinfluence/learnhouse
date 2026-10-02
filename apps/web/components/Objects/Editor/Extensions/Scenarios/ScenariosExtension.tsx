@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewWrapper } from '@tiptap/react'
 import React, { useState } from 'react'
 import { ArrowCounterClockwise, ArrowRight, CheckCircle, GitBranch, Sparkle } from '@phosphor-icons/react'
@@ -20,6 +23,7 @@ interface Scenario {
 }
 
 const ScenariosExtension: React.FC = (props: any) => {
+  const { t: st } = useSchoolTranslation()
   const [title, setTitle] = useState(props.node.attrs.title)
   const [scenarios, setScenarios] = useState<Scenario[]>(props.node.attrs.scenarios)
   const [currentScenarioId, setCurrentScenarioId] = useState(props.node.attrs.currentScenarioId)
@@ -75,14 +79,12 @@ const ScenariosExtension: React.FC = (props: any) => {
           <div className="flex items-center gap-2">
             <GitBranch weight="duotone" className="text-neutral-400" size={16} />
             <span className="uppercase tracking-widest text-xs font-bold text-neutral-400">
-              Interactive Scenario
-            </span>
+               {st("Interactive Scenario")} </span>
           </div>
 
           {scenarioComplete && !isEditable && (
             <div className="text-xs font-medium px-2 py-1 rounded-md bg-emerald-100 text-emerald-700">
-              Scenario Complete!
-            </div>
+               {st("Scenario Complete!")} </div>
           )}
 
           <div className="grow"></div>
@@ -102,14 +104,13 @@ const ScenariosExtension: React.FC = (props: any) => {
                 onClick={() => setIsModalOpen(true)}
                 className="bg-neutral-200 hover:bg-neutral-300 text-neutral-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors outline-none"
               >
-                Edit Scenarios
-              </button>
+                 {st("Edit Scenarios")} </button>
             </div>
           ) : (
             <button
               onClick={resetScenario}
               className="p-1.5 rounded-md hover:bg-neutral-200 transition-colors"
-              title="Reset scenario"
+              title={st("Reset scenario")}
             >
               <ArrowCounterClockwise weight="duotone" className="text-neutral-500" size={15} />
             </button>
@@ -120,7 +121,7 @@ const ScenariosExtension: React.FC = (props: any) => {
           <div className="bg-white rounded-lg p-4 nice-shadow">
             <input
               value={title}
-              placeholder="Scenario Title"
+              placeholder={st("Scenario Title")}
               onChange={(e) => {
                 setTitle(e.target.value)
                 props.updateAttributes({ title: e.target.value })
@@ -130,11 +131,9 @@ const ScenariosExtension: React.FC = (props: any) => {
 
             <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200">
               <p className="text-neutral-600 text-sm text-center">
-                {scenarios.length}/40 scenarios configured
-              </p>
+                {scenarios.length}{st("/40 scenarios configured")} </p>
               <p className="text-neutral-500 text-xs text-center mt-1">
-                Click "Edit Scenarios" to configure your interactive branching story
-              </p>
+                 {st("Click \"Edit Scenarios\" to configure your interactive branching story")} </p>
             </div>
           </div>
         ) : scenarioComplete ? (
@@ -142,17 +141,15 @@ const ScenariosExtension: React.FC = (props: any) => {
             <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle weight="duotone" size={28} className="text-emerald-600" />
             </div>
-            <h4 className="text-xl font-bold text-neutral-900 mb-2">Scenario Complete!</h4>
+            <h4 className="text-xl font-bold text-neutral-900 mb-2">{st("Scenario Complete!")}</h4>
             <p className="text-neutral-600 mb-6 leading-relaxed max-w-md mx-auto">
-              You've successfully navigated through this interactive scenario.
-            </p>
+               {st("You've successfully navigated through this interactive scenario.")} </p>
             <button
               onClick={resetScenario}
               className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-700 hover:bg-neutral-800 text-white rounded-lg transition-colors font-medium text-sm"
             >
               <ArrowCounterClockwise weight="duotone" size={16} />
-              Start Over
-            </button>
+               {st("Start Over")} </button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -164,8 +161,8 @@ const ScenariosExtension: React.FC = (props: any) => {
                     <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-3">
                       <GitBranch weight="duotone" size={20} className="text-neutral-400" />
                     </div>
-                    <h3 className="text-base font-medium text-neutral-900 mb-2">Scenario Not Found</h3>
-                    <p className="text-neutral-500 text-sm">Please check your scenario configuration and try again.</p>
+                    <h3 className="text-base font-medium text-neutral-900 mb-2">{st("Scenario Not Found")}</h3>
+                    <p className="text-neutral-500 text-sm">{st("Please check your scenario configuration and try again.")}</p>
                   </div>
                 )
               }

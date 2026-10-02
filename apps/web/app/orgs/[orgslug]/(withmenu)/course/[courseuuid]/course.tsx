@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import { automaticCourseSEO } from '@/lib/seo/course'
 import Link from 'next/link'
 import React, { useEffect, useState, Suspense } from 'react'
@@ -36,6 +38,7 @@ import {
 } from '@components/Hooks/useManagementIdentity'
 
 function ManagementPreviewCard({ course, courseuuid, orgslug }: any) {
+  const { t: st } = useSchoolTranslation()
   const experience = courseExperiencePolicy(true)
   const firstActivity = course?.chapters?.[0]?.activities?.[0]
   const previewHref = firstActivity
@@ -47,9 +50,8 @@ function ManagementPreviewCard({ course, courseuuid, orgslug }: any) {
     <div className="bg-white shadow-md shadow-gray-300/25 outline outline-1 outline-neutral-200/40 rounded-lg overflow-hidden p-4">
       <div className="space-y-3">
         <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-sm text-blue-900">
-          Управленческий просмотр без зачисления и записи прогресса.
-        </div>
-        <Link href={getUriWithOrg(orgslug, `/dash/courses/course/${courseuuid.replace(/^course_/, '')}/content`)} className="flex items-center justify-center rounded-xl bg-lime-300 p-3 font-semibold">Редактировать курс</Link>
+           {st("Управленческий просмотр без зачисления и записи прогресса.")} </div>
+        <Link href={getUriWithOrg(orgslug, `/dash/courses/course/${courseuuid.replace(/^course_/, '')}/content`)} className="flex items-center justify-center rounded-xl bg-lime-300 p-3 font-semibold">{st("Редактировать курс")}</Link>
         <Link
           href={previewHref}
           className="w-full py-3 rounded-lg bg-neutral-900 text-white font-semibold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"

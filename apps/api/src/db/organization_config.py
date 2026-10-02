@@ -218,7 +218,7 @@ class GeneralCustomization(BaseModel):
     favicon_image: str = ""
     watermark: bool = True
     font: str = ""
-    default_language: str = "en"
+    default_language: str = "ru"
 
 
 class SeoOrgConfig(BaseModel):

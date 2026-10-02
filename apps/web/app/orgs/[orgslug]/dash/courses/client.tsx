@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import Link from 'next/link'
 import { Breadcrumbs } from '@components/Objects/Breadcrumbs/Breadcrumbs'
 import CreateCourseModal from '@components/Objects/Modals/Course/Create/CreateCourse'
@@ -40,6 +42,7 @@ type CourseProps = {
 }
 
 function CoursesHome(params: CourseProps) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const { track } = useLHAnalytics('dashboard')
   const searchParams = useSearchParams()
@@ -643,7 +646,7 @@ function CoursesHome(params: CourseProps) {
             isSelected={selectedCourses.has(course.course_uuid)}
             onToggleSelect={toggleCourseSelection}
           />
-          <Link href={getUriWithOrg(orgslug, `/dash/courses/course/${removeCoursePrefix(course.course_uuid)}/content`)} className="block rounded-xl bg-white border border-neutral-200 text-center p-3 text-sm font-semibold hover:bg-lime-50">Редактировать курс</Link></div>
+          <Link href={getUriWithOrg(orgslug, `/dash/courses/course/${removeCoursePrefix(course.course_uuid)}/content`)} className="block rounded-xl bg-white border border-neutral-200 text-center p-3 text-sm font-semibold hover:bg-lime-50">{st("Редактировать курс")}</Link></div>
         ))}
         {filteredCourses.length === 0 && searchQuery && (
           <div className="col-span-full flex justify-center items-center py-8">

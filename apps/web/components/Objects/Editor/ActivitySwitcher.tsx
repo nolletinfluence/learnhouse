@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -53,6 +55,7 @@ export default function ActivitySwitcher({
   isDirty,
   onSave,
 }: ActivitySwitcherProps) {
+  const { t: st } = useSchoolTranslation()
   const router = useRouter()
   const { accessToken } = useAuth()
   const [open, setOpen] = React.useState(false)
@@ -182,7 +185,7 @@ export default function ActivitySwitcher({
                 type="button"
                 onClick={() => scrollByAmount(-200)}
                 disabled={!canScrollLeft}
-                aria-label="Scroll left"
+                aria-label={st("Scroll left")}
                 className={
                   'flex items-center justify-center w-6 h-6 rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200 active:bg-neutral-300 transition-all flex-shrink-0 ' +
                   (canScrollLeft ? 'opacity-100' : 'opacity-30 pointer-events-none')
@@ -241,7 +244,7 @@ export default function ActivitySwitcher({
                 type="button"
                 onClick={() => scrollByAmount(200)}
                 disabled={!canScrollRight}
-                aria-label="Scroll right"
+                aria-label={st("Scroll right")}
                 className={
                   'flex items-center justify-center w-6 h-6 rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200 active:bg-neutral-300 transition-all flex-shrink-0 ' +
                   (canScrollRight ? 'opacity-100' : 'opacity-30 pointer-events-none')

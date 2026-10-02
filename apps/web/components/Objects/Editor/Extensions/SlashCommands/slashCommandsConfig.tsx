@@ -1,3 +1,4 @@
+import i18n from '@lib/i18n'
 import {
   AlertCircle,
   BadgeHelp,
@@ -54,7 +55,7 @@ export const categoryOrder: SlashCommandCategory[] = [
 ]
 
 export const slashCommands: SlashCommandItem[] = [
-  // Text category
+
   {
     id: 'paragraph',
     title: 'Paragraph',
@@ -166,7 +167,6 @@ export const slashCommands: SlashCommandItem[] = [
     },
   },
 
-  // Media category
   {
     id: 'image',
     title: 'Image',
@@ -234,7 +234,6 @@ export const slashCommands: SlashCommandItem[] = [
     },
   },
 
-  // Interactive category
 
   {
     id: 'quiz',
@@ -386,7 +385,6 @@ export const slashCommands: SlashCommandItem[] = [
     },
   },
 
-  // Callouts category
   {
     id: 'callout',
     title: 'Callout',
@@ -403,7 +401,6 @@ export const slashCommands: SlashCommandItem[] = [
     },
   },
 
-  // UI Elements category
   {
     id: 'badge',
     title: 'Badge',
@@ -455,7 +452,6 @@ export const slashCommands: SlashCommandItem[] = [
     },
   },
 
-  // Tables category
   {
     id: 'table',
     title: 'Table',
@@ -474,7 +470,7 @@ export function filterCommands(query: string): SlashCommandItem[] {
 
   return slashCommands.filter(
     (item) =>
-      searchMatchesAny([item.title, item.description], query) ||
+      searchMatchesAny([item.title, item.description, i18n.t(item.title, { ns: 'school', keySeparator: false }), i18n.t(item.description, { ns: 'school', keySeparator: false })], query) ||
       item.keywords.some((keyword) => normalizeForSearch(keyword).includes(normalizeForSearch(query)))
   )
 }

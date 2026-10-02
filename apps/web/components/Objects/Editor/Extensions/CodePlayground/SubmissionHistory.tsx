@@ -1,4 +1,6 @@
 'use client'
+import { useSchoolTranslation } from '@lib/school-i18n'
+
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   CheckCircle,
@@ -43,6 +45,7 @@ export default function SubmissionHistory({
   accessToken,
   onRestoreCode,
 }: Props) {
+  const { t: st } = useSchoolTranslation()
   const [data, setData] = useState<HistoryResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,8 +79,7 @@ export default function SubmissionHistory({
   if (!activityUuid) {
     return (
       <div className="text-sm text-neutral-400 text-center py-8">
-        Submission history is not available in this context.
-      </div>
+         {st("Submission history is not available in this context.")} </div>
     )
   }
 
@@ -97,8 +99,7 @@ export default function SubmissionHistory({
           onClick={fetchHistory}
           className="ml-2 underline text-neutral-500 hover:text-neutral-700"
         >
-          Retry
-        </button>
+           {st("Retry")} </button>
       </div>
     )
   }
@@ -106,8 +107,7 @@ export default function SubmissionHistory({
   if (!data || data.submissions.length === 0) {
     return (
       <div className="text-sm text-neutral-400 text-center py-8">
-        No submissions yet. Run your code to create a submission.
-      </div>
+         {st("No submissions yet. Run your code to create a submission.")} </div>
     )
   }
 
@@ -149,14 +149,12 @@ export default function SubmissionHistory({
               )}
 
               <span className="text-xs font-semibold text-neutral-700">
-                {sub.passed_tests}/{sub.total_tests} passed
-              </span>
+                {sub.passed_tests}/{sub.total_tests}  {st("passed")} </span>
 
               {sub.execution_time_ms !== null && (
                 <span className="flex items-center gap-0.5 text-[10px] text-neutral-400 ml-auto">
                   <Clock weight="duotone" size={10} />
-                  {sub.execution_time_ms}ms
-                </span>
+                  {sub.execution_time_ms}{st("ms")} </span>
               )}
 
               <span className="text-[10px] text-neutral-400 ml-2 shrink-0">
@@ -176,8 +174,7 @@ export default function SubmissionHistory({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-800 bg-neutral-100 hover:bg-neutral-200 rounded-md transition-colors"
                   >
                     <ArrowCounterClockwise weight="duotone" size={12} />
-                    Restore this code
-                  </button>
+                     {st("Restore this code")} </button>
                 </div>
               </div>
             )}
@@ -196,18 +193,16 @@ export default function SubmissionHistory({
               className="flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <CaretLeft weight="duotone" size={14} data-dir-flip />
-              Previous
-            </button>
+               {st("Previous")} </button>
             <span className="text-[11px] text-neutral-400">
-              Page {page} of {totalPages}
+               {st("Page")} {page}  {st("of")} {totalPages}
             </span>
             <button
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
               className="flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              Next
-              <CaretRight weight="duotone" size={14} data-dir-flip />
+               {st("Next")} <CaretRight weight="duotone" size={14} data-dir-flip />
             </button>
           </div>
         )

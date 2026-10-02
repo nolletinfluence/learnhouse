@@ -62,17 +62,27 @@ describe('BestDevs locale preference defaults', () => {
   })
 
   test('a saved local storage selection wins over the configured default', () => {
-    installBrowserState({ stored: 'de-DE' })
-    assert.equal(detectPreferredLocale(), 'de')
+    installBrowserState({ stored: 'en-US' })
+    assert.equal(detectPreferredLocale(), 'en')
   })
 
   test('a saved cookie selection wins when local storage is empty', () => {
-    installBrowserState({ cookie: 'i18next=es-MX' })
-    assert.equal(detectPreferredLocale(), 'es')
+    installBrowserState({ cookie: 'i18next=ru_RU' })
+    assert.equal(detectPreferredLocale(), 'ru')
   })
 
   test('an explicit query selection wins when no saved selection exists', () => {
-    installBrowserState({ query: '?lng=uk-UA' })
-    assert.equal(detectPreferredLocale(), 'uk')
+    installBrowserState({ query: '?lng=en-GB' })
+    assert.equal(detectPreferredLocale(), 'en')
   })
+  test('unsupported saved languages do not mask a valid cookie', () => {
+    installBrowserState({ stored: 'ar', cookie: 'i18next=en-US' })
+    assert.equal(detectPreferredLocale(), 'en')
+  })
+
+  test('unsupported and malformed preferences fall back to Russian', () => {
+    installBrowserState({ stored: 'fr', cookie: 'i18next=%INVALID', query: '?lng=de' })
+    assert.equal(detectPreferredLocale(), 'ru')
+  })
+
 })

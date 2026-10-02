@@ -1374,8 +1374,6 @@ async def update_org_default_language_config(
     current_user: PublicUser | AnonymousUser,
     db_session: AsyncSession,
 ):
-    # Validate against the selectable UI languages, not the email-translation
-    # set (a UI language need not have an email bundle).
     from src.services.email.translations import SUPPORTED_UI_LANGUAGES
 
     if default_language not in SUPPORTED_UI_LANGUAGES:
@@ -1418,15 +1416,14 @@ async def update_org_default_language_config(
 
 
 def get_org_default_language(org_config: OrganizationConfig | None) -> str:
-    """Read the org's default language from its config, falling back to 'en'."""
+    """Read the supported org locale, using Russian for absent or legacy values."""
+    from src.services.email.translations import normalize_language
+
     if org_config is None or not org_config.config:
-        return "en"
+        return normalize_language(None)
     cfg = org_config.config
     v2 = cfg.get("customization", {}).get("general", {}).get("default_language")
-    if v2:
-        return v2
-    v1 = cfg.get("general", {}).get("default_language")
-    return v1 or "en"
+    return normalize_language(v2 or cfg.get("general", {}).get("default_language"))
 
 
 async def update_org_watermark_config(

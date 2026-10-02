@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewWrapper } from '@tiptap/react'
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { Link as LinkIcon, DotsSixVertical, DotsSix, TextAlignCenter, Code, X, Palette } from '@phosphor-icons/react'
@@ -109,6 +112,7 @@ const MemoizedEmbed = React.memo(({ embedUrl, sanitizedEmbedCode, embedType }: {
 MemoizedEmbed.displayName = 'MemoizedEmbed';
 
 function EmbedObjectsComponent(props: any) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const [embedType, setEmbedType] = useState<'url' | 'code'>(props.node.attrs.embedType || 'url')
   const [embedUrl, setEmbedUrl] = useState(props.node.attrs.embedUrl || '')
@@ -476,7 +480,7 @@ function EmbedObjectsComponent(props: any) {
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 rounded-lg text-sm text-neutral-700 transition-colors"
                   >
                     <Code weight="duotone" size={14} />
-                    <span>Code</span>
+                    <span>{st("Code")}</span>
                   </button>
                 </div>
               )}

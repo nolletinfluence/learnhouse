@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Node } from '@tiptap/core'
 import {
@@ -122,6 +125,7 @@ function PlaylistPlayer({
   orgUUID: string
   podcastUUID: string
 }) {
+  const { t: st } = useSchoolTranslation()
   const audioRef = React.useRef<HTMLAudioElement>(null)
   const progressRef = React.useRef<HTMLDivElement>(null)
   const [activeEpisode, setActiveEpisode] = React.useState<PodcastEpisode | null>(null)
@@ -197,7 +201,7 @@ function PlaylistPlayer({
       <div className="px-4 pt-3 pb-2 border-b border-gray-100 flex items-center gap-2">
         <Radio weight="duotone" size={14} className="text-gray-400 flex-shrink-0" />
         <span className="text-sm font-semibold text-gray-900">{podcastName}</span>
-        <span className="text-xs text-gray-400 ms-auto">{episodes.length} episodes</span>
+        <span className="text-xs text-gray-400 ms-auto">{episodes.length}  {st("episodes")}</span>
       </div>
 
       <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
@@ -298,6 +302,7 @@ function PlaylistPlayer({
 
 
 function AudioBlockComponent(props: ExtendedNodeViewProps) {
+  const { t: st } = useSchoolTranslation()
   const { node, extension, updateAttributes } = props
   const org = useOrg() as Organization | null
   const { orgslug } = useOrgMembership()
@@ -622,7 +627,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
               ) : (
                 <div className="bg-white border border-gray-200 rounded-xl shadow-sm px-4 py-6 text-center">
                   <CircleNotch weight="duotone" className="w-5 h-5 animate-spin mx-auto text-gray-400" />
-                  <p className="text-sm text-gray-400 mt-2">Loading playlist...</p>
+                  <p className="text-sm text-gray-400 mt-2">{st("Loading playlist...")}</p>
                 </div>
               )
             )}
@@ -638,7 +643,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Headphones weight="duotone" className="text-neutral-400" size={16} />
-            <span className="uppercase tracking-widest text-xs font-bold text-neutral-400">Audio</span>
+            <span className="uppercase tracking-widest text-xs font-bold text-neutral-400">{st("Audio")}</span>
           </div>
           {blockObject && (
             <button onClick={handleRemove} className="text-neutral-400 hover:text-red-500 transition-colors">
@@ -690,7 +695,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                   {isLoading ? (
                     <div className="space-y-3">
                       <CircleNotch weight="duotone" className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-                      <p className="text-sm text-neutral-600">Uploading... {uploadProgress}%</p>
+                      <p className="text-sm text-neutral-600">{st("Uploading...")} {uploadProgress}%</p>
                       <div className="w-48 h-1 bg-neutral-200 rounded-full mx-auto overflow-hidden">
                         <div className="h-full bg-blue-500 rounded-full transition-all duration-200" style={{ width: `${uploadProgress}%` }} />
                       </div>
@@ -699,8 +704,8 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                     <div className="space-y-3">
                       <UploadSimple weight="duotone" className="w-8 h-8 mx-auto text-neutral-400" />
                       <div>
-                        <p className="text-sm font-medium text-neutral-700">Drop an audio file or click to browse</p>
-                        <p className="text-xs text-neutral-500 mt-1">Supports MP3, WAV, OGG, M4A</p>
+                        <p className="text-sm font-medium text-neutral-700">{st("Drop an audio file or click to browse")}</p>
+                        <p className="text-xs text-neutral-500 mt-1">{st("Supports MP3, WAV, OGG, M4A")}</p>
                       </div>
                     </div>
                   )}
@@ -891,7 +896,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                 ) : !selectedPodcast ? (
                   <div className="space-y-1 max-h-60 overflow-y-auto">
                     {podcasts.length === 0 ? (
-                      <p className="text-sm text-neutral-400 text-center py-4">No podcasts found</p>
+                      <p className="text-sm text-neutral-400 text-center py-4">{st("No podcasts found")}</p>
                     ) : (
                       podcasts.map((p) => (
                         <div
@@ -911,8 +916,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                       onClick={() => { setSelectedPodcast(null); setEpisodes([]) }}
                       className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1 outline-none"
                     >
-                      &larr; Back to podcasts
-                    </button>
+                       {st("&larr; Back to podcasts")} </button>
                     <p className="text-sm font-medium text-neutral-700">{selectedPodcast.name}</p>
                     {episodesLoading ? (
                       <div className="flex items-center justify-center py-4">
@@ -921,7 +925,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                     ) : (
                       <div className="space-y-1 max-h-48 overflow-y-auto">
                         {episodes.length === 0 ? (
-                          <p className="text-sm text-neutral-400 text-center py-4">No episodes found</p>
+                          <p className="text-sm text-neutral-400 text-center py-4">{st("No episodes found")}</p>
                         ) : (
                           episodes.map((ep) => (
                             <div
@@ -950,7 +954,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                 ) : (
                   <div className="space-y-1 max-h-60 overflow-y-auto">
                     {podcasts.length === 0 ? (
-                      <p className="text-sm text-neutral-400 text-center py-4">No podcasts found</p>
+                      <p className="text-sm text-neutral-400 text-center py-4">{st("No podcasts found")}</p>
                     ) : (
                       podcasts.map((p) => (
                         <div
@@ -985,8 +989,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-sm text-neutral-500 font-medium flex items-center gap-1">
                 <ArrowsLeftRight weight="duotone" size={14} />
-                Size:
-              </div>
+                 {st("Size:")} </div>
               {(Object.keys(AUDIO_SIZES) as AudioSize[]).map((size) => (
                 <button
                   key={size}
@@ -1028,7 +1031,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                         <Radio size={14} className="text-gray-400" />
                         <span className="text-sm font-medium text-gray-700">{blockObject.podcast.name}</span>
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">Loading playlist...</p>
+                      <p className="text-xs text-gray-400 mt-1">{st("Loading playlist...")}</p>
                     </div>
                   )
                 )}

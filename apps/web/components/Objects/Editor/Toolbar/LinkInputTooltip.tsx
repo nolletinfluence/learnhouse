@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import React, { useState, useEffect } from 'react'
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons'
 
@@ -8,6 +11,7 @@ interface LinkInputTooltipProps {
 }
 
 const LinkInputTooltip: React.FC<LinkInputTooltipProps> = ({ onSave, onCancel, currentUrl }) => {
+  const { t: st } = useSchoolTranslation()
   const [url, setUrl] = useState(currentUrl || '')
 
   useEffect(() => {
@@ -30,8 +34,8 @@ const LinkInputTooltip: React.FC<LinkInputTooltipProps> = ({ onSave, onCancel, c
       <form onSubmit={handleSubmit} className="flex items-center gap-1">
         <input
           type="text"
-          aria-label="Enter URL"
-          placeholder="Enter URL"
+          aria-label={st("Enter URL")}
+          placeholder={st("Enter URL")}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           autoFocus

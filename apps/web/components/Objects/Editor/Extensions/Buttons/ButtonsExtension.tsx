@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import { safeHref } from '@services/security/url'
 import React, { useState, useRef, useEffect, lazy, Suspense } from 'react'
@@ -8,6 +11,7 @@ import { useEditorProvider } from '@components/Contexts/Editor/EditorContext'
 import { useTranslation } from 'react-i18next'
 
 const ButtonsExtension: React.FC = (props: any) => {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const [emoji, setEmoji] = useState(props.node.attrs.emoji)
   const [link, setLink] = useState(props.node.attrs.link)
@@ -138,7 +142,7 @@ const ButtonsExtension: React.FC = (props: any) => {
       </div>
       {isEditable && showEmojiPicker && (
         <div ref={pickerRef}>
-          <Suspense fallback={<div className="p-4 text-gray-400 text-sm">Loading...</div>}>
+          <Suspense fallback={<div className="p-4 text-gray-400 text-sm">{st("Loading...")}</div>}>
             <Picker onEmojiSelect={handleEmojiSelect} />
           </Suspense>
         </div>

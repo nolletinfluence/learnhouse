@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { NodeViewWrapper } from '@tiptap/react'
 import React, { useEffect, useState } from 'react'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
@@ -68,6 +71,7 @@ const IconComponent = ({ iconName }: { iconName: string }) => {
 }
 
 function UserBlockComponent(props: any) {
+  const { t: st } = useSchoolTranslation()
   const { t } = useTranslation()
   const session = useLHSession() as any
   const access_token = session?.data?.tokens?.access_token
@@ -301,8 +305,7 @@ function UserBlockComponent(props: any) {
         <div className="flex items-center gap-2 mb-3">
           <User weight="duotone" className="text-neutral-400" size={16} />
           <span className="uppercase tracking-widest text-xs font-bold text-neutral-400">
-            User Profile
-          </span>
+             {st("User Profile")} </span>
         </div>
 
         {/* User Card */}

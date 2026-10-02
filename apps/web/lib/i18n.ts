@@ -3,126 +3,35 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import en from '../locales/en.json';
+import ru from '../locales/ru.json';
+import schoolEn from '../locales/school.en.json';
+import schoolRu from '../locales/school.ru.json';
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, normalizeLocale, detectLocalePreference } from './locale';
+export { normalizeLocale } from './locale';
 import { loadDateLocale } from './format';
 import { applyDocumentDirection } from './direction';
 
-const LOCALE_LOADERS: Record<string, () => Promise<{ default: any }>> = {
-  fr: () => import('../locales/fr.json'),
-  de: () => import('../locales/de.json'),
-  es: () => import('../locales/es.json'),
-  ar: () => import('../locales/ar.json'),
-  ja: () => import('../locales/ja.json'),
-  pt: () => import('../locales/pt.json'),
-  ru: () => import('../locales/ru.json'),
-  zh: () => import('../locales/zh.json'),
-  hi: () => import('../locales/hi.json'),
-  ko: () => import('../locales/ko.json'),
-  it: () => import('../locales/it.json'),
-  tr: () => import('../locales/tr.json'),
-  vi: () => import('../locales/vi.json'),
-  id: () => import('../locales/id.json'),
-  pl: () => import('../locales/pl.json'),
-  uk: () => import('../locales/uk.json'),
-  nl: () => import('../locales/nl.json'),
-  th: () => import('../locales/th.json'),
-  bn: () => import('../locales/bn.json'),
-  fa: () => import('../locales/fa.json'),
-  sk: () => import('../locales/sk.json'),
-};
-
-const resources = {
-  en: { common: en },
-};
-
-const BASE_LOCALE = 'en'
-const SUPPORTED_LOCALES = new Set([BASE_LOCALE, ...Object.keys(LOCALE_LOADERS)])
+const resources = { en: { common: en, school: schoolEn }, ru: { common: ru, school: schoolRu } }
 const USER_PICKED_KEY = 'i18nextLng_userPicked'
-const configuredDefaultLocale = (process.env.NEXT_PUBLIC_LEARNHOUSE_DEFAULT_LOCALE?.trim() || 'ru')
-  .toLowerCase()
-  .replace('_', '-')
-  .split('-')[0]
-const DEFAULT_LOCALE = SUPPORTED_LOCALES.has(configuredDefaultLocale) ? configuredDefaultLocale : 'ru'
 
-export function normalizeLocale(value: unknown): string {
-  if (typeof value !== 'string') return DEFAULT_LOCALE
-
-  const code = value.trim().toLowerCase().replace('_', '-').split('-')[0]
-  return SUPPORTED_LOCALES.has(code) ? code : DEFAULT_LOCALE
-}
-
-export type LocalePreferenceSource = 'stored' | 'cookie' | 'query' | 'default'
-
-export type LocalePreference = {
-  locale: string
-  source: LocalePreferenceSource
-}
-
-export function detectLocalePreference(): LocalePreference {
-  if (typeof window === 'undefined') return { locale: DEFAULT_LOCALE, source: 'default' }
-
-  let stored: string | null = null
-  try {
-    stored = window.localStorage.getItem('i18nextLng')
-  } catch {
-    stored = null
-  }
-  if (stored) return { locale: normalizeLocale(stored), source: 'stored' }
-
-  const cookie = document.cookie.match(/(?:^|;\s*)i18next=([^;]*)/)
-  if (cookie) {
-    try {
-      return { locale: normalizeLocale(decodeURIComponent(cookie[1])), source: 'cookie' }
-    } catch {
-      return { locale: DEFAULT_LOCALE, source: 'default' }
-    }
-  }
-
-  try {
-    const query = new URLSearchParams(window.location.search).get('lng')
-    if (query) return { locale: normalizeLocale(query), source: 'query' }
-  } catch {
-    return { locale: DEFAULT_LOCALE, source: 'default' }
-  }
-
-  return { locale: DEFAULT_LOCALE, source: 'default' }
-}
+export { detectLocalePreference, type LocalePreference, type LocalePreferenceSource } from './locale'
 
 export function detectPreferredLocale(): string {
   return detectLocalePreference().locale
 }
 
 export function hasExplicitLocalePreference(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    if (window.localStorage.getItem(USER_PICKED_KEY)) return true
-  } catch {
-    return detectLocalePreference().source !== 'default'
-  }
   return detectLocalePreference().source !== 'default'
-}
-
-async function loadLocale(language: string): Promise<boolean> {
-  const code = normalizeLocale(language)
-  if (code === BASE_LOCALE) return true
-  if (!LOCALE_LOADERS[code]) return false
-  if (i18n.hasResourceBundle(code, 'common')) return true
-
-  try {
-    const mod = await LOCALE_LOADERS[code]();
-    i18n.addResourceBundle(code, 'common', mod.default, true, true);
-    return true
-  } catch {
-    return false
-  }
 }
 
 i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: 'en',
-    fallbackLng: DEFAULT_LOCALE,
-    ns: ['common'],
+    lng: DEFAULT_LOCALE,
+    fallbackLng: 'en',
+    supportedLngs: [...SUPPORTED_LOCALES],
+    ns: ['common', 'school'],
     defaultNS: 'common',
     interpolation: {
       escapeValue: false,
@@ -134,14 +43,15 @@ i18n
 
 export async function prepareLocale(language: string): Promise<boolean> {
   const locale = normalizeLocale(language)
-  if (!await loadLocale(locale)) return false
   await loadDateLocale(locale)
   applyDocumentDirection(locale)
   return true
 }
 
 function persistCookie(language: string): void {
-  document.cookie = `i18next=${encodeURIComponent(language)}; path=/; max-age=31536000; samesite=lax`
+  try {
+    document.cookie = `i18next=${encodeURIComponent(language)}; path=/; max-age=31536000; samesite=lax`
+  } catch { return }
 }
 
 function persistLocale(language: string): void {

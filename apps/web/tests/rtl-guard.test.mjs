@@ -43,28 +43,24 @@ describe('language registry', () => {
   const entries = [...src.matchAll(/\{\s*code:\s*'([a-z]+)'[^}]*\}/g)]
 
   test('every language declares a direction', () => {
-    expect(entries.length).toBeGreaterThan(20)
+    expect(entries.map(entry => entry[1])).toEqual(['ru', 'en'])
     for (const entry of entries) {
       expect(entry[0]).toMatch(/dir:\s*'(ltr|rtl)'/)
     }
   })
 
-  test('ar and fa are the RTL entries', () => {
+  test('supported UI languages are LTR', () => {
     const rtl = entries.filter((e) => /dir:\s*'rtl'/.test(e[0])).map((e) => e[1]).sort()
-    expect(rtl).toEqual(['ar', 'fa'])
+    expect(rtl).toEqual([])
   })
 
-  // A locale that loads but isn't in the registry can never be picked, and one
-  // in the registry without a loader falls back to English with no warning.
-  test('registry and lazy loaders agree', () => {
+  test('only English and Russian resources are registered', () => {
     const i18nSrc = read('lib/i18n.ts')
-    // The type annotation contains `=>`, so match lazily up to the assignment.
-    const loaderBlock = i18nSrc.match(/LOCALE_LOADERS[\s\S]*?=\s*\{([\s\S]*?)\n\}/)[1]
-    const loaderCodes = [...loaderBlock.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]).sort()
-
-    const registryCodes = entries.map((e) => e[1]).filter((c) => c !== 'en').sort()
-    expect(loaderCodes).toEqual(registryCodes)
+    expect(i18nSrc).toContain('en: { common: en, school: schoolEn }')
+    expect(i18nSrc).toContain('ru: { common: ru, school: schoolRu }')
+    expect(i18nSrc).not.toMatch(/locales\/(?:ar|de|fr|ja|es)\.json/)
   })
+
 })
 
 describe('globals.css', () => {
@@ -136,9 +132,9 @@ describe('globals.css', () => {
   }, 60_000)
 })
 
-describe('Arabic translations', () => {
+describe('supported UI translations', () => {
   const en = JSON.parse(read('locales/en.json'))
-  const ar = JSON.parse(read('locales/ar.json'))
+  const ru = JSON.parse(read('locales/ru.json'))
 
   const flatten = (obj, prefix = '') =>
     Object.entries(obj).flatMap(([k, v]) =>
@@ -147,9 +143,7 @@ describe('Arabic translations', () => {
         : [`${prefix}${k}`]
     )
 
-  test('ar.json covers every en.json key', () => {
-    const arabicKeys = new Set(flatten(ar))
-    const missing = flatten(en).filter((k) => !arabicKeys.has(k))
-    expect(missing).toEqual([])
+  test('Russian and English have identical keys', () => {
+    expect(flatten(ru).sort()).toEqual(flatten(en).sort())
   })
 })

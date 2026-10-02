@@ -1,3 +1,6 @@
+'use client'
+
+import { useSchoolTranslation } from '@lib/school-i18n'
 import { Loader2, Upload } from 'lucide-react'
 import React, {
   ButtonHTMLAttributes,
@@ -28,6 +31,7 @@ const FileUploadBlockInput: React.FC<InputHTMLAttributes<HTMLInputElement>> = ({
 const FileUploadBlockButton: React.FC<
   ButtonHTMLAttributes<HTMLButtonElement>
 > = ({ onClick, className, ...props }) => {
+  const { t: st } = useSchoolTranslation()
   return (
     <button
       className={cn(
@@ -38,7 +42,7 @@ const FileUploadBlockButton: React.FC<
       {...props}
     >
       <Upload size={16} />
-      <span>Upload</span>
+      <span>{st("Upload")}</span>
     </button>
   )
 }
@@ -58,6 +62,7 @@ function FileUploadBlock({
   Icon,
   children,
 }: UploadBlockComponentProps) {
+  const { t: st } = useSchoolTranslation()
   if (isLoading)
     return (
       <div className="flex items-center justify-center py-8">
@@ -69,7 +74,7 @@ function FileUploadBlock({
     return (
       <div className="flex items-center justify-center gap-3 py-8 bg-white rounded-lg nice-shadow">
         {<Icon className="text-slate-300" size={32} />}
-        <p className="text-slate-500">No file available for preview.</p>
+        <p className="text-slate-500">{st("No file available for preview.")}</p>
       </div>
     )
 
