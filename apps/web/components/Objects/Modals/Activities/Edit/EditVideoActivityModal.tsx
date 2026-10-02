@@ -50,7 +50,6 @@ function EditVideoActivityModal({ activity, onClose }: EditVideoActivityModalPro
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // --- AI captions state (hosted video only) ---
   const [captions, setCaptions] = useState<CaptionsValue>(EMPTY_CAPTIONS)
   const [capStatus, setCapStatus] = useState<string | null>(null)
   const [isSavingCaptions, setIsSavingCaptions] = useState(false)
@@ -335,6 +334,7 @@ function EditVideoActivityModal({ activity, onClose }: EditVideoActivityModalPro
         </div>
       </div>
 
+      {/*
       {!isYouTube && (
         <div className="space-y-2">
           <CaptionsSettings value={captions} onChange={setCaptions} status={capStatus} />
@@ -356,6 +356,8 @@ function EditVideoActivityModal({ activity, onClose }: EditVideoActivityModalPro
           </div>
         </div>
       )}
+
+      */}
 
       <div className="flex justify-end">
         <button

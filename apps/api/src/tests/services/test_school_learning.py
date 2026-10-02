@@ -213,3 +213,88 @@ async def test_legacy_self_completion_is_not_attendance_and_is_not_erased(db, co
     assert not response.runs[0].steps[0].complete
     assert response.runs[0].status == StatusEnum.STATUS_IN_PROGRESS
     assert (await db.get(TrailStep, step.id)).complete
+
+
+@pytest.mark.parametrize("router", ["local_content", "content_files"])
+async def test_submission_file_owner_check_cannot_bypass_enrollment(
+    db, org, course, activity, regular_user, admin_user, mock_request, router
+):
+    from importlib import import_module
+
+    module = import_module(f"src.routers.{router}")
+    path = f"orgs/{org.org_uuid}/courses/{course.course_uuid}/activities/{activity.activity_uuid}/assignments/assignment_x/tasks/task_x/subs/work.pdf"
+    with patch.object(module, "enforce_submission_file_access", new_callable=AsyncMock) as owner_check:
+        with pytest.raises(HTTPException) as denied:
+            await module._check_content_access(path, regular_user, db, mock_request)
+        assert denied.value.status_code == 403
+        owner_check.assert_not_awaited()
+        await approve(db, course, regular_user, admin_user, mock_request)
+        await module._check_content_access(path, regular_user, db, mock_request)
+        owner_check.assert_awaited_once()
+        run = (await db.execute(select(TrailRun))).scalars().first()
+        run.status = StatusEnum.STATUS_CANCELLED
+        db.add(run)
+        await db.commit()
+        with pytest.raises(HTTPException) as denied:
+            await module._check_content_access(path, regular_user, db, mock_request)
+        assert denied.value.status_code == 403
+        owner_check.assert_awaited_once()
+
+
+async def test_headless_progress_ignores_self_completion_and_drafts(
+    db, course, activity, regular_user, admin_user, mock_request
+):
+    from src.db.courses.activities import Activity
+    from src.services.admin.admin import get_all_user_progress, get_course_analytics, get_user_progress
+
+    await approve(db, course, regular_user, admin_user, mock_request)
+    token = APITokenUser(org_id=course.org_id, created_by_user_id=admin_user.id,
+                         rights={"courses": {"action_read": True}})
+    run = (await db.execute(select(TrailRun))).scalars().first()
+    run.status = StatusEnum.STATUS_COMPLETED
+    db.add(run)
+    step = TrailStep(complete=True, teacher_verified=False, grade="", trailrun_id=run.id,
+        trail_id=run.trail_id, activity_id=activity.id, course_id=course.id,
+        org_id=course.org_id, user_id=regular_user.id, creation_date="now", update_date="now")
+    db.add(step)
+    await db.commit()
+    single = await get_user_progress(token, regular_user.id, course.course_uuid, db)
+    summary = (await get_all_user_progress(token, regular_user.id, db))[0]
+    analytics = await get_course_analytics(token, course.course_uuid, db)
+    for result in (single, summary):
+        assert result["total_activities"] == 1
+        assert result["completed_activities"] == 0
+        assert result["status"] == StatusEnum.STATUS_IN_PROGRESS.value
+    assert analytics["completed_count"] == 0
+    assert analytics["average_completion_percentage"] == 0
+    await mark_attendance(mock_request, course.course_uuid, activity.activity_uuid, regular_user.id,
+                          AttendanceInput(status="present"), admin_user, db)
+    assert (await get_all_user_progress(token, regular_user.id, db))[0]["completion_percentage"] == 100
+    assert (await get_course_analytics(token, course.course_uuid, db))["completed_count"] == 1
+    activity.published = False
+    db.add(activity)
+    await db.commit()
+    single = await get_user_progress(token, regular_user.id, course.course_uuid, db)
+    summary = (await get_all_user_progress(token, regular_user.id, db))[0]
+    assert single["total_activities"] == summary["total_activities"] == 0
+    assert single["completed_activities"] == summary["completed_activities"] == 0
+    assert (await get_course_analytics(token, course.course_uuid, db))["completed_count"] == 0
+    assert (await db.get(Activity, activity.id)).published is False
+
+
+async def test_cancelled_enrollment_status_survives_progress_reads(
+    db, course, activity, regular_user, admin_user, mock_request
+):
+    from src.services.admin.admin import get_all_user_progress, get_course_analytics, get_user_enrollments, get_user_progress
+
+    await approve(db, course, regular_user, admin_user, mock_request)
+    token = APITokenUser(org_id=course.org_id, created_by_user_id=admin_user.id,
+                         rights={"courses": {"action_read": True}})
+    run = (await db.execute(select(TrailRun))).scalars().first()
+    run.status = StatusEnum.STATUS_CANCELLED
+    db.add(run)
+    await db.commit()
+    assert (await get_user_enrollments(token, regular_user.id, db)).runs[0].status == StatusEnum.STATUS_CANCELLED
+    assert (await get_user_progress(token, regular_user.id, course.course_uuid, db))["status"] == StatusEnum.STATUS_CANCELLED.value
+    assert (await get_all_user_progress(token, regular_user.id, db))[0]["status"] == StatusEnum.STATUS_CANCELLED.value
+    assert (await get_course_analytics(token, course.course_uuid, db))["enrollment_count"] == 0

@@ -60,9 +60,11 @@ class TestLocalContentRouter:
 
         assert get_response.status_code == 200
         assert get_response.content == b"png"
+        assert get_response.headers["cache-control"] == "public, max-age=86400"
         assert head_response.status_code == 200
         assert head_response.headers["content-type"] == "image/png"
         assert head_response.headers["content-length"] == "3"
+        assert head_response.headers["cache-control"] == "public, max-age=86400"
 
     async def test_private_course_activity_requires_membership(
         self, client, db, org, course, activity, regular_user, admin_user, app, tmp_path
@@ -86,12 +88,17 @@ class TestLocalContentRouter:
             pending = await client.get("/content/" + path)
             app.dependency_overrides[get_current_user] = lambda: admin_user
             staff = await client.get("/content/" + path)
+            staff_head = await client.head("/content/" + path)
+            staff_range = await client.get("/content/" + path, headers={"Range": "bytes=0-1"})
         finally:
             local_content.CONTENT_DIR = original
         assert anonymous.status_code == 401
         assert pending.status_code == 403
         assert staff.status_code == 200
         assert staff.headers["content-type"] == "video/mp4"
+        for response in (staff, staff_head, staff_range):
+            assert response.headers["cache-control"] == "private, no-store"
+            assert response.headers["vary"] == "Authorization, Cookie"
 
     async def test_dot_segment_cannot_bypass_the_access_check(
         self, client, db, org, regular_user, app, tmp_path

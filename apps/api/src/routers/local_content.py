@@ -6,7 +6,7 @@ Replaces the unauthenticated StaticFiles mount to enforce authorization
 on private course/podcast content while allowing public content through.
 
 SECURITY:
-- Activity content (videos, PDFs, blocks) for non-public courses requires auth
+- Activity content requires approved enrollment or course staff access
 - Course-level metadata (thumbnails) is always public (shown in listings)
 - Org-level content (logos, branding) is always public
 - Podcast episode content for non-public podcasts requires auth
@@ -27,6 +27,7 @@ from src.db.podcasts.podcasts import Podcast
 from src.db.user_organizations import UserOrganization
 from src.db.users import AnonymousUser, APITokenUser, PublicUser
 from src.security.auth import get_current_user
+from src.security.content_cache import content_cache_headers
 from src.security.submission_file_access import (
     enforce_submission_file_access,
     is_submission_file,
@@ -47,7 +48,7 @@ def _normalize_content_relpath(file_path: str) -> str | None:
     filesystem sink, from the tainted input, is what makes the guard hold at
     runtime and what static analysis can follow.
     """
-    # Decode URL-encoded characters (double-decode for double-encoding attacks)
+
     decoded = unquote(unquote(file_path))
     if '..' in decoded or decoded.startswith('/') or '\x00' in decoded:
         return None
@@ -55,8 +56,6 @@ def _normalize_content_relpath(file_path: str) -> str | None:
     if '..' in normalized or normalized.startswith('/'):
         return None
     return normalized
-
-
 
 
 async def _check_content_access(
@@ -76,14 +75,7 @@ async def _check_content_access(
     """
     parts = file_path.split('/')
 
-    # Assignment submission files must be gated to the owner or an instructor —
-    # not the generic activity-content grant below (which would let any org
-    # member, or anyone on a public course, download another learner's work).
-    if is_submission_file(parts):
-        await enforce_submission_file_access(parts, current_user, db_session, request)
-        return
 
-    # Activity content: requires course to be public or user to be org member
     if (
         len(parts) >= 6
         and parts[0] == 'orgs'
@@ -108,9 +100,11 @@ async def _check_content_access(
             raise HTTPException(403, "Access denied")
         await require_course_learning_access(course, current_user, db_session)
         await check_resource_access(request, db_session, current_user, activity.activity_uuid, AccessAction.READ)
+        if is_submission_file(parts):
+            await enforce_submission_file_access(parts, current_user, db_session, request)
         return
 
-    # Podcast episode content: requires podcast to be public or user to be org member
+
     if (
         len(parts) >= 6
         and parts[0] == 'orgs'
@@ -124,15 +118,15 @@ async def _check_content_access(
         if not podcast:
             raise HTTPException(status_code=403, detail="Access denied")
         if podcast.public:
-            return  # Public podcast — allow anonymous
+            return
         if isinstance(current_user, AnonymousUser):
             raise HTTPException(status_code=401, detail="Authentication required")
-        # Verify API token is scoped to the correct org
+
         if isinstance(current_user, APITokenUser):
             if current_user.org_id != podcast.org_id:
                 raise HTTPException(status_code=403, detail="Access denied")
             return
-        # Verify user belongs to the org that owns this podcast
+
         membership = (await db_session.execute(
             select(UserOrganization).where(
                 UserOrganization.user_id == current_user.id,
@@ -143,40 +137,33 @@ async def _check_content_access(
             raise HTTPException(status_code=403, detail="Access denied")
         return
 
-    # Library media content: enforce the media's (folder-aware) access. Closes
-    # the legacy hole where orgs/{}/media/... fell through to the public branch.
+
     if len(parts) >= 4 and parts[0] == 'orgs' and parts[2] == 'media':
         from src.security.rbac import AccessAction, check_resource_access
-        media_uuid = parts[3]  # legacy keys embed media_uuid as the directory
+        media_uuid = parts[3]
         if media_uuid.startswith('media_'):
             await check_resource_access(
                 request, db_session, current_user, media_uuid, AccessAction.READ
             )
             return
-        # Randomized keys don't embed the media_uuid → deny direct /content
-        # access (these are only served via /media/{uuid}/file).
+
+
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Course metadata (thumbnails, etc.) and org-level content — always public
-    # These are displayed on listing pages to all users
+
     if len(parts) >= 2 and parts[0] == 'orgs':
         return
 
-    # User content (avatars, profile images) — always public
-    # Paths: users/{user_uuid}/avatars/...
+
     if len(parts) >= 2 and parts[0] == 'users':
         return
 
-    # Unknown path pattern — deny by default. Previously this only blocked
-    # anonymous users and silently served the file to any authenticated user,
-    # which leaked content across tenants for any path layout that didn't match
-    # the recognised org/user prefixes. Mirror the S3 router and deny.
+
     if isinstance(current_user, AnonymousUser):
         raise HTTPException(status_code=401, detail="Authentication required")
     raise HTTPException(status_code=403, detail="Access denied")
 
 
-# MIME type mapping
 _MIME_TYPES = {
     '.mp4': 'video/mp4',
     '.webm': 'video/webm',
@@ -202,7 +189,7 @@ _MIME_TYPES = {
 @router.get(
     "/content/{file_path:path}",
     summary="Serve a local content file",
-    description="Streams a content file from the local filesystem with access control. Public course and podcast content is accessible anonymously; private content requires authentication and org membership.",
+    description="Streams a content file from the local filesystem with access control. Lesson material requires approved enrollment or course staff access. Public metadata and public podcast episodes allow anonymous access.",
     responses={
         200: {"description": "File served successfully"},
         400: {"description": "Invalid or unsafe file path"},
@@ -221,30 +208,20 @@ async def serve_local_content(
     Serve content files from local filesystem with access control.
 
     SECURITY: Validates user access based on resource ownership.
-    Public courses/podcasts are accessible to anonymous users.
-    Private content requires authentication.
+    Lesson material requires approved enrollment or course staff access.
+    Public metadata and public podcast episodes allow anonymous access.
     """
     rel_path = _normalize_content_relpath(file_path)
     if rel_path is None:
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Resolve and guard inline, from the vetted relative path, so the whole
-    # join -> realpath -> containment-check -> filesystem-touch chain lives in
-    # one place. Anything that escapes CONTENT_DIR (including via a symlink,
-    # which the string checks above cannot see) is refused before any sink.
+
     base_real = os.path.realpath(str(CONTENT_DIR))
     safe_real = os.path.realpath(os.path.join(base_real, rel_path))
     if not (safe_real == base_real or safe_real.startswith(base_real + os.sep)):
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Run the access check against the CANONICAL content-relative path derived
-    # from the resolved file, never the request string. `_normalize_content_relpath`
-    # rejects `..` but leaves `.`/`//` segments intact, so a path like
-    # `orgs/./{uuid}/courses/...` would shift `_check_content_access`'s segment
-    # indices, miss every private pattern, and fall through to the public branch
-    # while realpath still serves the real private file (auth bypass / IDOR).
-    # Deriving the path from `safe_real` keeps the access check and the
-    # filesystem touch looking at exactly the same, collapsed, path.
+
     canonical_rel = os.path.relpath(safe_real, base_real).replace(os.sep, '/')
     await _check_content_access(canonical_rel, current_user, db_session, request=request)
 
@@ -258,7 +235,7 @@ async def serve_local_content(
         path=safe_real,
         media_type=media_type,
         headers={
-            "Cache-Control": "public, max-age=86400",
+            **content_cache_headers(canonical_rel),
             "X-Content-Type-Options": "nosniff",
         },
     )
@@ -287,16 +264,13 @@ async def head_local_content(
     if rel_path is None:
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Resolve and guard inline from the vetted relative path (see
-    # serve_local_content for the rationale). Sinks operate on ``safe_real``.
+
     base_real = os.path.realpath(str(CONTENT_DIR))
     safe_real = os.path.realpath(os.path.join(base_real, rel_path))
     if not (safe_real == base_real or safe_real.startswith(base_real + os.sep)):
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Access check against the CANONICAL path from safe_real, not the request
-    # string — see serve_local_content: a `.`/`//` segment would otherwise slip
-    # private content past the pattern matching (auth bypass / IDOR).
+
     canonical_rel = os.path.relpath(safe_real, base_real).replace(os.sep, '/')
     await _check_content_access(canonical_rel, current_user, db_session, request=request)
 
@@ -314,7 +288,7 @@ async def head_local_content(
             "Accept-Ranges": "bytes",
             "Content-Length": str(file_size),
             "Content-Type": media_type,
-            "Cache-Control": "public, max-age=86400",
+            **content_cache_headers(canonical_rel),
             "X-Content-Type-Options": "nosniff",
         },
     )

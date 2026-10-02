@@ -99,30 +99,27 @@ class TestCheckContentAccess:
 
 
     @pytest.mark.asyncio
-    async def test_submission_file_delegates_to_access_control(self):
-        """A submission-file sub-path is routed to enforce_submission_file_access
-        (owner/instructor gate), NOT the generic activity grant below."""
+    async def test_submission_file_delegates_to_access_control(self, db, org, course, activity, admin_user, mock_request):
+        """Enrolled course access and the submission owner gate both apply."""
         from unittest.mock import patch
         import src.routers.local_content as lc
 
-        path = ("orgs/org1/courses/course_abc/activities/act1/assignments/"
+        path = (f"orgs/{org.org_uuid}/courses/{course.course_uuid}/activities/{activity.activity_uuid}/assignments/"
                 "asgn1/tasks/task1/subs/submission_x.pdf")
-        db = self._make_db_session()
         with patch.object(lc, "enforce_submission_file_access", new_callable=AsyncMock) as gate:
-            await lc._check_content_access(path, MagicMock(), db)
+            await lc._check_content_access(path, admin_user, db, mock_request)
         gate.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_submission_file_delegates_to_access_control_s3_router(self):
+    async def test_submission_file_delegates_to_access_control_s3_router(self, db, org, course, activity, admin_user, mock_request):
         """Same submission-file gating in the S3 content-files router."""
         from unittest.mock import patch
         import src.routers.content_files as cf
 
-        path = ("orgs/org1/courses/course_abc/activities/act1/assignments/"
+        path = (f"orgs/{org.org_uuid}/courses/{course.course_uuid}/activities/{activity.activity_uuid}/assignments/"
                 "asgn1/tasks/task1/subs/submission_x.pdf")
-        db = self._make_db_session()
         with patch.object(cf, "enforce_submission_file_access", new_callable=AsyncMock) as gate:
-            await cf._check_content_access(path, MagicMock(), db)
+            await cf._check_content_access(path, admin_user, db, mock_request)
         gate.assert_awaited_once()
 
     @pytest.mark.asyncio

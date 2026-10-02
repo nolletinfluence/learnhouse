@@ -58,6 +58,7 @@ from src.services.analytics.analytics import track
 from src.services.courses.certifications import (
     create_certificate_user,
 )
+from src.services.courses.learning_progress import learning_progress_status
 from src.services.email.utils import get_base_url_from_request
 from src.services.orgs.join_notifications import notify_user_joined_org
 from src.services.security.password_validation import validate_password_complexity
@@ -569,8 +570,9 @@ async def get_user_progress(
     )).scalar_one()
 
     completed_activity_ids = (await db_session.execute(
-        select(TrailStep.activity_id).join(Activity, Activity.id == TrailStep.activity_id).where(
+        select(TrailStep.activity_id).distinct().join(Activity, Activity.id == TrailStep.activity_id).where(
             Activity.published == True, TrailStep.teacher_verified == True,
+            Activity.course_id == course.id,
             TrailStep.user_id == user_id,
             TrailStep.course_id == course.id,
             TrailStep.complete == True,
@@ -631,7 +633,7 @@ async def get_user_progress(
     return {
         "course_uuid": course.course_uuid,
         "user_id": user_id,
-        "status": trail_run.status.value if trail_run else "STATUS_NOT_ENROLLED",
+        "status": learning_progress_status(trail_run.status, total, len(completed_activity_ids)).value if trail_run else "STATUS_NOT_ENROLLED",
         "total_activities": total,
         "completed_activities": len(completed_activity_ids),
         "completion_percentage": round(len(completed_activity_ids) / total * 100, 1) if total > 0 else 0,
@@ -693,20 +695,25 @@ async def get_all_user_progress(
     course_map = {c.id: c for c in courses}
 
     total_counts = (await db_session.execute(
-        select(ChapterActivity.course_id, func.count(ChapterActivity.id))  # type: ignore
-        .where(ChapterActivity.course_id.in_(course_ids))  # type: ignore
-        .group_by(ChapterActivity.course_id)
+        select(Activity.course_id, func.count(Activity.id))
+        .where(Activity.course_id.in_(course_ids), Activity.published == True)
+        .group_by(Activity.course_id)
     )).all()
     total_map = {row[0]: row[1] for row in total_counts}
 
     completed_counts = (await db_session.execute(
-        select(TrailStep.course_id, func.count(TrailStep.id))  # type: ignore
+        select(TrailStep.trailrun_id, func.count(func.distinct(TrailStep.activity_id)))
+        .join(Activity, Activity.id == TrailStep.activity_id)
         .where(
             TrailStep.user_id == user_id,
-            TrailStep.course_id.in_(course_ids),  # type: ignore
+            TrailStep.org_id == token_user.org_id,
+            TrailStep.trailrun_id.in_([tr.id for tr in trail_runs]),
             TrailStep.complete == True,
+            TrailStep.teacher_verified == True,
+            Activity.published == True,
+            Activity.course_id == TrailStep.course_id,
         )
-        .group_by(TrailStep.course_id)
+        .group_by(TrailStep.trailrun_id)
     )).all()
     completed_map = {row[0]: row[1] for row in completed_counts}
 
@@ -716,11 +723,11 @@ async def get_all_user_progress(
         if not course:
             continue
         total = total_map.get(tr.course_id, 0)
-        completed = completed_map.get(tr.course_id, 0)
+        completed = completed_map.get(tr.id, 0)
         result.append({
             "course_uuid": course.course_uuid,
             "course_name": course.name,
-            "status": tr.status.value,
+            "status": learning_progress_status(tr.status, total, completed).value,
             "total_activities": total,
             "completed_activities": completed,
             "completion_percentage": round(completed / total * 100, 1) if total > 0 else 0,
@@ -2349,30 +2356,37 @@ async def get_course_analytics(
         select(TrailRun).where(
             TrailRun.course_id == course.id,
             TrailRun.org_id == token_user.org_id,
+            TrailRun.status != StatusEnum.STATUS_CANCELLED,
         )
     )).scalars().all()
 
     enrollment_count = len(trail_runs)
-    completed_count = sum(1 for tr in trail_runs if tr.status == StatusEnum.STATUS_COMPLETED)
-    in_progress_count = sum(1 for tr in trail_runs if tr.status == StatusEnum.STATUS_IN_PROGRESS)
-
-    average_completion_percentage = 0.0
-    if trail_runs and total_activities:
+    completed_by_run = {}
+    if trail_runs:
         completion_rows = (await db_session.execute(
-            select(TrailStep.user_id, func.count(TrailStep.id))  # type: ignore
+            select(TrailStep.trailrun_id, func.count(func.distinct(TrailStep.activity_id)))
+            .join(Activity, Activity.id == TrailStep.activity_id)
             .where(
                 TrailStep.course_id == course.id,
+                TrailStep.org_id == token_user.org_id,
+                TrailStep.trailrun_id.in_([tr.id for tr in trail_runs]),
                 TrailStep.complete == True,
+                TrailStep.teacher_verified == True,
+                Activity.published == True,
+                Activity.course_id == course.id,
             )
-            .group_by(TrailStep.user_id)
+            .group_by(TrailStep.trailrun_id)
         )).all()
-        completed_by_user = {row[0]: row[1] for row in completion_rows}
-        if trail_runs:
-            total_pct = sum(
-                completed_by_user.get(tr.user_id, 0) / total_activities * 100
-                for tr in trail_runs
-            )
-            average_completion_percentage = round(total_pct / len(trail_runs), 1)
+        completed_by_run = {row[0]: row[1] for row in completion_rows}
+    statuses = [learning_progress_status(tr.status, total_activities, completed_by_run.get(tr.id, 0))
+                for tr in trail_runs]
+    completed_count = statuses.count(StatusEnum.STATUS_COMPLETED)
+    in_progress_count = statuses.count(StatusEnum.STATUS_IN_PROGRESS)
+    average_completion_percentage = (
+        round(sum(completed_by_run.get(tr.id, 0) for tr in trail_runs)
+              / total_activities / len(trail_runs) * 100, 1)
+        if trail_runs and total_activities else 0.0
+    )
 
     certificate_count = 0
     certification = (await db_session.execute(

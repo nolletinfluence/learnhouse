@@ -33,9 +33,6 @@ type AudioSize = keyof typeof AUDIO_SIZES
 type SourceType = 'upload' | 'episode' | 'podcast'
 type TabType = 'upload' | 'generate' | 'episode' | 'podcast'
 
-// AI audio generation (Gemini TTS). Curated subset of the prebuilt voices, and a
-// list of well-supported languages. Language is otherwise auto-detected from the
-// text; picking one just nudges the model.
 const AI_CREDIT_COST = 3
 const SCRIPT_CREDIT_COST = 1
 const TTS_VOICES = [
@@ -55,7 +52,6 @@ const TTS_LANGUAGES = [
   'Italian', 'Dutch', 'Arabic', 'Hindi', 'Japanese', 'Korean',
   'Chinese (Mandarin)', 'Russian', 'Turkish', 'Polish', 'Indonesian', 'Vietnamese',
 ]
-// Approximate podcast/talk length options, in minutes (from 2).
 const LENGTH_OPTIONS = [2, 3, 5, 10]
 
 type GenMode = 'tts' | 'speak' | 'podcast'
@@ -114,7 +110,6 @@ interface ExtendedNodeViewProps extends Omit<NodeViewProps, 'extension'> {
 }
 
 
-// ─── Playlist Player (podcast-player inspired episode list) ───
 
 function PlaylistPlayer({
   episodes,
@@ -153,7 +148,6 @@ function PlaylistPlayer({
     const onLoadedMetadata = () => setDuration(audio.duration)
     const onEnded = () => {
       setIsPlaying(false)
-      // Auto-advance to next episode
       if (activeEpisode) {
         const idx = episodes.findIndex((e) => e.episode_uuid === activeEpisode.episode_uuid)
         if (idx >= 0 && idx < episodes.length - 1) {
@@ -200,14 +194,12 @@ function PlaylistPlayer({
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       <audio ref={audioRef} preload="metadata" />
 
-      {/* Header */}
       <div className="px-4 pt-3 pb-2 border-b border-gray-100 flex items-center gap-2">
         <Radio weight="duotone" size={14} className="text-gray-400 flex-shrink-0" />
         <span className="text-sm font-semibold text-gray-900">{podcastName}</span>
         <span className="text-xs text-gray-400 ms-auto">{episodes.length} episodes</span>
       </div>
 
-      {/* Episode list */}
       <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
         {episodes.map((ep) => {
           const isCurrent = activeEpisode?.episode_uuid === ep.episode_uuid
@@ -221,7 +213,6 @@ function PlaylistPlayer({
                 isCurrent ? 'bg-gray-100' : 'hover:bg-gray-50'
               )}
             >
-              {/* Play/Pause indicator */}
               <div
                 className={cn(
                   'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors',
@@ -235,7 +226,6 @@ function PlaylistPlayer({
                 )}
               </div>
 
-              {/* Episode info */}
               <div className="flex-1 min-w-0">
                 <h4 className={cn('text-sm truncate', isCurrent ? 'font-semibold text-gray-900' : 'text-gray-800')}>
                   {ep.title}
@@ -252,16 +242,13 @@ function PlaylistPlayer({
         })}
       </div>
 
-      {/* Bottom player bar (visible when an episode is active) */}
       {activeEpisode && (
         <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
-          {/* Now playing title */}
           <div className="flex items-center gap-2 mb-2">
             <MusicNote weight="duotone" size={12} className="text-gray-400 flex-shrink-0" />
             <span className="text-xs font-medium text-gray-700 truncate">{activeEpisode.title}</span>
           </div>
 
-          {/* Controls row */}
           <div className="flex items-center gap-2">
             <button onClick={() => skip(-15)} className="p-1 rounded-full hover:bg-gray-200 transition-colors outline-none">
               <SkipBack weight="duotone" size={14} className="text-gray-600" />
@@ -289,8 +276,6 @@ function PlaylistPlayer({
             <div
               ref={progressRef}
               onClick={seekTo}
-              // dir="ltr": see InlineAudioPlayer — fill, thumb and seek math all
-              // assume left-to-right, and audio transport is LTR everywhere.
               dir="ltr"
               className="flex-1 h-1 bg-gray-200 rounded-full cursor-pointer relative group"
             >
@@ -311,7 +296,6 @@ function PlaylistPlayer({
   )
 }
 
-// ─── Main AudioBlockComponent ───
 
 function AudioBlockComponent(props: ExtendedNodeViewProps) {
   const { node, extension, updateAttributes } = props
@@ -336,7 +320,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
   const [isDragging, setIsDragging] = React.useState(false)
   const [uploadProgress, setUploadProgress] = React.useState(0)
 
-  // AI generation state
   const [genMode, setGenMode] = React.useState<GenMode>('tts')
   const [genText, setGenText] = React.useState('')
   const [genVoice, setGenVoice] = React.useState(TTS_VOICES[0].name)
@@ -350,20 +333,17 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [isGeneratingScript, setIsGeneratingScript] = React.useState(false)
 
-  // Podcast selection state
   const [podcasts, setPodcasts] = React.useState<Podcast[]>([])
   const [podcastsLoading, setPodcastsLoading] = React.useState(false)
   const [selectedPodcast, setSelectedPodcast] = React.useState<Podcast | null>(null)
   const [episodes, setEpisodes] = React.useState<PodcastEpisode[]>([])
   const [episodesLoading, setEpisodesLoading] = React.useState(false)
 
-  // Playlist meta for preview mode
   const [playlistMeta, setPlaylistMeta] = React.useState<PodcastMeta | null>(null)
 
   const isEditable = editorState?.isEditable
   const access_token = session?.data?.tokens?.access_token
 
-  // Update block object when size changes
   React.useEffect(() => {
     if (blockObject && blockObject.size !== selectedSize) {
       const newBlockObject = { ...blockObject, size: selectedSize }
@@ -372,14 +352,12 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
     }
   }, [selectedSize])
 
-  // Fetch podcasts when episode or podcast tab is active
   React.useEffect(() => {
     if ((activeTab === 'episode' || activeTab === 'podcast') && podcasts.length === 0 && !podcastsLoading) {
       fetchPodcasts()
     }
   }, [activeTab])
 
-  // Fetch playlist meta for podcast source_type
   React.useEffect(() => {
     if (blockObject?.source_type === 'podcast' && blockObject.podcast) {
       fetchPlaylistMeta(blockObject.podcast.podcast_uuid)
@@ -522,7 +500,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
     try {
       setIsGenerating(true)
       setError(null)
-      // 'speak' narrates a single voice, same as plain text-to-speech.
       const object = await generateAudioBlock(
         {
           activity_uuid: extension.options.activity.activity_uuid,
@@ -535,7 +512,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
         },
         access_token
       )
-      // Generated audio is stored like an upload, so treat it identically.
       const newBlockObject: AudioBlockObject = { ...object, source_type: 'upload', size: selectedSize }
       setBlockObject(newBlockObject)
       updateAttributes({ blockObject: newBlockObject })
@@ -593,7 +569,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
     setPlaylistMeta(null)
   }
 
-  // Build audio URLs
   const uploadAudioUrl =
     blockObject?.source_type === 'upload' && blockObject.content && org?.org_uuid && course?.courseStructure.course_uuid
       ? getAudioBlockStreamUrl(
@@ -620,7 +595,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
     return typeof mw === 'number' ? mw : '100%'
   }
 
-  // ===== PREVIEW MODE =====
   if (!isEditable) {
     if (!blockObject) return null
     const maxWidth = getMaxWidth(blockObject.size || 'medium')
@@ -658,11 +632,9 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
     )
   }
 
-  // ===== EDIT MODE =====
   return (
     <NodeViewWrapper className="block-audio w-full">
       <div className="bg-neutral-50 rounded-xl px-5 py-4 nice-shadow transition-all ease-linear">
-        {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Headphones weight="duotone" className="text-neutral-400" size={16} />
@@ -675,14 +647,12 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
           )}
         </div>
 
-        {/* Selection UI (no block object yet) */}
         {!blockObject && (
           <div className="space-y-4">
-            {/* Tabs */}
             <div className="flex gap-1 bg-neutral-100 rounded-lg p-1">
               {([
                 { key: 'upload' as TabType, icon: UploadSimple, label: 'Upload' },
-                { key: 'generate' as TabType, icon: Sparkle, label: 'Generate' },
+                // { key: 'generate' as TabType, icon: Sparkle, label: 'Generate' },
                 { key: 'episode' as TabType, icon: MusicNote, label: 'Episode' },
                 { key: 'podcast' as TabType, icon: List, label: 'Playlist' },
               ]).map((tab) => (
@@ -702,7 +672,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
               ))}
             </div>
 
-            {/* Upload Tab */}
             {activeTab === 'upload' && (
               <div className="space-y-3">
                 <input ref={fileInputRef} type="file" onChange={handleAudioChange} accept={SUPPORTED_FILES} className="hidden" />
@@ -739,10 +708,11 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
               </div>
             )}
 
-            {/* Generate Tab (AI / Gemini TTS) */}
+            {/*
+
             {activeTab === 'generate' && (
               <div className="space-y-3">
-                {/* Mode toggle */}
+
                 <div className="flex gap-1 bg-neutral-100 rounded-lg p-1">
                   {([
                     { key: 'tts' as const, icon: Sparkle, label: 'Text to speech' },
@@ -763,7 +733,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                   ))}
                 </div>
 
-                {/* Script / text */}
+
                 <textarea
                   value={genText}
                   onChange={(e) => setGenText(e.target.value)}
@@ -778,7 +748,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                   className="w-full rounded-lg border border-neutral-200 p-3 text-sm outline-none focus:border-blue-400 resize-y"
                 />
 
-                {/* Voice(s) — single voice for text-to-speech and speak; two for podcast */}
+
                 {genMode !== 'podcast' ? (
                   <label className="block">
                     <span className="text-xs font-medium text-neutral-600">Voice</span>
@@ -827,7 +797,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                   </div>
                 )}
 
-                {/* Length (podcast / speak) + language + tone */}
+
                 <div className="flex gap-2">
                   {genMode !== 'tts' && (
                     <label className="w-28 shrink-0">
@@ -866,7 +836,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                   </label>
                 </div>
 
-                {/* Podcast / Speak: turn the topic into a script first */}
+
                 {genMode !== 'tts' && (
                   <button
                     onClick={handleGenerateScript}
@@ -886,7 +856,7 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                   </button>
                 )}
 
-                {/* Generate audio button */}
+
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || isGeneratingScript || !genText.trim()}
@@ -910,8 +880,8 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
                 </p>
               </div>
             )}
+            */}
 
-            {/* Episode Tab */}
             {activeTab === 'episode' && (
               <div className="space-y-3">
                 {podcastsLoading ? (
@@ -971,7 +941,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
               </div>
             )}
 
-            {/* Podcast (Playlist) Tab */}
             {activeTab === 'podcast' && (
               <div className="space-y-3">
                 {podcastsLoading ? (
@@ -1011,10 +980,8 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
           </div>
         )}
 
-        {/* Block exists — preview + controls */}
         {blockObject && (
           <div className="space-y-4">
-            {/* Size Controls */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-sm text-neutral-500 font-medium flex items-center gap-1">
                 <ArrowsLeftRight weight="duotone" size={14} />
@@ -1037,7 +1004,6 @@ function AudioBlockComponent(props: ExtendedNodeViewProps) {
               ))}
             </div>
 
-            {/* Audio Preview */}
             <div className="flex justify-center">
               <div style={{ maxWidth: getMaxWidth(selectedSize), width: '100%' }}>
                 {blockObject.source_type === 'upload' && uploadAudioUrl && (

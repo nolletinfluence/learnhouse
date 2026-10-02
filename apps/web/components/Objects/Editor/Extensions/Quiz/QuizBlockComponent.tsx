@@ -47,7 +47,6 @@ function QuizBlockComponent(props: any) {
   const activityUuid = props.extension?.options?.activity?.activity_uuid
 
   const applyGeneratedQuiz = (quiz: { quizId: string; questions: Question[] }) => {
-    // Append the generated questions to whatever is already in the block.
     const merged = [...questions, ...quiz.questions]
     props.updateAttributes({
       quizId: props.node.attrs.quizId || quiz.quizId,
@@ -232,7 +231,6 @@ function QuizBlockComponent(props: any) {
           />
         )}
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <QuestionIcon weight="duotone" className="text-neutral-400" size={15} />
@@ -243,6 +241,7 @@ function QuizBlockComponent(props: any) {
 
           {isEditable ? (
             <div className="flex items-center gap-1.5">
+              {/*
               <button
                 onClick={() => setShowAIGenerator(true)}
                 className="bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-1.5 px-3 rounded-lg text-xs transition-colors outline-none flex items-center gap-1.5 nice-shadow"
@@ -250,6 +249,7 @@ function QuizBlockComponent(props: any) {
                 <Sparkle weight="duotone" size={13} />
                 {t('editor.blocks.quiz_block.generate_with_ai', 'Generate with AI')}
               </button>
+              */}
               <button
                 onClick={addSampleQuestion}
                 className="flex items-center gap-1 bg-neutral-200 hover:bg-neutral-300 text-neutral-700 text-xs font-medium px-2.5 py-1 rounded-md transition-colors outline-none"
@@ -284,7 +284,6 @@ function QuizBlockComponent(props: any) {
           )}
         </div>
 
-        {/* Empty state */}
         {totalQuestions === 0 && (
           <div className="bg-white rounded-lg nice-shadow flex items-center justify-center gap-2 py-6">
             <QuestionIcon weight="duotone" className="text-neutral-300" size={20} />
@@ -301,12 +300,10 @@ function QuizBlockComponent(props: any) {
           </div>
         )}
 
-        {/* Questions */}
         {totalQuestions > 0 && (
           <div className="space-y-3">
             {questions.map((question: Question, qIndex: number) => (
               <div key={question.question_id}>
-                {/* Question header */}
                 <div className="flex items-start justify-between gap-2 mb-1.5 px-1">
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] uppercase tracking-widest font-bold text-neutral-400 mb-0.5">
@@ -354,7 +351,6 @@ function QuizBlockComponent(props: any) {
                   )}
                 </div>
 
-                {/* Answers */}
                 <div className="space-y-1">
                   {question.answers.map((answer: Answer, aIndex: number) => {
                     const isSelected = userAnswers.some(
@@ -370,28 +366,21 @@ function QuizBlockComponent(props: any) {
 
                     const row = cn(
                       'group flex items-center gap-2 rounded-lg nice-shadow px-2 py-1.5 transition-colors',
-                      // Take mode — default
                       !isEditable &&
                         !submitted &&
                         !isSelected &&
                         'bg-white hover:bg-neutral-50 cursor-pointer',
-                      // Take mode — selected
                       !isEditable &&
                         !submitted &&
                         isSelected &&
                         'bg-blue-50 cursor-pointer',
-                      // Submitted — correct
                       isCorrectReveal && 'bg-emerald-50',
-                      // Submitted — wrong selection
                       isWrongSelection && 'bg-red-50',
-                      // Submitted — neutral (not selected, not correct)
                       submitted &&
                         !isMarkedCorrect &&
                         !isSelected &&
                         'bg-white opacity-60',
-                      // Edit — marked correct
                       isEditable && isMarkedCorrect && 'bg-emerald-50',
-                      // Edit — not marked
                       isEditable &&
                         !isMarkedCorrect &&
                         'bg-white hover:bg-neutral-50'
@@ -399,30 +388,23 @@ function QuizBlockComponent(props: any) {
 
                     const chip = cn(
                       'shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold transition-colors',
-                      // Take mode — default
                       !isEditable &&
                         !submitted &&
                         !isSelected &&
                         'bg-neutral-100 text-neutral-500',
-                      // Take mode — selected
                       !isEditable &&
                         !submitted &&
                         isSelected &&
                         'bg-blue-500 text-white',
-                      // Submitted — correct
                       isCorrectReveal && 'bg-emerald-500 text-white',
-                      // Submitted — wrong selection
                       isWrongSelection && 'bg-red-500 text-white',
-                      // Submitted — neutral
                       submitted &&
                         !isMarkedCorrect &&
                         !isSelected &&
                         'bg-neutral-100 text-neutral-400',
-                      // Edit — correct
                       isEditable &&
                         isMarkedCorrect &&
                         'bg-emerald-500 text-white',
-                      // Edit — not correct
                       isEditable &&
                         !isMarkedCorrect &&
                         'bg-neutral-100 text-neutral-500'
@@ -439,7 +421,6 @@ function QuizBlockComponent(props: any) {
                         }
                         className={row}
                       >
-                        {/* Letter chip — clickable in edit mode to toggle correct */}
                         {isEditable ? (
                           <button
                             onClick={(e) => {
@@ -462,7 +443,6 @@ function QuizBlockComponent(props: any) {
                           <div className={chip}>{letter}</div>
                         )}
 
-                        {/* Answer text */}
                         <div className="flex-1 min-w-0">
                           {isEditable ? (
                             <input
@@ -502,7 +482,6 @@ function QuizBlockComponent(props: any) {
                           )}
                         </div>
 
-                        {/* Trailing — status icon (take mode) or delete (edit) */}
                         {isEditable ? (
                           <button
                             onClick={(e) => {
@@ -530,7 +509,6 @@ function QuizBlockComponent(props: any) {
                     )
                   })}
 
-                  {/* Add answer */}
                   {isEditable && question.answers.length < 5 && (
                     <button
                       onClick={() => addAnswer(question.question_id)}
@@ -546,7 +524,6 @@ function QuizBlockComponent(props: any) {
           </div>
         )}
 
-        {/* Submission message */}
         {submitted && (
           <div className="mt-2.5">
             <div
@@ -569,6 +546,7 @@ function QuizBlockComponent(props: any) {
           </div>
         )}
       </div>
+      {/*
       {showAIGenerator && (
         <AIQuizGeneratorModal
           isOpen={showAIGenerator}
@@ -577,6 +555,7 @@ function QuizBlockComponent(props: any) {
           activityUuid={activityUuid}
         />
       )}
+      */}
     </NodeViewWrapper>
   )
 }

@@ -359,11 +359,26 @@ class TestContentFilesRouter:
 
         assert full_response.status_code == 200
         assert full_response.content == b"abcdef"
+        assert full_response.headers["cache-control"] == "public, max-age=86400"
         assert range_response.status_code == 206
         assert range_response.content == b"bcd"
         assert range_response.headers["content-range"] == "bytes 1-3/6"
         assert suffix_range_response.status_code == 206
         assert suffix_range_response.content == b"ef"
+
+    async def test_lesson_get_head_and_range_cannot_enter_a_shared_cache(
+        self, client, org, course, activity
+    ):
+        path = f"/content/orgs/{org.org_uuid}/courses/{course.course_uuid}/activities/{activity.activity_uuid}/video.mp4"
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(content_files, "get_storage_client", lambda: _S3Client())
+            mp.setattr(content_files, "get_s3_bucket_name", lambda: "bucket")
+            responses = [await client.get(path), await client.head(path),
+                         await client.get(path, headers={"Range": "bytes=1-3"})]
+        assert [response.status_code for response in responses] == [200, 200, 206]
+        for response in responses:
+            assert response.headers["cache-control"] == "private, no-store"
+            assert response.headers["vary"] == "Authorization, Cookie"
 
     async def test_open_ended_range_invalid_range_and_empty_streams(
         self, client, app

@@ -19,6 +19,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      CODECOV_ENABLED: ${{ secrets.CODECOV_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -53,8 +55,10 @@ jobs:
           TESTING: "true"
 
       - name: Upload API coverage to Codecov
+        if: ${{ env.CODECOV_ENABLED == 'true' }}
         uses: codecov/codecov-action@v7
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: apps/api/coverage.xml
           flags: api
           name: api-coverage

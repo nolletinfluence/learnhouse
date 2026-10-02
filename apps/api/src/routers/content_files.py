@@ -5,7 +5,7 @@ Serves static content files from S3 storage when S3 is enabled.
 Replaces the StaticFiles mount for S3 deployments.
 
 SECURITY:
-- Activity content (videos, PDFs, blocks) for non-public courses requires auth
+- Activity content requires approved enrollment or course staff access
 - Course-level metadata (thumbnails) is always public (shown in listings)
 - Org-level content (logos, branding) is always public
 - Podcast episode content for non-public podcasts requires auth
@@ -27,6 +27,7 @@ from src.db.podcasts.podcasts import Podcast
 from src.db.user_organizations import UserOrganization
 from src.db.users import AnonymousUser, APITokenUser, PublicUser
 from src.security.auth import get_current_user
+from src.security.content_cache import content_cache_headers
 from src.security.submission_file_access import (
     enforce_submission_file_access,
     is_submission_file,
@@ -38,21 +39,7 @@ from src.services.courses.transfer.storage_utils import (
 
 router = APIRouter()
 
-# MIME type mapping.
-#
-# SECURITY: no type a browser executes as a document is listed here — no
-# text/html, application/javascript, text/css or application/xml. Content keys
-# can carry a caller-chosen extension (course import packages name their own
-# files), and this endpoint answers on the shared API origin where every
-# tenant's session cookies live, so a renderable Content-Type would be a
-# stored-XSS primitive. Unknown extensions fall back to application/octet-stream
-# and, like every non-media type, are served as an attachment.
-#
-# SVG is the one exception: org logos and thumbnails are legitimately uploaded
-# as SVG, so refusing to render it would blank them out. It keeps its real type
-# and stays inline, but is served under `_SVG_CSP` — scripting inside an SVG is
-# already disabled when it loads through <img>, and the CSP covers the
-# remaining case of someone opening the URL top-level or framing it.
+
 MIME_TYPES = {
     '.mp4': 'video/mp4',
     '.webm': 'video/webm',
@@ -80,15 +67,13 @@ MIME_TYPES = {
     '.txt': 'text/plain',
 }
 
-CHUNK_SIZE = 1024 * 1024  # 1MB
+CHUNK_SIZE = 1024 * 1024
 
-# Only these types are rendered inline; everything else is downloaded. Same
-# treatment as `src/services/media/media_serve.py`.
+
 _INLINE_MIME_PREFIXES = ('image/', 'audio/', 'video/')
 _INLINE_MIME_TYPES = frozenset({'application/pdf'})
 
-# Neutralizes an SVG opened top-level or framed: no script, no subresources,
-# and an opaque origin, so it cannot reach the API it is served from.
+
 _SVG_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
 
 
@@ -124,21 +109,21 @@ def _validate_content_path(file_path: str) -> str | None:
     Returns the sanitized relative path string, or None if the path is unsafe.
     """
     from urllib.parse import unquote
-    # Decode any URL-encoded characters to catch %2e%2e etc.
-    decoded = unquote(unquote(file_path))  # Double-decode to catch double-encoding
+
+    decoded = unquote(unquote(file_path))
     if '..' in decoded or decoded.startswith('/') or '\x00' in decoded:
         return None
-    # Normalize path separators
+
     normalized = decoded.replace('\\', '/')
     if '..' in normalized:
         return None
-    # Canonicalize via os.path.realpath (resolves symlinks, normalizes) and verify containment.
-    # realpath is used deliberately: it is a recognized path-injection sanitizer.
+
+
     base_real = os.path.realpath(str(Path("content")))
     full_real = os.path.realpath(os.path.join(base_real, normalized))
     if not full_real.startswith(base_real + os.sep):
         return None
-    # Return the validated relative path
+
     return os.path.relpath(full_real, base_real).replace(os.sep, '/')
 
 
@@ -159,14 +144,7 @@ async def _check_content_access(
     """
     parts = file_path.split('/')
 
-    # Assignment submission files must be gated to the owner or an instructor —
-    # not the generic activity-content grant below (which would let any org
-    # member, or anyone on a public course, download another learner's work).
-    if is_submission_file(parts):
-        await enforce_submission_file_access(parts, current_user, db_session, request)
-        return
 
-    # Activity content: requires course to be public or user to be org member
     if (
         len(parts) >= 6
         and parts[0] == 'orgs'
@@ -191,9 +169,11 @@ async def _check_content_access(
             raise HTTPException(403, "Access denied")
         await require_course_learning_access(course, current_user, db_session)
         await check_resource_access(request, db_session, current_user, activity.activity_uuid, AccessAction.READ)
+        if is_submission_file(parts):
+            await enforce_submission_file_access(parts, current_user, db_session, request)
         return
 
-    # Podcast episode content: requires podcast to be public or user to be org member
+
     if (
         len(parts) >= 6
         and parts[0] == 'orgs'
@@ -207,15 +187,15 @@ async def _check_content_access(
         if not podcast:
             raise HTTPException(status_code=403, detail="Access denied")
         if podcast.public:
-            return  # Public podcast — allow anonymous
+            return
         if isinstance(current_user, AnonymousUser):
             raise HTTPException(status_code=401, detail="Authentication required")
-        # Verify API token is scoped to the correct org
+
         if isinstance(current_user, APITokenUser):
             if current_user.org_id != podcast.org_id:
                 raise HTTPException(status_code=403, detail="Access denied")
             return
-        # Verify user belongs to the org that owns this podcast
+
         membership = (await db_session.execute(
             select(UserOrganization).where(
                 UserOrganization.user_id == current_user.id,
@@ -226,25 +206,24 @@ async def _check_content_access(
             raise HTTPException(status_code=403, detail="Access denied")
         return
 
-    # Library media content: enforce the media's (folder-aware) access. Closes
-    # the legacy hole where orgs/{}/media/... fell through to the public branch.
+
     if len(parts) >= 4 and parts[0] == 'orgs' and parts[2] == 'media':
         from src.security.rbac import AccessAction, check_resource_access
-        media_uuid = parts[3]  # legacy keys embed media_uuid as the directory
+        media_uuid = parts[3]
         if media_uuid.startswith('media_'):
             await check_resource_access(
                 request, db_session, current_user, media_uuid, AccessAction.READ
             )
             return
-        # Randomized keys don't embed the media_uuid → deny direct /content
-        # access (these are only served via /media/{uuid}/file).
+
+
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Course metadata (thumbnails, etc.) and org-level content — always public
+
     if len(parts) >= 2 and parts[0] == 'orgs':
         return
 
-    # User content (avatars, profile images) — always public
+
     if len(parts) >= 2 and parts[0] == 'users':
         return
 
@@ -256,7 +235,7 @@ async def _check_content_access(
 @router.get(
     "/content/{file_path:path}",
     summary="Serve a content file",
-    description="Streams a content file (videos, PDFs, images, etc.) from S3 storage. Supports HTTP Range requests for video/audio seeking. Access is enforced based on the path prefix: activity and podcast episode content require authentication and org membership for non-public resources, while course metadata and org branding are public.",
+    description="Streams a content file (videos, PDFs, images, etc.) from S3 storage. Supports HTTP Range requests for video/audio seeking. Access is enforced based on the path prefix: lesson material requires approved enrollment or course staff access; public podcast episodes, course metadata and org branding allow anonymous access.",
     responses={
         200: {"description": "File streamed successfully"},
         206: {"description": "Partial content returned for a Range request"},
@@ -291,7 +270,7 @@ async def serve_content_file(
     if not s3_client:
         raise HTTPException(status_code=500, detail="Storage not configured")
 
-    # Get file metadata
+
     try:
         head = s3_client.head_object(Bucket=bucket, Key=s3_key)
     except ClientError as e:
@@ -311,7 +290,7 @@ async def serve_content_file(
     headers = {
         "Accept-Ranges": "bytes",
         "Content-Type": mime_type,
-        "Cache-Control": "public, max-age=86400",
+        **content_cache_headers(safe_path),
         "X-Content-Type-Options": "nosniff",
         "Content-Disposition": _content_disposition(mime_type, safe_path),
         **_security_headers(mime_type),
@@ -320,7 +299,7 @@ async def serve_content_file(
     range_header = request.headers.get("range")
 
     if range_header:
-        # Parse range
+
         try:
             range_spec = range_header.replace('bytes=', '')
             if range_spec.startswith('-'):
@@ -454,7 +433,7 @@ async def head_content_file(
             "Accept-Ranges": "bytes",
             "Content-Length": str(file_size),
             "Content-Type": mime_type,
-            "Cache-Control": "public, max-age=86400",
+            **content_cache_headers(safe_path),
             "X-Content-Type-Options": "nosniff",
             "Content-Disposition": _content_disposition(mime_type, safe_path),
             **_security_headers(mime_type),

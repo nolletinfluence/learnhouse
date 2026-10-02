@@ -11,6 +11,7 @@ from src.db.trail_runs import StatusEnum, TrailRun, TrailRunRead
 from src.db.trail_steps import TrailStep
 from src.db.trails import Trail, TrailCreate, TrailRead
 from src.db.users import AnonymousUser, PublicUser
+from src.services.courses.learning_progress import learning_progress_status
 from src.services.trail.access import ensure_learner_identity
 
 
@@ -28,7 +29,7 @@ async def _build_trail_read(
     trail_run_ids = [tr.id for tr in trail_runs_raw]
     course_ids = list({tr.course_id for tr in trail_runs_raw})
 
-    # Batch fetch all courses needed
+
     course_map: dict[int, Course] = {}
     if course_ids:
         courses = (await db_session.execute(
@@ -36,7 +37,7 @@ async def _build_trail_read(
         )).scalars().all()
         course_map = {c.id: c for c in courses}
 
-    # Batch fetch chapter activity counts per course (for total_steps)
+
     course_total_steps_map: dict[int, int] = {}
     if with_course_info and course_ids:
         step_counts = (await db_session.execute(
@@ -46,7 +47,7 @@ async def _build_trail_read(
         )).all()
         course_total_steps_map = {row[0]: row[1] for row in step_counts}
 
-    # Batch fetch all trail steps for these trail runs
+
     steps_statement = select(TrailStep).join(Activity, Activity.id == TrailStep.activity_id).where(
         Activity.published == True,
         TrailStep.trailrun_id.in_(trail_run_ids)  # type: ignore
@@ -55,12 +56,12 @@ async def _build_trail_read(
         steps_statement = steps_statement.where(TrailStep.user_id == user_id)
     all_steps = (await db_session.execute(steps_statement)).scalars().all()
 
-    # Group steps by trailrun_id
+
     steps_by_run: dict[int, list[TrailStep]] = {}
     for step in all_steps:
         steps_by_run.setdefault(step.trailrun_id, []).append(step)
 
-    # Also fetch courses referenced by trail steps (may overlap with trail_run courses)
+
     step_course_ids = list({s.course_id for s in all_steps} - set(course_map.keys()))
     if step_course_ids:
         extra_courses = (await db_session.execute(
@@ -69,7 +70,7 @@ async def _build_trail_read(
         for c in extra_courses:
             course_map[c.id] = c
 
-    # Build trail runs
+
     trail_runs = []
     for tr in trail_runs_raw:
         course = course_map.get(tr.course_id)
@@ -80,7 +81,7 @@ async def _build_trail_read(
             course_total_steps=course_total_steps_map.get(tr.course_id, 0) if with_course_info else 0,
         )
 
-        # Attach steps with course data (expunge to avoid dirty-tracking the data override)
+
         for step in steps_by_run.get(tr.id, []):
             db_session.expunge(step)
             step.complete = step.complete and step.teacher_verified
@@ -88,13 +89,9 @@ async def _build_trail_read(
             step.data = {**(step.data or {}), "course": step_course.model_dump() if step_course else None}
             run.steps.append(step)
 
-        if with_course_info and run.status != StatusEnum.STATUS_PAUSED:
+        if with_course_info:
             completed = sum(step.complete for step in run.steps)
-            run.status = (
-                StatusEnum.STATUS_COMPLETED
-                if run.course_total_steps > 0 and completed == run.course_total_steps
-                else StatusEnum.STATUS_IN_PROGRESS
-            )
+            run.status = learning_progress_status(run.status, run.course_total_steps, completed)
         trail_runs.append(run)
 
     return TrailRead(**trail.model_dump(), runs=trail_runs)
@@ -133,7 +130,7 @@ async def create_user_trail(
     trail.user_id = user.id
     trail.trail_uuid = str(f"trail_{uuid4()}")
 
-    # create trail
+
     db_session.add(trail)
     await db_session.commit()
     await db_session.refresh(trail)

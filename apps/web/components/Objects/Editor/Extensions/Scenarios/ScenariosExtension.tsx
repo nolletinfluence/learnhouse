@@ -71,7 +71,6 @@ const ScenariosExtension: React.FC = (props: any) => {
   return (
     <NodeViewWrapper className="block-scenarios">
       <div className="bg-neutral-50 rounded-xl px-5 py-4 nice-shadow transition-all ease-linear">
-        {/* Header section */}
         <div className="flex flex-wrap gap-2 items-center text-sm mb-3">
           <div className="flex items-center gap-2">
             <GitBranch weight="duotone" className="text-neutral-400" size={16} />
@@ -80,7 +79,6 @@ const ScenariosExtension: React.FC = (props: any) => {
             </span>
           </div>
 
-          {/* Completion message */}
           {scenarioComplete && !isEditable && (
             <div className="text-xs font-medium px-2 py-1 rounded-md bg-emerald-100 text-emerald-700">
               Scenario Complete!
@@ -89,9 +87,9 @@ const ScenariosExtension: React.FC = (props: any) => {
 
           <div className="grow"></div>
 
-          {/* Action buttons */}
           {isEditable ? (
             <div className="flex items-center gap-1.5">
+              {/*
               <button
                 onClick={() => setShowAIGenerator(true)}
                 className="bg-neutral-900 hover:bg-neutral-800 text-white font-medium py-1.5 px-3 rounded-lg text-xs transition-colors outline-none flex items-center gap-1.5 nice-shadow"
@@ -99,6 +97,7 @@ const ScenariosExtension: React.FC = (props: any) => {
                 <Sparkle weight="duotone" size={13} />
                 Generate with AI
               </button>
+              */}
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="bg-neutral-200 hover:bg-neutral-300 text-neutral-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors outline-none"
@@ -117,7 +116,6 @@ const ScenariosExtension: React.FC = (props: any) => {
           )}
         </div>
 
-        {/* Scenario content */}
         {isEditable ? (
           <div className="bg-white rounded-lg p-4 nice-shadow">
             <input
@@ -174,7 +172,6 @@ const ScenariosExtension: React.FC = (props: any) => {
 
               return (
                 <>
-                  {/* Scenario Text */}
                   <div className="bg-white rounded-lg p-5 nice-shadow">
                     {currentScenario.imageUrl && (
                       <div className="mb-4">
@@ -193,7 +190,6 @@ const ScenariosExtension: React.FC = (props: any) => {
                     </p>
                   </div>
 
-                  {/* Response Options */}
                   <div className="space-y-2">
                     {currentScenario.options.map((option, index) => (
                       <button
@@ -230,6 +226,7 @@ const ScenariosExtension: React.FC = (props: any) => {
           onSave={handleSave}
         />
       </div>
+      {/*
       {showAIGenerator && (
         <AIScenarioGeneratorModal
           isOpen={showAIGenerator}
@@ -238,6 +235,7 @@ const ScenariosExtension: React.FC = (props: any) => {
           activityUuid={activityUuid}
         />
       )}
+      */}
     </NodeViewWrapper>
   )
 }
