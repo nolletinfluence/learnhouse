@@ -1,8 +1,8 @@
 import { getAPIUrl } from '@services/config/config'
 import { RequestBodyWithAuthHeader } from '@services/utils/ts/requests'
 
-export async function learningRequest(path: string, token?: string, method = 'GET', data?: unknown) {
-  const response = await fetch(`${getAPIUrl()}learning/${path}`, RequestBodyWithAuthHeader(method, data ?? null, null, token))
+export async function learningRequest(path: string, token?: string, method = 'GET', data?: unknown, signal?: AbortSignal) {
+  const response = await fetch(`${getAPIUrl()}learning/${path}`, { ...RequestBodyWithAuthHeader(method, data ?? null, null, token), signal })
   const result = await response.json()
   if (!response.ok) {
     throw new Error(typeof result.detail === 'string' ? result.detail : 'Не удалось сохранить. Проверьте доступ и попробуйте ещё раз.')

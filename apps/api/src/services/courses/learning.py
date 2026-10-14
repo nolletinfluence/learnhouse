@@ -268,6 +268,50 @@ async def my_journal(course_uuid, user, db):
     return [entry.model_dump(exclude={"marked_by"}) for entry in entries]
 
 
+async def my_applications(org_id, user, db):
+    require_session(user)
+    await require_org_membership(user.id, org_id, db)
+    rows = (await db.execute(select(EnrollmentRequest, Course).join(
+        Course, Course.id == EnrollmentRequest.course_id,
+    ).where(
+        EnrollmentRequest.user_id == user.id, EnrollmentRequest.org_id == org_id,
+        Course.org_id == org_id, Course.published == True,
+        EnrollmentRequest.status.in_(["pending", "rejected"]),
+    ).order_by(EnrollmentRequest.update_date.desc()))).all()
+    return [{"course_uuid": course.course_uuid, "course_name": course.name,
+             "status": application.status} for application, course in rows]
+
+
+async def open_lesson(request, course_uuid, activity_uuid, user, db):
+    require_session(user)
+    course = await load_course(course_uuid, db)
+    if await require_course_learning_access(course, user, db) != "enrolled":
+        raise HTTPException(403, "Only enrolled students can save their learning position")
+    await check_resource_access(request, db, user, course.course_uuid, AccessAction.READ)
+    lesson = (await db.execute(select(Activity).where(
+        Activity.activity_uuid == activity_uuid, Activity.course_id == course.id,
+        Activity.org_id == course.org_id, Activity.published == True,
+    ))).scalars().first()
+    if not lesson:
+        raise HTTPException(404, "Lesson not found in this course")
+    run = (await db.execute(select(TrailRun).where(
+        TrailRun.course_id == course.id, TrailRun.org_id == course.org_id,
+        TrailRun.user_id == user.id, TrailRun.status != StatusEnum.STATUS_CANCELLED,
+    ).with_for_update())).scalars().first()
+    if not run:
+        raise HTTPException(403, "Student is not enrolled")
+    previous = (run.data or {}).get("bestdevs_learning", {})
+    opened = set(previous.get("opened_activity_ids", []))
+    opened.add(lesson.id)
+    position = {"last_activity_uuid": lesson.activity_uuid,
+                "opened_activity_ids": sorted(opened)}
+    run.data = {**(run.data or {}), "bestdevs_learning": position}
+    run.update_date = timestamp()
+    db.add(run)
+    await db.commit()
+    return position
+
+
 async def lesson_calendar(org_id, user, db):
     require_session(user)
     await require_org_membership(user.id, org_id, db)

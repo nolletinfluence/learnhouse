@@ -12,7 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { authReturnPath, authReturnQuery } from '@/lib/student-experience'
 import Link from 'next/link'
 import { useAuth } from '@components/Contexts/AuthContext'
-import { getLEARNHOUSE_TOP_DOMAIN_VAL, getDeploymentMode, isOnCustomDomain } from '@services/config/config'
+import { getLEARNHOUSE_TOP_DOMAIN_VAL, getDeploymentMode, isOnCustomDomain, getTenancy } from '@services/config/config'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
 import { useTranslation } from 'react-i18next'
 import { resendVerificationEmail } from '@services/auth/auth'
@@ -119,7 +119,7 @@ const LoginClient = (props: LoginClientProps) => {
   const buildCallbackUrl = () => {
     const params = new URLSearchParams(window.location.search)
 
-    const dest = authReturnPath(params) || '/home'
+    const dest = authReturnPath(params) || (getTenancy() === 'single' ? '/account' : '/home')
     return `${window.location.origin}/redirect_from_auth?next=${encodeURIComponent(dest)}`
   }
 

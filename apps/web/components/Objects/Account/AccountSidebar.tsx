@@ -1,10 +1,12 @@
 'use client'
 import React from 'react'
 import { useOrg } from '@components/Contexts/OrgContext'
+import { useSchoolTranslation } from '@/lib/school-i18n'
+import { useManagementIdentity } from '@components/Hooks/useManagementIdentity'
 import { paymentsEnabled } from '@/lib/student-experience'
 import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
-import { User, Lock, ShoppingBag, Settings } from 'lucide-react'
+import { User, Lock, ShoppingBag, Settings, BookOpen } from 'lucide-react'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
 import UserAvatar from '@components/Objects/UserAvatar'
 import { getUriWithOrg } from '@services/config/config'
@@ -15,6 +17,7 @@ interface AccountSidebarProps {
 }
 
 const NAV_ITEMS = [
+  { id: 'learning', icon: BookOpen, labelKey: 'Моё обучение' },
   { id: 'general', icon: Settings, labelKey: 'account.general' },
   { id: 'profile', icon: User, labelKey: 'account.profile' },
   { id: 'security', icon: Lock, labelKey: 'account.security' },
@@ -23,6 +26,8 @@ const NAV_ITEMS = [
 
 export function AccountSidebar({ orgslug, currentSubpage }: AccountSidebarProps) {
   const { t } = useTranslation()
+  const { t: st } = useSchoolTranslation()
+  const { isManagement } = useManagementIdentity()
   const org = useOrg()
   const session = useLHSession() as any
   const user = session?.data?.user
@@ -54,21 +59,22 @@ export function AccountSidebar({ orgslug, currentSubpage }: AccountSidebarProps)
         )}
         <div className="p-2">
           <nav className="space-y-1">
-            {NAV_ITEMS.filter(item => item.id !== 'purchases' || paymentsEnabled(org)).map((item) => {
+            {NAV_ITEMS.filter(item => (item.id !== 'learning' || !isManagement) && (item.id !== 'purchases' || paymentsEnabled(org))).map((item) => {
               const Icon = item.icon
               const isActive = currentSubpage === item.id
               return (
                 <Link
                   key={item.id}
-                  href={getUriWithOrg(orgslug, `/account/${item.id}`)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  href={getUriWithOrg(orgslug, item.id === 'learning' ? '/account' : `/account/${item.id}`)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`flex items-center gap-3 min-h-11 px-3 py-2.5 rounded-lg transition-colors ${
                     isActive
                       ? 'bg-gray-900 text-white'
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
                   <Icon size={18} className={isActive ? 'text-white' : 'text-gray-500'} />
-                  <span className="text-sm font-medium">{t(item.labelKey)}</span>
+                  <span className="text-sm font-medium">{item.id === 'learning' ? st('Моё обучение') : t(item.labelKey)}</span>
                 </Link>
               )
             })}

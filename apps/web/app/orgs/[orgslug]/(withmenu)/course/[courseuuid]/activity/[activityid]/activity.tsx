@@ -41,7 +41,9 @@ import ActivityIndicators from '@components/Pages/Courses/ActivityIndicators'
 import UserAvatar from '@components/Objects/UserAvatar'
 import { useTranslation } from 'react-i18next'
 import { formatDate } from '@/lib/format'
-import { courseProgress } from '@/lib/student-experience'
+import { useRecordLessonOpen } from '@/hooks/queries/useLearning'
+import { LessonLearningBadge } from '@components/Pages/Trail/LearningProgress'
+import { courseProgress, courseRun } from '@/lib/student-experience'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
 import { useManagementIdentity } from '@components/Hooks/useManagementIdentity'
 
@@ -288,6 +290,13 @@ function ActivityClient(props: ActivityClientProps) {
   const _queryClient = useQueryClient()
 
   const { data: trailData } = useTrail(org?.id, { enabled: !isManagement })
+
+  const position = useRecordLessonOpen(course?.course_uuid, activity?.activity_uuid,
+    !isManagement && course?.learning_access === 'enrolled' && !!activity?.published && activity?.content?.paid_access !== false && !activity?.is_locked)
+  const positionWarning = position.error && <div role="alert" className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+    {st('Не удалось сохранить место в уроке. Материал доступен, попробуйте ещё раз.')}
+    <button type="button" className="min-h-11 px-3 font-semibold underline" onClick={position.retry}>{st('Повторить')}</button>
+  </div>
 
   const { allActivities, currentIndex } = useActivityPosition(course, activityid);
 
@@ -545,13 +554,14 @@ function ActivityClient(props: ActivityClientProps) {
                 <header className="shrink-0 border-b border-gray-100 bg-white px-3 sm:px-6 py-3">
                   <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-3">
                     <Link href={getUriWithOrg(orgslug, `/course/${courseuuid}`)} className="min-w-0 flex-1 font-semibold text-sm sm:text-base truncate" title={course.name}>{course.name}</Link>
-                    <span className="shrink-0 text-xs text-gray-600" aria-label={t('courses.course_progress')}>{progress.percentage}% · {progress.completed}/{progress.total}</span>
+                    <span className="shrink-0 text-xs text-gray-600" aria-label={st('Зачтено ментором')} title={st('Процент растёт после подтверждения ментора')}>{progress.percentage}% · {progress.completed}/{progress.total}</span>
                     <ActivityChapterDropdown course={course} currentActivityId={activityid} orgslug={orgslug} trailData={trailData} />
                     <button onClick={() => setIsFocusMode(false)} className="shrink-0 min-h-11 min-w-11 rounded-xl hover:bg-gray-100 flex items-center justify-center" aria-label={t('activities.exit_focus_mode')} title={t('activities.exit_focus_mode')}><Minimize2 size={20} /></button>
                   </div>
                 </header>
                 <main className="flex-1 min-h-0 overflow-auto px-2 sm:px-6 py-5">
                   <div className="max-w-5xl mx-auto w-full min-w-0">
+                    {positionWarning}
                     {activityid === 'end' ? <CourseEndView courseName={course.name} orgslug={orgslug} courseUuid={course.course_uuid} thumbnailImage={course.thumbnail_image} course={course} trailData={trailData} /> : activity && activity.published && (
                       activity.content.paid_access === false ? <PaidCourseActivityDisclaimer course={course} /> :
                       <div className={`${activity.activity_type === 'TYPE_SCORM' ? 'overflow-hidden' : 'p-2 sm:p-5'} ${bgColor} rounded-xl min-w-0`}>{activityContent}</div>
@@ -570,6 +580,7 @@ function ActivityClient(props: ActivityClientProps) {
               </motion.div>
             ) : (
               <GeneralWrapperStyled>
+                {positionWarning}
                 {activityid === 'end' ? (
                   isManagement ? (
                     <div className="mx-auto my-16 max-w-2xl rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center text-blue-950">
@@ -846,10 +857,11 @@ export function MarkStatus(props: {
   trailData: any
 }) {
   const { t: st } = useSchoolTranslation()
-  const step = props.trailData?.runs?.flatMap((run: any) => run.steps || [])
-    .find((entry: any) => entry.activity_id === props.activity?.id)
-  return <span className="text-xs text-neutral-500 px-3 py-2">{step?.complete && step?.teacher_verified
-    ? st("Посещение подтверждено ментором") : st("Посещение отмечает ментор")}</span>
+  const run = courseRun(props.course, props.trailData)
+  return <div className="flex flex-wrap items-center justify-center gap-2 px-2 py-1 text-xs text-neutral-500">
+    <LessonLearningBadge run={run} activityId={props.activity?.id} />
+    <span>{st('Материал открыт. Зачёт подтверждает ментор.')}</span>
+  </div>
 }
 
 function NextActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {

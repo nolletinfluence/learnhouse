@@ -24,6 +24,8 @@ import { queryKeys } from '@/lib/query/keys'
 import { getActivityWithAuthHeader } from '@services/courses/activities'
 import { useTranslation } from 'react-i18next'
 
+import { courseRun } from '@/lib/student-experience'
+import { LessonLearningBadge } from '@components/Pages/Trail/LearningProgress'
 import StudentJournal from '@components/Pages/Courses/StudentJournal'
 import CourseShare from '@components/Objects/Courses/CourseShare/CourseShare'
 import { JsonLd } from '@components/SEO/JsonLd'
@@ -641,7 +643,7 @@ const CourseClient = (props: any) => {
                                     )}
                                   </div>
                                   <div className="flex items-center space-x-1.5 mt-0.5 text-neutral-400">
-                                    {getActivityTypeIcon(activity.activity_type, activity.activity_sub_type, 10)}
+                                    {!isManagement && !locked ? <LessonLearningBadge run={courseRun(course, trailData)} activityId={activity.id} /> : getActivityTypeIcon(activity.activity_type, activity.activity_sub_type, 10)}
                                     <span className="text-xs font-medium">{getActivityTypeLabel(activity.activity_type, activity.activity_sub_type)}</span>
                                   </div>
                                 </div>

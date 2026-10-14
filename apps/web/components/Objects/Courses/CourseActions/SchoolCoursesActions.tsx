@@ -2,7 +2,8 @@
 import { useSchoolTranslation } from '@lib/school-i18n'
 
 import Link from 'next/link'
-import { courseProgress, courseRun, paymentsEnabled } from '@/lib/student-experience'
+import { courseRun, paymentsEnabled, resumeActivity } from '@/lib/student-experience'
+import LearningProgress from '@components/Pages/Trail/LearningProgress'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Lock, LogIn, Clock, ArrowRight } from 'lucide-react'
@@ -37,12 +38,9 @@ export default function CoursesActions({ courseuuid, orgslug, course, trailData 
   const price = settings?.price != null
     ? new Intl.NumberFormat(i18n.language, { style: 'currency', currency: settings.currency || 'KGS', maximumFractionDigits: 2 }).format(Number(settings.price))
     : offer?.amount != null ? formatCurrency(offer.amount, offer.currency || 'KGS', 'ru') : st("Стоимость уточняется")
-  const lessons = course.chapters?.flatMap((chapter: any) => chapter.activities || []).filter((lesson: any) => lesson.published !== false) || []
   const run = courseRun(course, trailData)
-  const attended = new Set((run?.steps || []).filter((step: any) => step.complete && step.teacher_verified).map((step: any) => step.activity_id))
-  const { completed: complete, total, percentage } = courseProgress(course, trailData)
-  const nextLesson = lessons.find((lesson: any) => !lesson.is_locked && !attended.has(lesson.id)) || lessons.find((lesson: any) => !lesson.is_locked)
-  const destination = percentage === 100 ? 'end' : nextLesson?.activity_uuid.replace(/^activity_/, '')
+  const next = resumeActivity(course, run)
+  const destination = next === 'end' ? 'end' : next?.activity_uuid.replace(/^activity_/, '')
 
   async function apply() {
     setBusy(true)
@@ -50,6 +48,7 @@ export default function CoursesActions({ courseuuid, orgslug, course, trailData 
       await learningRequest(`${courseLearningPath(courseuuid)}/applications`, token, 'POST')
       setSubmitted(true)
       await client.invalidateQueries({ queryKey: ['course'] })
+      await client.invalidateQueries({ queryKey: ['school-my-applications', org?.id, session?.data?.user?.id] })
       toast.success(st("Заявка отправлена администратору"))
     } catch (error) { toast.error((error as Error).message) }
     finally { setBusy(false) }
@@ -58,10 +57,9 @@ export default function CoursesActions({ courseuuid, orgslug, course, trailData 
   return <section className="bg-white rounded-2xl border border-neutral-200 p-5 space-y-4">
     {enrolled ? <>
       <p className="font-semibold text-green-700">{st("Вы зачислены на курс")}</p>
-      <p className="text-sm text-neutral-500">{st("Посещено")} {complete}  {st("из")} {total}  {st("занятий. Прогресс обновляется после отметки ментора.")}</p>
-      <div className="h-2 bg-neutral-100 rounded-full overflow-hidden"><div className="h-full bg-lime-500" style={{ width: `${percentage}%` }} /></div>
+      <LearningProgress course={course} run={run} />
       {destination && <Link href={getUriWithOrg(orgslug, `/course/${courseuuid.replace(/^course_/, '')}/activity/${destination}`)}
-        className="flex items-center justify-center gap-2 whitespace-nowrap bg-neutral-900 text-white rounded-xl p-3 font-semibold">{percentage === 100 ? st("Итоги курса") : st("К занятиям")}<ArrowRight size={17} /></Link>}
+        className="flex items-center justify-center gap-2 min-h-11 bg-neutral-900 text-white rounded-xl p-3 font-semibold">{next === 'end' ? st("Итоги курса") : st("Продолжить обучение")}<ArrowRight size={17} /></Link>}
     </> : <>
       <div className="flex items-center gap-2 text-neutral-500 text-sm"><Lock size={17} />{st("Доступ после одобрения заявки")}</div>
       <p className="text-2xl font-bold">{price}</p>

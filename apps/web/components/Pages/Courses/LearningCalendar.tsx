@@ -4,10 +4,9 @@ import { useSchoolTranslation } from '@lib/school-i18n'
 import { useState } from 'react'
 import Link from 'next/link'
 import { CalendarDays, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useLearningCalendar } from '@/hooks/queries/useLearning'
 import { useOrg } from '@components/Contexts/OrgContext'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
-import { learningRequest } from '@services/courses/learning'
 import { getUriWithOrg } from '@services/config/config'
 import { lessonDateInput, lessonDateLabel } from '@/lib/learning'
 import { meetingLink } from '@/lib/student-experience'
@@ -21,12 +20,7 @@ export default function LearningCalendar({ dashboard = false }: { dashboard?: bo
   const [month, setMonth] = useState(() => new Date(todayLocal.getFullYear(), todayLocal.getMonth(), 1))
   const [selected, setSelected] = useState('')
   const [filter, setFilter] = useState('')
-  const token = session?.data?.tokens?.access_token
-  const { data, error, isLoading, refetch } = useQuery({
-    queryKey: ['school-calendar', org?.id, session?.data?.user?.id],
-    queryFn: () => learningRequest(`orgs/${org.id}/calendar`, token),
-    enabled: !!org?.id && !!token,
-  })
+  const { data, error, isLoading, refetch } = useLearningCalendar()
   const lessons: any[] = (data || []).filter((lesson: any) => !filter || lesson.course_uuid === filter)
     .sort((a: any, b: any) => a.scheduled_at.localeCompare(b.scheduled_at))
   const courseOptions = [...new Map<string, string>((data || []).map((lesson: any) => [lesson.course_uuid, lesson.course_name])).entries()]

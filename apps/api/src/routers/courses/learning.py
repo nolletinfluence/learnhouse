@@ -104,6 +104,11 @@ async def calendar(org_id: int, user: LearningUser, db: LearningDatabase):
     return await learning.lesson_calendar(org_id, user, db)
 
 
+@router.get("/orgs/{org_id}/my-applications")
+async def my_applications(org_id: int, user: LearningUser, db: LearningDatabase):
+    return await learning.my_applications(org_id, user, db)
+
+
 @router.put("/applications/{application_id}")
 async def decide(application_id: int, payload: EnrollmentDecision, user: LearningUser, db: LearningDatabase):
     return await learning.decide_request(application_id, payload.status, user, db)
@@ -123,6 +128,11 @@ async def personal_journal(course_uuid: str, user: LearningUser, db: LearningDat
 async def attendance(request: Request, course_uuid: str, activity_uuid: str, student_id: int,
                      payload: AttendanceInput, user: LearningUser, db: LearningDatabase):
     return await learning.mark_attendance(request, course_uuid, activity_uuid, student_id, payload, user, db)
+
+
+@router.post("/courses/{course_uuid}/lessons/{activity_uuid}/open")
+async def open_lesson(request: Request, course_uuid: str, activity_uuid: str, user: LearningUser, db: LearningDatabase):
+    return await learning.open_lesson(request, course_uuid, activity_uuid, user, db)
 
 
 @router.put("/courses/{course_uuid}/settings")

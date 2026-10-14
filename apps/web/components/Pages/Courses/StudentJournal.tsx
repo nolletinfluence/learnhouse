@@ -1,20 +1,13 @@
 'use client'
 import { useSchoolTranslation } from '@lib/school-i18n'
 
-import { useQuery } from '@tanstack/react-query'
-import { useLHSession } from '@components/Contexts/LHSessionContext'
-import { learningRequest, courseLearningPath } from '@services/courses/learning'
+import { useMyJournal } from '@/hooks/queries/useLearning'
 
 const labels: Record<string, string> = { present: 'Был на занятии', absent: 'Пропуск', excused: 'Уважительная причина' }
 
 export default function StudentJournal({ course }: { course: any }) {
   const { t: st } = useSchoolTranslation()
-  const session = useLHSession() as any
-  const { data, error } = useQuery({
-    queryKey: ['school-my-journal', course.course_uuid, session?.data?.user?.id],
-    queryFn: () => learningRequest(`${courseLearningPath(course.course_uuid)}/my-journal`, session?.data?.tokens?.access_token),
-    enabled: session.status === 'authenticated',
-  })
+  const { data, error } = useMyJournal(course.course_uuid)
   const lessons = course.chapters?.flatMap((chapter: any) => chapter.activities || []) || []
   return <section className="my-6 rounded-2xl border border-neutral-200 bg-white p-5">
     <h2 className="text-xl font-bold">{st("Посещаемость и оценки")}</h2>

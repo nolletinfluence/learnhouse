@@ -7,6 +7,9 @@ import GeneralWrapperStyled from '@components/Objects/StyledElements/Wrappers/Ge
 import { Breadcrumbs } from '@components/Objects/Breadcrumbs/Breadcrumbs'
 import { AccountSidebar } from '@components/Objects/Account/AccountSidebar'
 import { AccountActionsMobile } from '@components/Objects/Account/AccountActionsMobile'
+import StudentLearningHome from '@components/Pages/Trail/StudentLearningHome'
+import FeatureGate from '@components/Dashboard/Shared/FeatureGate/FeatureGate'
+import { useManagementIdentity } from '@components/Hooks/useManagementIdentity'
 import { User } from 'lucide-react'
 import { getUriWithOrg } from '@services/config/config'
 import { useMediaQuery } from 'usehooks-ts'
@@ -35,6 +38,8 @@ const getSubpageTitle = (subpage: string, t: (_key: string) => string): string =
 }
 
 const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
+  const { isManagement } = useManagementIdentity()
+  if (isManagement && subpage === 'learning') subpage = 'general'
   const isMobile = useMediaQuery('(max-width: 1023px)')
   const session = useLHSession() as any
   const user = session?.data?.user
@@ -52,6 +57,8 @@ const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
 
   const renderSubpage = () => {
     switch (subpage) {
+      case 'learning':
+        return <FeatureGate feature="courses" orgslug={orgslug} context="public"><StudentLearningHome orgslug={orgslug} /></FeatureGate>
       case 'general':
         return <AccountGeneral />
       case 'profile':
@@ -69,7 +76,7 @@ const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
   return (
     <>
       <GeneralWrapperStyled>
-        <div className="pb-4">
+        <div className="pb-4" hidden={subpage === 'learning'}>
           <Breadcrumbs
             items={[
               {
@@ -88,7 +95,7 @@ const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="lg:hidden mb-4">
+            <div className="lg:hidden mb-4" hidden={subpage === 'learning'}>
               <h1 className="text-xl font-bold text-gray-900">
                 {user?.first_name} {user?.last_name}
               </h1>

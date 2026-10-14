@@ -6,6 +6,8 @@ from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.db.courses.activities import Activity
+from src.db.courses.chapter_activities import ChapterActivity
+from src.db.courses.course_chapters import CourseChapter
 from src.db.courses.courses import Course
 from src.db.trail_runs import StatusEnum, TrailRun, TrailRunRead
 from src.db.trail_steps import TrailStep
@@ -39,6 +41,7 @@ async def _build_trail_read(
 
 
     course_total_steps_map: dict[int, int] = {}
+    lessons_by_course: dict[int, list[dict]] = {}
     if with_course_info and course_ids:
         step_counts = (await db_session.execute(
             select(Activity.course_id, func.count(Activity.id))
@@ -46,6 +49,19 @@ async def _build_trail_read(
             .group_by(Activity.course_id)
         )).all()
         course_total_steps_map = {row[0]: row[1] for row in step_counts}
+        lessons = (await db_session.execute(
+            select(Activity)
+            .outerjoin(ChapterActivity, ChapterActivity.activity_id == Activity.id)
+            .outerjoin(CourseChapter, (CourseChapter.chapter_id == ChapterActivity.chapter_id)
+                       & (CourseChapter.course_id == Activity.course_id))
+            .where(Activity.course_id.in_(course_ids), Activity.published == True)
+            .order_by(CourseChapter.order, ChapterActivity.order, Activity.id)
+        )).scalars().unique().all()
+        for lesson in lessons:
+            if course_map.get(lesson.course_id) and course_map[lesson.course_id].published:
+                lessons_by_course.setdefault(lesson.course_id, []).append({
+                    "id": lesson.id, "activity_uuid": lesson.activity_uuid, "name": lesson.name,
+                })
 
 
     steps_statement = select(TrailStep).join(Activity, Activity.id == TrailStep.activity_id).where(
@@ -79,6 +95,7 @@ async def _build_trail_read(
             course=course.model_dump() if course else {},
             steps=[],
             course_total_steps=course_total_steps_map.get(tr.course_id, 0) if with_course_info else 0,
+            lessons=lessons_by_course.get(tr.course_id, []),
         )
 
 

@@ -19,12 +19,6 @@ class StatusEnum(str, Enum):
 
 
 class TrailRun(SQLModel, table=True):
-    # A user can have at most one run per course inside a trail. The service
-    # does a check-then-insert (select existing, else create), which races
-    # under concurrent requests (e.g. double-clicking "enroll"), producing
-    # duplicate runs that corrupt progress display and make .first() lookups
-    # nondeterministic. The DB constraint closes that window. (Requires a
-    # matching migration to apply to the live DB.)
     __table_args__ = (
         UniqueConstraint(
             "trail_id", "course_id", "user_id", name="uq_trailrun_trail_course_user"
@@ -34,7 +28,6 @@ class TrailRun(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     data: dict = Field(default_factory=dict, sa_column=Column(JSON))
     status: StatusEnum = StatusEnum.STATUS_IN_PROGRESS
-    # foreign keys
     trail_id: int = Field(
         sa_column=Column(Integer, ForeignKey("trail.id", ondelete="CASCADE"), index=True)
     )
@@ -47,7 +40,6 @@ class TrailRun(SQLModel, table=True):
     user_id: int = Field(
         sa_column=Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), index=True)
     )
-    # timestamps
     creation_date: str
     update_date: str
 
@@ -63,21 +55,17 @@ class TrailRunCreate(SQLModel):
     update_date: str
 
 
-# trick because Lists are not supported in SQLModel (runs: list[TrailStep] )
 class TrailRunRead(BaseModel):
     id: Optional[int] = None
     data: dict = Field(default_factory=dict)
     status: StatusEnum = StatusEnum.STATUS_IN_PROGRESS
-    # foreign keys
     trail_id: Optional[int] = None
     course_id: Optional[int] = None
     org_id: Optional[int] = None
     user_id: Optional[int] = None
-    # course object
     course: Optional[dict] = None
-    # timestamps
     creation_date: Optional[str] = None
     update_date: Optional[str] = None
-    # number of activities in course
     course_total_steps: int = 0
+    lessons: list[dict] = Field(default_factory=list)
     steps: list[TrailStep] = Field(default_factory=list)
