@@ -1,21 +1,29 @@
 import Heading from '@tiptap/extension-heading'
+import { Plugin } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { headingId } from '@/lib/student-experience'
 
-// Custom Heading extension that adds IDs
 export const CustomHeading = Heading.extend({
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      props: {
+        decorations(state) {
+          const decorations: Decoration[] = []
+          state.doc.descendants((node, position) => {
+            if (node.type.name === 'heading') decorations.push(Decoration.node(position, position + node.nodeSize, { id: headingId(node.textContent, position) }))
+          })
+          return DecorationSet.create(state.doc, decorations)
+        },
+      },
+    })]
+  },
+
   renderHTML({ node, HTMLAttributes }: { node: any; HTMLAttributes: any }) {
     const hasLevel = this.options.levels.includes(node.attrs.level)
     const level = hasLevel ? node.attrs.level : this.options.levels[0]
 
-    // Generate ID from heading text
     const headingText = node.textContent || ''
-    const slug = headingText
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, '') // Remove special characters
-      .replace(/[\s_-]+/g, '-') // Replace spaces and underscores with hyphens
-      .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
-    
-    const id = slug ? `heading-${slug}` : `heading-${Math.random().toString(36).substr(2, 9)}`
+    const id = headingId(headingText)
 
     return [
       `h${level}`,

@@ -1,6 +1,8 @@
 'use client'
+import { useGoogleSignIn } from '@/hooks/useGoogleSignIn'
 import { useFormik } from 'formik'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { authReturnQuery } from '@/lib/student-experience'
 import React, { useEffect } from 'react'
 import FormLayout, {
   FormField,
@@ -42,15 +44,10 @@ const validate = (values: any, t: any, customFields: SignupFieldItem[]) => {
     }
   }
 
-  if (!values.username) {
-    errors.username = t('validation.required')
-  } else if (values.username.length < 4) {
+  if (values.username && values.username.length < 4) {
     errors.username = t('validation.username_min_length')
   }
 
-  // Bio is optional - no validation required
-
-  // The org's admin-defined fields. Client-side only; the server revalidates.
   const customFieldErrors = validateCustomFields(customFields, values.custom_fields, t)
   if (Object.keys(customFieldErrors).length > 0) {
     errors.custom_fields = customFieldErrors
@@ -60,9 +57,7 @@ const validate = (values: any, t: any, customFields: SignupFieldItem[]) => {
 }
 
 interface OpenSignUpComponentProps {
-  // On the org-less apex the OrgContext is empty, so the signup page resolves
-  // the instance default org server-side and passes it down here. Prefer it over
-  // the (possibly null) context so the POST always targets a real org_id.
+
   org?: any
 }
 
@@ -73,22 +68,18 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
   const contextOrg = useOrg() as any
   const org = (contextOrg && (contextOrg.id || contextOrg.slug)) ? contextOrg : propOrg
   const _router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = React.useState('')
   const [message, setMessage] = React.useState<{ email_verified: boolean } | null>(null)
   const [resendState, setResendState] = React.useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const turnstileRef = React.useRef<TurnstileWidgetHandle>(null)
   const turnstileRequired = useTurnstileRequired()
 
-  // The org's allowed sign-in methods also govern how an account may be
-  // created: minting a password account for an org that refuses password
-  // sign-in produces an account that can never be used. The backend refuses
-  // both, so offering them here would only surface a 403.
   const allowedMethods = React.useMemo(() => getAllowedAuthMethods(org), [org])
   const passwordAllowed = allowedMethods.has('password')
   const googleAllowed = allowedMethods.has('google')
+  const googleConfigured = useGoogleSignIn(googleAllowed) === 'configured'
 
-  // Field definitions ship with the org config the page already loaded, so no
-  // extra request is needed to render them.
   const customFields = React.useMemo<SignupFieldItem[]>(
     () => readSignupFields(org),
     [org],
@@ -115,24 +106,20 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
       setIsSubmitting(true)
       track(AnalyticsEvent.SignupSubmitted, { invite_code_present: false, has_bio: !!values.bio })
       try {
-        let res = await signup(values)
+        let res = await signup({ ...values, username: values.username.trim() || `student_${crypto.randomUUID().slice(0, 8)}` })
         let message = await res.json().catch(() => ({}))
         if (res.status == 200) {
           track(AnalyticsEvent.SignupSucceeded, { email_verified: message.email_verified })
           setMessage(message)
         } else {
-          // Surface the backend's actual error detail for ANY non-2xx (incl. 409
-          // already-exists, 422 validation, 503 email-service-down) instead of
-          // masking everything past the handful of hardcoded statuses behind a
-          // generic message. Fall back to a generic string only when the backend
-          // gave us nothing readable.
+
           track(AnalyticsEvent.SignupFailed, { status_code: res.status })
           setError(getErrorMessage(message?.detail, t('common.something_went_wrong')))
-          // Turnstile tokens are single-use — fetch a fresh one for the retry.
+
           turnstileRef.current?.reset()
         }
       } catch (err) {
-        // A network throw must not leave the form permanently locked.
+
         setError(getErrorMessage((err as any)?.detail, t('common.something_went_wrong')))
         turnstileRef.current?.reset()
       } finally {
@@ -143,8 +130,6 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
 
   useEffect(() => { }, [org])
 
-  // Honor a sanitized ?next / ?redirect destination through the
-  // cross-domain /redirect_from_auth handoff; default to /home.
   const buildCallbackUrl = () => {
     const params = new URLSearchParams(window.location.search)
     const raw = params.get('next') ?? params.get('redirect')
@@ -153,31 +138,29 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
   }
 
   const handleGoogleSignIn = () => {
+    if (!googleConfigured) return
     track(AnalyticsEvent.SignupGoogleClicked)
-    // Store org context in cookies before OAuth redirect
+
     if (org?.slug) {
       const topDomain = getLEARNHOUSE_TOP_DOMAIN_VAL();
       const isSecure = window.location.protocol === 'https:';
       const secureAttr = isSecure ? '; secure' : '';
       const baseAttributes = `; path=/; SameSite=Lax${secureAttr}`;
-      // Host-only on custom domains (a .{platformTopDomain} cookie can't be set
-      // from learn.acme.org → browser drops it → callback loses org context).
+
       const domainAttr = (topDomain === 'localhost' || isOnCustomDomain()) ? '' : `; domain=.${topDomain}`;
       document.cookie = `LH_oauth_orgslug=${org.slug}${baseAttributes}${domainAttr}`;
       document.cookie = `LH_oauth_org_id=${org.id}${baseAttributes}${domainAttr}`;
     }
-    // Use absolute URL with current origin for custom domain support
+
     signIn('google', { callbackUrl: buildCallbackUrl() });
   };
 
   return (
     <div className="w-full max-w-[420px] py-10">
-      {/* Header */}
       <h1 className="text-[28px] md:text-[32px] font-black text-black tracking-tight leading-tight">{t('auth.create_account')}</h1>
       <p className="mt-2 text-black/45 text-[15px] font-medium">{t('auth.fill_in_details')}</p>
 
       <div className="mt-8">
-        {/* Error/Success Messages */}
         {error && (
           <div className="flex justify-center bg-red-50 rounded-xl text-red-600 space-x-2 items-center p-4 mb-6 border border-red-100">
             <AlertTriangle size={18} className="shrink-0" />
@@ -194,7 +177,6 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
             <p className="text-xs text-green-600">
               {t('auth.verification_email_sent_message')}
             </p>
-            {/* Resend, so a user whose email doesn't arrive isn't stuck. */}
             {resendState === 'sent' ? (
               <p className="text-xs font-medium text-green-700">
                 {t('auth.verification_email_resent', { defaultValue: 'Verification email sent again — check your inbox.' })}
@@ -205,8 +187,7 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
                 disabled={resendState === 'sending'}
                 onClick={async () => {
                   setResendState('sending')
-                  // org?.id is undefined on the org-less apex — that's fine, the
-                  // backend resends by email without an org.
+
                   const res = await resendVerificationEmail(formik.values.email, org?.id)
                   setResendState(res.success ? 'sent' : 'error')
                 }}
@@ -221,7 +202,7 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
               <p className="text-xs text-red-500">{t('auth.resend_verification_failed', { defaultValue: 'Could not resend. Please try again shortly.' })}</p>
             )}
             <hr className="border-green-100" />
-            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href="/login">
+            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href={'/login' + authReturnQuery(searchParams)}>
               <User size={14} />
               <span>{t('auth.login')}</span>
             </Link>
@@ -235,7 +216,7 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
               <div className="font-semibold text-sm">{t('auth.account_created_success')}</div>
             </div>
             <hr className="border-green-100" />
-            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href="/login">
+            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href={'/login' + authReturnQuery(searchParams)}>
               <User size={14} />
               <span>{t('auth.login')}</span>
             </Link>
@@ -333,6 +314,9 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
             <PasswordStrengthIndicator password={formik.values.password} />
           </FormField>
 
+          <details className="rounded-xl border border-neutral-200 p-3">
+            <summary className="cursor-pointer text-sm font-semibold min-h-11 flex items-center">{t('student_experience.optional_profile')}</summary>
+            <div className="space-y-4 pt-3">
           <FormField name="username">
             <div className="flex items-center space-x-2 mb-1.5">
               <Form.Label className="grow text-[13px] font-semibold text-black/70">{t('user.username')}</Form.Label>
@@ -349,7 +333,6 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
                 onBlur={formik.handleBlur}
                 value={formik.values.username}
                 type="text"
-                required
                 className="box-border w-full bg-neutral-50 text-black rounded-lg px-4 border border-neutral-200 inline-flex h-[44px] appearance-none items-center focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-neutral-400 transition-all placeholder:text-black/25 text-sm"
               />
             </Form.Control>
@@ -369,6 +352,9 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
               />
             </Form.Control>
           </FormField>
+
+            </div>
+          </details>
 
           <CustomSignupFields fields={customFields} formik={formik} />
 
@@ -395,9 +381,7 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
           </Form.Submit>
         </FormLayout>
         )}
-
-        {/* Divider — only earns its place between two sets of options. */}
-        {passwordAllowed && googleAllowed && (
+        {passwordAllowed && googleAllowed && googleConfigured && (
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-neutral-200" />
@@ -407,9 +391,7 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
             </div>
           </div>
         )}
-
-        {/* Google Sign In */}
-        {googleAllowed && (
+        {googleAllowed && googleConfigured && (
         <button
           onClick={handleGoogleSignIn}
           disabled={isSubmitting}
@@ -431,11 +413,9 @@ function OpenSignUpComponent({ org: propOrg }: OpenSignUpComponentProps = {}) {
             </p>
           </div>
         )}
-
-        {/* Login Link */}
         <p className="text-center text-sm text-black/35 mt-6">
           {t('auth.already_have_account')}{' '}
-          <Link href="/login" className="text-black font-semibold hover:underline">
+          <Link href={'/login' + authReturnQuery(searchParams)} className="text-black font-semibold hover:underline">
             {t('auth.login')}
           </Link>
         </p>

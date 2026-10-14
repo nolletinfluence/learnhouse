@@ -20,10 +20,8 @@ export default function ActivityChapterDropdown(props: ActivityChapterDropdownPr
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  // Clean up course UUID by removing 'course_' prefix if it exists
   const cleanCourseUuid = props.course.course_uuid?.replace('course_', '');
 
-  // Close dropdown when clicking outside
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -36,7 +34,6 @@ export default function ActivityChapterDropdown(props: ActivityChapterDropdownPr
     };
   }, []);
 
-  // Close dropdown on Escape key
   React.useEffect(() => {
     if (!isOpen) return;
 
@@ -55,7 +52,6 @@ export default function ActivityChapterDropdown(props: ActivityChapterDropdownPr
     setIsOpen(!isOpen);
   };
 
-  // Function to get the appropriate icon for activity type
   const getActivityTypeIcon = (activityType: string, activitySubType?: string) => {
     if (activitySubType === 'SUBTYPE_DYNAMIC_MARKDOWN') return <MarkdownLogo size={10} />;
     if (activitySubType === 'SUBTYPE_DYNAMIC_EMBED') return <Globe size={10} />;
@@ -104,9 +100,9 @@ export default function ActivityChapterDropdown(props: ActivityChapterDropdownPr
         onClick={toggleDropdown}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        className="bg-white rounded-full px-5 nice-shadow flex items-center space-x-2 p-2.5 text-gray-700 hover:bg-gray-50 transition delay-150 duration-300 ease-in-out"
-        aria-label="View all activities"
-        title="View all activities"
+        className="min-h-11 shrink-0 bg-white rounded-xl px-3 nice-shadow flex items-center space-x-2 p-2.5 text-gray-700 hover:bg-gray-50 transition delay-150 duration-300 ease-in-out"
+        aria-label={t('courses.course_content')}
+        title={t('courses.course_content')}
       >
         <ListTree size={17} />
         <span className="text-xs font-bold">{t('courses.chapters')}</span>
@@ -118,7 +114,8 @@ export default function ActivityChapterDropdown(props: ActivityChapterDropdownPr
             <h3 className="text-sm font-semibold text-gray-800">{t('courses.course_content')}</h3>
             <button 
               onClick={() => setIsOpen(false)}
-              className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer"
+              aria-label={t('student_experience.close_menu')}
+              className="min-h-11 min-w-11 flex items-center justify-center text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 cursor-pointer"
             >
               <X size={14} />
             </button>
@@ -139,8 +136,7 @@ export default function ActivityChapterDropdown(props: ActivityChapterDropdownPr
                   {chapter.activities.map((activity: any) => {
                     const cleanActivityUuid = activity.activity_uuid?.replace('activity_', '');
                     const isCurrent = cleanActivityUuid === props.currentActivityId.replace('activity_', '');
-                    
-                    // Find the correct run and check if activity is complete
+
                     const run = props.trailData?.runs?.find(
                       (run: any) => {
                         const cleanRunCourseUuid = run.course?.course_uuid?.replace('course_', '');

@@ -1,6 +1,5 @@
 'use client'
 import React, { useEffect, useState } from 'react'
-import CopilotBubble from '@components/Copilot/CopilotBubble'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query/keys'
@@ -11,7 +10,7 @@ import MenuLinks from './OrgMenuLinks'
 import { getOrgLogoMediaDirectory } from '@services/media/media'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
 import { useOrg } from '@components/Contexts/OrgContext'
-// import { SearchBar } from '@components/Objects/Search/SearchBar'
+
 import { usePathname } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 import useAdminStatus from '@components/Hooks/useAdminStatus'
@@ -21,8 +20,6 @@ import {
   ChatCircleDots,
   ChatCircle,
   SquaresFour,
-  ChalkboardSimple,
-  Signpost,
 } from '@phosphor-icons/react'
 import {
   DropdownMenu,
@@ -36,7 +33,6 @@ import { FeedbackModal } from '@components/Objects/Modals/FeedbackModal'
 import { DASHBOARD_MENU_ITEMS, DashboardMenuItem } from '@/lib/dashboard-menu-items'
 import { isFeatureAvailable } from '@services/plans/plans'
 import { getMenuColorClasses } from '@services/utils/ts/colorUtils'
-import AuthenticatedClientElement from '@components/Security/AuthenticatedClientElement'
 import { useJoinBannerVisible, JOIN_BANNER_HEIGHT } from '@components/Objects/Banners/OrgJoinBanner'
 import {
   Tooltip,
@@ -62,7 +58,6 @@ export const OrgMenu = (props: any) => {
   const { isVisible: isJoinBannerVisible } = useJoinBannerVisible()
   const { track } = useLHAnalytics()
 
-  // Copilot bubble state
   const [bubbleOpen, setBubbleOpen] = useState(false)
   const [bubbleSessionToLoad, setBubbleSessionToLoad] = useState<string | null>(null)
   const [isBubbleMode, setIsBubbleMode] = useState<boolean>(() => {
@@ -83,12 +78,10 @@ export const OrgMenu = (props: any) => {
   }
   const topOffset = isJoinBannerVisible ? JOIN_BANNER_HEIGHT : 0
 
-  // Get primary color from org config (v2: customization.general.color, v1: general.color)
   const config = org?.config?.config
   const primaryColor = config?.customization?.general?.color || config?.general?.color || ''
   const colors = getMenuColorClasses(primaryColor)
 
-  // Filter dashboard menu items by resolved_features from API
   const rf = config?.resolved_features
   const visibleDashboardItems = DASHBOARD_MENU_ITEMS.filter((item: DashboardMenuItem) => {
     if (!item.featureKey) return true
@@ -97,7 +90,7 @@ export const OrgMenu = (props: any) => {
   })
 
   useEffect(() => {
-    // Only check focus mode if we're in an activity page
+
     if (typeof window !== 'undefined' && pathname?.includes('/activity/')) {
       const saved = localStorage.getItem('globalFocusMode');
       setIsFocusMode(saved === 'true');
@@ -105,14 +98,12 @@ export const OrgMenu = (props: any) => {
       setIsFocusMode(false);
     }
 
-    // Add storage event listener for cross-window changes
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'globalFocusMode' && pathname?.includes('/activity/')) {
         setIsFocusMode(e.newValue === 'true');
       }
     };
 
-    // Add custom event listener for same-window changes
     const handleFocusModeChange = (e: CustomEvent) => {
       if (pathname?.includes('/activity/')) {
         setIsFocusMode(e.detail.isFocusMode);
@@ -122,18 +113,18 @@ export const OrgMenu = (props: any) => {
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('focusModeChange', handleFocusModeChange as EventListener);
 
-    // Cleanup
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focusModeChange', handleFocusModeChange as EventListener);
     };
   }, [pathname]);
 
+  useEffect(() => { setIsMenuOpen(false) }, [pathname])
+
   function toggleMenu() {
     setIsMenuOpen(!isMenuOpen)
   }
 
-  // Only hide menu if we're in an activity page and focus mode is enabled
   if (pathname?.includes('/activity/') && isFocusMode) {
     return null;
   }
@@ -151,8 +142,8 @@ export const OrgMenu = (props: any) => {
         }}
       >
         <div className="flex items-center justify-between w-full max-w-(--breakpoint-2xl) mx-auto px-4 sm:px-6 lg:px-8 h-full">
-          <div className="flex items-center space-x-5 md:w-auto w-full">
-            <div className="logo flex md:w-auto w-full justify-center">
+          <div className="flex items-center space-x-5 lg:w-auto w-full">
+            <div className="logo flex lg:w-auto w-full justify-center">
               <Link href={getUriWithOrg(orgslug, '/')}>
                 <div className="flex w-auto h-9 rounded-md items-center m-auto py-1 justify-center">
                   {org?.logo_image ? (
@@ -173,84 +164,14 @@ export const OrgMenu = (props: any) => {
                 </div>
               </Link>
             </div>
-            <div className="hidden md:flex">
+            <div className="hidden lg:flex">
               <MenuLinks orgslug={orgslug} primaryColor={primaryColor} />
             </div>
           </div>
 
-          {/* Search Section */}
-          {/*
-          <div className="hidden md:flex flex-1 justify-center max-w-lg px-4">
-            <SearchBar orgslug={orgslug} className="w-full" primaryColor={primaryColor} />
-          </div>
-          */}
-
           <div className="flex items-center space-x-2">
-{/*
-
-            <AuthenticatedClientElement checkMethod="authentication">
-              <div className="hidden md:flex">
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={getUriWithOrg(orgslug, '/trail')}
-                        className={`p-2 rounded-lg transition-colors ${colors.iconBtn}`}
-                        aria-label={t('courses.progress')}
-                      >
-                        <Signpost size={20} weight="fill" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs">
-                      {t('courses.progress')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </AuthenticatedClientElement>
-
-            {rf?.boards?.enabled && (
-              <AuthenticatedClientElement checkMethod="authentication">
-                <div className="hidden md:flex">
-                  <TooltipProvider delayDuration={0}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href={getUriWithOrg(orgslug, '/boards')}
-                          className={`p-2 rounded-lg transition-colors ${colors.iconBtn}`}
-                          aria-label="Boards"
-                        >
-                          <ChalkboardSimple size={20} weight="fill" />
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-xs">
-                        Boards
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </AuthenticatedClientElement>
-            )}
-
-            {rf?.ai?.enabled && config?.admin_toggles?.ai?.copilot_enabled !== false && (
-              <AuthenticatedClientElement checkMethod="authentication">
-                <div className="hidden md:flex">
-                  <CopilotMenuButton
-                    orgslug={orgslug}
-                    iconBtnClass={colors.iconBtn}
-                    isBubbleMode={isBubbleMode}
-                    onToggleBubbleMode={toggleBubbleMode}
-                    bubbleOpen={bubbleOpen}
-                    onOpenBubble={openBubbleWithSession}
-                  />
-                </div>
-              </AuthenticatedClientElement>
-            )}
-
-*/}
-            {/* Dashboard Dropdown - Only visible to admins */}
             {session?.status === 'authenticated' && rights?.dashboard?.action_access && (
-              <div className="hidden md:flex">
+              <div className="hidden lg:flex">
                 <DropdownMenu>
                   <TooltipProvider delayDuration={0}>
                     <Tooltip>
@@ -294,10 +215,8 @@ export const OrgMenu = (props: any) => {
                 </DropdownMenu>
               </div>
             )}
-
-            {/* Help Dropdown - Only visible to admins/maintainers/instructors */}
             {session?.status === 'authenticated' && rights?.dashboard?.action_access && (
-              <div className="hidden md:flex">
+              <div className="hidden lg:flex">
                 <DropdownMenu>
                   <TooltipProvider delayDuration={0}>
                     <Tooltip>
@@ -346,11 +265,14 @@ export const OrgMenu = (props: any) => {
               </div>
             )}
 
-            <div className="hidden md:flex">
+            <div className="hidden lg:flex">
               <HeaderProfileBox primaryColor={primaryColor} />
             </div>
             <button
-              className={`md:hidden focus:outline-hidden ${colors.text}`}
+              aria-label={isMenuOpen ? t('student_experience.close_menu') : t('student_experience.open_menu')}
+              aria-expanded={isMenuOpen}
+              aria-controls="student-mobile-menu"
+              className={`lg:hidden min-h-11 min-w-11 flex items-center justify-center rounded-lg focus-visible:ring-2 ${colors.text}`}
               onClick={toggleMenu}
             >
               {isMenuOpen ? (
@@ -367,8 +289,10 @@ export const OrgMenu = (props: any) => {
         </div>
       </nav>
       <div
-        className={`fixed inset-x-0 bg-white/80 backdrop-blur-lg md:hidden shadow-lg transition-all duration-300 ease-in-out ${
-          isMenuOpen ? 'opacity-100' : '-top-full opacity-0'
+        id="student-mobile-menu"
+        inert={!isMenuOpen}
+        className={`fixed inset-x-0 bg-white/80 backdrop-blur-lg lg:hidden shadow-lg transition-all duration-300 ease-in-out ${
+          isMenuOpen ? 'opacity-100' : '-top-full opacity-0 pointer-events-none'
         }`}
         style={{
           zIndex: 'var(--z-nav-menu)',
@@ -376,12 +300,6 @@ export const OrgMenu = (props: any) => {
         }}
       >
         <div className="flex flex-col px-4 py-3 space-y-4 justify-center items-center">
-          {/* Mobile Search */}
-          {/*
-          <div className="w-full px-2">
-            <SearchBar orgslug={orgslug} isMobile={true} />
-          </div>
-          */}
           <div className='py-4'>
             <MenuLinks orgslug={orgslug} />
           </div>
@@ -390,8 +308,6 @@ export const OrgMenu = (props: any) => {
           </div>
         </div>
       </div>
-
-      {/* Feedback Modal */}
       <FeedbackModal
         open={feedbackModalOpen}
         onOpenChange={setFeedbackModalOpen}
@@ -399,19 +315,6 @@ export const OrgMenu = (props: any) => {
         userName={session?.data?.user?.username}
         userEmail={session?.data?.user?.email}
       />
-
-{/*
-
-      {isBubbleMode && (
-        <CopilotBubble
-          orgslug={orgslug}
-          open={bubbleOpen}
-          onOpenChange={setBubbleOpen}
-          sessionToLoad={bubbleSessionToLoad}
-        />
-      )}
-
-*/}
     </>
   )
 }
@@ -434,7 +337,6 @@ const CopilotMenuButton = ({
   const accessToken = session?.data?.tokens?.access_token
   const [isOpen, setIsOpen] = useState(false)
 
-  // Only fetch when the dropdown is open — avoids firing on every page load
   const { data: sessions } = useQuery<RAGChatSession[]>({
     queryKey: queryKeys.ai.ragSessions(orgslug),
     queryFn: () => fetchRAGChatSessions(accessToken, orgslug),
@@ -455,7 +357,6 @@ const CopilotMenuButton = ({
                 aria-label="Copilot"
               >
                 <ChatCircle size={20} weight="fill" className="text-violet-500" />
-                {/* Active indicator dot */}
                 {isBubbleMode && bubbleOpen && (
                   <span className="absolute top-1.5 end-1.5 w-2 h-2 rounded-full bg-violet-500 ring-2 ring-white dark:ring-neutral-900" />
                 )}
@@ -503,8 +404,6 @@ const CopilotMenuButton = ({
             <p className="text-xs text-neutral-400">No conversations yet</p>
           </div>
         )}
-
-        {/* Primary action */}
         {isBubbleMode ? (
           <DropdownMenuItem
             onSelect={() => onOpenBubble()}
@@ -523,8 +422,6 @@ const CopilotMenuButton = ({
         )}
 
         <DropdownMenuSeparator />
-
-        {/* Bubble mode toggle */}
         <button
           onClick={() => onToggleBubbleMode(!isBubbleMode)}
           className="w-full flex items-center justify-between px-2 py-2 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors group"

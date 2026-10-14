@@ -5,11 +5,10 @@ import Link from 'next/link'
 import { getUriWithOrg } from '@services/config/config'
 import { BookOpenCheck, CheckCircle, ChevronLeft, ChevronRight, MessageSquare, UserRoundPen, Edit2, Loader2, Maximize2, Minimize2, Trophy, Sparkles, XCircle, Lock, RotateCcw, Infinity as InfinityIcon } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { markActivityAsComplete, unmarkActivityAsComplete } from '@services/courses/activity'
 import { usePathname, useRouter } from 'next/navigation'
 import AuthenticatedClientElement from '@components/Security/AuthenticatedClientElement'
 import { getCourseThumbnailMediaDirectory, getUserAvatarMediaDirectory } from '@services/media/media'
-import { useOrg, useOrgMembership } from '@components/Contexts/OrgContext'
+import { useOrg } from '@components/Contexts/OrgContext'
 import { CourseProvider } from '@components/Contexts/CourseContext'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
 import React, { useEffect, useRef, useMemo, lazy, Suspense } from 'react'
@@ -34,30 +33,25 @@ import ActivityChapterDropdown from '@components/Pages/Activity/ActivityChapterD
 import ActivityShareDropdown from '@components/Pages/Activity/ActivityShareDropdown'
 import FixedActivitySecondaryBar from '@components/Pages/Activity/FixedActivitySecondaryBar'
 import CourseEndView from '@components/Pages/Activity/CourseEndView'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion } from 'motion/react'
 import { Breadcrumbs } from '@components/Objects/Breadcrumbs/Breadcrumbs'
 import { BookCopy } from 'lucide-react'
-import MiniInfoTooltip from '@components/Objects/MiniInfoTooltip'
 import GeneralWrapperStyled from '@components/Objects/StyledElements/Wrappers/GeneralWrapper'
 import ActivityIndicators from '@components/Pages/Courses/ActivityIndicators'
 import UserAvatar from '@components/Objects/UserAvatar'
 import { useTranslation } from 'react-i18next'
-import { useDirection } from '@hooks/useDirection'
 import { formatDate } from '@/lib/format'
+import { courseProgress } from '@/lib/student-experience'
 import { useLHAnalytics, AnalyticsEvent } from '@services/analytics'
 import { useManagementIdentity } from '@components/Hooks/useManagementIdentity'
 
 const ReactConfetti = dynamic(() => import('react-confetti'), { ssr: false })
 
-// Lazy load heavy components
 const Canva = lazy(() => import('@components/Objects/Activities/DynamicCanva/DynamicCanva'))
 const VideoActivity = lazy(() => import('@components/Objects/Activities/Video/Video'))
 const DocumentPdfActivity = lazy(() => import('@components/Objects/Activities/DocumentPdf/DocumentPdf'))
 const AssignmentStudentActivity = lazy(() => import('@components/Objects/Activities/Assignment/AssignmentStudentActivity'))
-// Deadline rule shared with the learner activity view (and mirroring the
-// server's _is_assignment_past_due) so the submit/retry affordances agree with
-// what the API will actually accept. Static import: it's a pure function, and
-// gating render on the lazy chunk would flash the wrong control.
+
 import { isAssignmentPastDue } from '@components/Objects/Activities/Assignment/AssignmentStudentActivity'
 const AIActivityAsk = lazy(() => import('@components/Objects/Activities/AI/AIActivityAsk'))
 const AISidePanelContentWrapper = lazy(() => import('@components/Objects/Activities/AI/AIActivityAsk').then(mod => ({ default: mod.AISidePanelContentWrapper })))
@@ -68,7 +62,6 @@ const MarkdownActivity = lazy(() => import('@components/Objects/Activities/Markd
 const EmbedActivity = lazy(() => import('@components/Objects/Activities/Embed/EmbedActivity'))
 const ResourceActivity = lazy(() => import('@components/Objects/Activities/Resource/ResourceActivity'))
 
-// Loading fallback component
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-64">
     <div className="relative w-6 h-6">
@@ -146,7 +139,6 @@ interface ActivityActionsProps {
   isManagement?: boolean
 }
 
-// Custom hook for activity position
 function useActivityPosition(course: any, activityId: string) {
   return useMemo(() => {
     if (!course?.chapters) return { allActivities: [], currentIndex: -1 };
@@ -222,8 +214,7 @@ function ActivityActions({ activity, activityid, course, orgslug, assignment, sh
 function ActivityClient(props: ActivityClientProps) {
   const { t: st } = useSchoolTranslation()
   const { t, i18n } = useTranslation()
-  // Slide offsets are physical pixels; flip their sign in RTL.
-  const { x: dx } = useDirection()
+
   const activityid = props.activityid
 
   function getRelativeTime(date: Date): string {
@@ -252,7 +243,7 @@ function ActivityClient(props: ActivityClientProps) {
   const { isManagement } = useManagementIdentity()
 
   const { data: course, isLoading: courseLoading } = useCourseMeta(courseuuid)
-  const { data: activity, isLoading: activityLoading } = useActivity(activityid)
+  const { data: activity, isLoading: activityLoading, error: activityError, refetch: refetchActivity } = useActivity(activityid)
   const session = useLHSession() as any;
   const pathname = usePathname()
   const access_token = session?.data?.tokens?.access_token;
@@ -267,7 +258,6 @@ function ActivityClient(props: ActivityClientProps) {
   const { track } = useLHAnalytics('learner')
   const activityStartTime = useRef(Date.now())
 
-  // Track activity view on mount, time_on_activity on unmount
   const activityUuidForTracking = activity?.activity_uuid
   const courseUuidForTracking = course?.course_uuid
   const activityTypeForTracking = activity?.activity_type
@@ -297,17 +287,13 @@ function ActivityClient(props: ActivityClientProps) {
 
   const _queryClient = useQueryClient()
 
-  // Fetch trail data — shares cache key with course page trail query
   const { data: trailData } = useTrail(org?.id, { enabled: !isManagement })
 
-  // Memoize activity position calculation
   const { allActivities, currentIndex } = useActivityPosition(course, activityid);
-  
-  // Get previous and next activities
+
   const prevActivity = currentIndex > 0 ? allActivities[currentIndex - 1] : null;
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null;
 
-  // Memoize activity content
   const activityContent = useMemo(() => {
     if (!activity || !activity.published || activity.content.paid_access === false) {
       return null;
@@ -362,12 +348,6 @@ function ActivityClient(props: ActivityClientProps) {
         }
         return assignment ? (
           <Suspense fallback={<LoadingFallback />}>
-            {/* AssignmentSubmissionProvider wraps AssignmentProvider (instead
-                of being nested inside it) so that BOTH providers mount in the
-                same render cycle and kick off their SWR calls in parallel.
-                Otherwise AssignmentSubmissionProvider would wait for
-                AssignmentProvider's gated load before firing its own
-                requests, adding an extra round-trip phase. */}
             <AssignmentSubmissionProvider assignment_uuid={assignment?.assignment_uuid}>
               <AssignmentProvider assignment_uuid={assignment?.assignment_uuid}>
                 <AssignmentsTaskProvider>
@@ -394,12 +374,8 @@ function ActivityClient(props: ActivityClientProps) {
     }
   }, [activity, course, assignment, isManagement, org, orgslug]);
 
-  // Past the last activity lies the course-end screen holding the certificate.
   const isLastActivity = currentIndex >= 0 && !nextActivity;
 
-  // Navigate to an activity. A null target means "there is nothing after this
-  // one" — on the final activity that means the course-end/certificate screen
-  // rather than a dead end.
   const navigateToActivity = (activity: any) => {
     const cleanCourseUuid = course.course_uuid?.replace('course_', '');
     if (!activity) {
@@ -412,7 +388,6 @@ function ActivityClient(props: ActivityClientProps) {
     router.push(getUriWithOrg(orgslug, '') + `/course/${cleanCourseUuid}/activity/${activity.cleanUuid}`);
   };
 
-  // Initialize focus mode from localStorage
   React.useEffect(() => {
     if (isManagement) {
       setIsFocusMode(false)
@@ -424,11 +399,10 @@ function ActivityClient(props: ActivityClientProps) {
     }
   }, [isManagement]);
 
-  // Save focus mode to localStorage
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('globalFocusMode', isFocusMode.toString());
-      // Dispatch custom event for focus mode change
+
       window.dispatchEvent(new CustomEvent('focusModeChange', { 
         detail: { isFocusMode } 
       }));
@@ -474,7 +448,6 @@ function ActivityClient(props: ActivityClientProps) {
     return (
       <GeneralWrapperStyled>
         <div className="animate-pulse pt-6 space-y-5">
-          {/* Breadcrumb */}
           <div className="flex items-center gap-2 pb-1">
             <div className="h-3 bg-gray-200 rounded w-14" />
             <div className="h-3 bg-gray-200 rounded w-2" />
@@ -482,7 +455,6 @@ function ActivityClient(props: ActivityClientProps) {
             <div className="h-3 bg-gray-200 rounded w-2" />
             <div className="h-3 bg-gray-200 rounded w-28" />
           </div>
-          {/* Course header: thumbnail + name */}
           <div className="flex items-center gap-4">
             <div className="w-[60px] h-[34px] sm:w-[100px] sm:h-[57px] bg-gray-200 rounded-md shrink-0" />
             <div className="space-y-2">
@@ -490,9 +462,7 @@ function ActivityClient(props: ActivityClientProps) {
               <div className="h-7 bg-gray-200 rounded w-52" />
             </div>
           </div>
-          {/* Progress bar */}
           <div className="h-2 bg-gray-200 rounded-full w-full" />
-          {/* Activity title row */}
           <div className="space-y-2">
             <div className="h-3 bg-gray-200 rounded w-28" />
             <div className="h-8 bg-gray-200 rounded w-2/3" />
@@ -501,7 +471,6 @@ function ActivityClient(props: ActivityClientProps) {
               <div className="h-3 bg-gray-200 rounded w-24" />
             </div>
           </div>
-          {/* Content box placeholder */}
           <div className="bg-white nice-shadow rounded-lg p-3 sm:p-7 animate-pulse space-y-4" style={{ minHeight: '420px' }}>
             <div className="h-7 bg-gray-100 rounded w-2/5 mb-2" />
             <div className="h-4 bg-gray-100 rounded w-full" />
@@ -522,8 +491,9 @@ function ActivityClient(props: ActivityClientProps) {
   const displayName = activity?.name ?? activityNameFromCourse
   const displayActivityType = allActivities[currentIndex]?.activity_type
 
-  if (activity?.is_locked) {
+  if (activityid !== 'end' && (activity?.is_locked || activityError)) {
     const isAuthenticated = session?.status === 'authenticated'
+    const isAccessDenied = activity?.is_locked || [401, 403].includes((activityError as any)?.status)
     return (
       <GeneralWrapperStyled>
         <div className="max-w-2xl mx-auto my-16 bg-white rounded-2xl border border-gray-200/80 shadow-sm p-8 text-center">
@@ -531,25 +501,28 @@ function ActivityClient(props: ActivityClientProps) {
             <Lock className="text-rose-500" size={24} />
           </div>
           <h1 className="text-xl font-semibold text-gray-900 mb-2">
-            {t('course.locked_title', 'This activity is locked')}
+            {isAccessDenied ? t('student_experience.lesson_access_title') : t('student_experience.lesson_load_error')}
           </h1>
           <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-            {isAuthenticated
-              ? t('course.locked_restricted', 'You need to be a member of the right user group to access this. Ask a course admin to add you.')
-              : t('course.locked_auth_required', 'You need to sign in to access this activity.')}
+            {!isAccessDenied
+              ? t('student_experience.lesson_load_description')
+              : isAuthenticated
+                ? t('student_experience.lesson_access_description')
+                : t('course.locked_auth_required', 'You need to sign in to access this activity.')}
           </p>
           <div className="flex flex-col sm:flex-row gap-2 justify-center">
             {!isAuthenticated && (
               <Link
-                href={getUriWithOrg(orgslug, '/login')}
-                className="inline-flex items-center justify-center px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
+                href={getUriWithOrg(orgslug, '/login') + `?next=${encodeURIComponent(getUriWithOrg(orgslug, `/course/${courseuuid}/activity/${activityid}`))}`}
+                className="inline-flex min-h-11 items-center justify-center px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
               >
                 {t('auth.sign_in', 'Sign in')}
               </Link>
             )}
+            {!isAccessDenied && <button onClick={() => refetchActivity()} className="min-h-11 px-4 py-2 rounded-lg bg-gray-900 text-white">{t('common.retry')}</button>}
             <Link
               href={getUriWithOrg(orgslug, '') + `/course/${courseuuid}`}
-              className="inline-flex items-center justify-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors"
+              className="inline-flex min-h-11 items-center justify-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors"
             >
               {t('course.back_to_course', 'Back to course')}
             </Link>
@@ -559,256 +532,44 @@ function ActivityClient(props: ActivityClientProps) {
     )
   }
 
+  const progress = courseProgress(course, trailData)
+
   return (
     <>
       <CourseProvider courseuuid={course?.course_uuid} initialCourseStructure={course}>
-        {/* Common ancestor of BOTH the task editors and the Submit button, which
-            live in disjoint AssignmentSubmissionProvider subtrees. Lets Submit
-            flush unsaved task answers before grading (avoids silent 0%). */}
         <AssignmentDirtyTasksProvider>
         <Suspense fallback={<LoadingFallback />}>
-          {/* <AIChatBotProvider> */}
             <Suspense fallback={null}>
-              {/* <AISidePanelContentWrapper> */}
             {isFocusMode ? (
-              <AnimatePresence>
-                <motion.div
-                  initial={isInitialRender.current ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="fixed inset-0 bg-white"
-                  style={{ zIndex: 'var(--z-overlay)' }}
-                >
-                  {/* Focus Mode Top Bar */}
-                  <motion.div 
-                    initial={isInitialRender.current ? false : { y: -100 }}
-                    animate={{ y: 0 }}
-                    exit={{ y: -100 }}
-                    transition={{ duration: 0.3 }}
-                    className="fixed top-0 start-0 end-0 bg-white/90 backdrop-blur-xl border-b border-gray-100"
-                    style={{ zIndex: 'var(--z-modal-content)' }}
-                  >
-                    <div className="container mx-auto px-4 py-2">
-                      <div className="flex items-center justify-between h-14">
-                        {/* Progress Indicator - Moved to left */}
-                        <motion.div 
-                          initial={isInitialRender.current ? false : { opacity: 0, x: -20 * dx }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.2 }}
-                          className="flex items-center space-x-2"
-                        >
-                          <div className="relative w-8 h-8">
-                            <svg className="w-full h-full transform -rotate-90">
-                              <circle
-                                cx="16"
-                                cy="16"
-                                r="14"
-                                stroke="#e5e7eb"
-                                strokeWidth="3"
-                                fill="none"
-                              />
-                              <circle
-                                cx="16"
-                                cy="16"
-                                r="14"
-                                stroke="#10b981"
-                                strokeWidth="3"
-                                fill="none"
-                                strokeLinecap="round"
-                                strokeDasharray={2 * Math.PI * 14}
-                                strokeDashoffset={2 * Math.PI * 14 * (1 - (trailData?.runs?.find((run: any) => run.course_uuid === course.course_uuid)?.steps?.filter((step: any) => step.complete)?.length || 0) / (course.chapters?.reduce((acc: number, chapter: any) => acc + chapter.activities.length, 0) || 1))}
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-xs font-bold text-gray-800">
-                                {Math.round(((trailData?.runs?.find((run: any) => run.course_uuid === course.course_uuid)?.steps?.filter((step: any) => step.complete)?.length || 0) / (course.chapters?.reduce((acc: number, chapter: any) => acc + chapter.activities.length, 0) || 1)) * 100)}%
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            {trailData?.runs?.find((run: any) => run.course_uuid === course.course_uuid)?.steps?.filter((step: any) => step.complete)?.length || 0} {t('common.of')} {course.chapters?.reduce((acc: number, chapter: any) => acc + chapter.activities.length, 0) || 0}
-                          </div>
-                        </motion.div>
-                        
-                        {/* Center Course Info */}
-                        <motion.div 
-                          initial={isInitialRender.current ? false : { opacity: 0, y: -20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.1 }}
-                          className="flex items-center space-x-4"
-                        >
-                          <div className="flex">
-                            <Link
-                              href={getUriWithOrg(orgslug, '') + `/course/${courseuuid}`}
-                            >
-                              <img
-                                className="w-[60px] h-[34px] rounded-md drop-shadow-md"
-                                src={course.thumbnail_image
-                                  ? getCourseThumbnailMediaDirectory(
-                                      org?.org_uuid,
-                                      course.course_uuid,
-                                      course.thumbnail_image
-                                    )
-                                  : '/empty_thumbnail.png'
-                                }
-                                alt=""
-                              />
-                            </Link>
-                          </div>
-                          <div className="flex flex-col -space-y-1">
-                            <p className="font-bold text-gray-700 text-sm">{t('search.course')} </p>
-                            <h1 className="font-bold text-gray-950 text-lg first-letter:uppercase">
-                              {course.name}
-                            </h1>
-                          </div>
-                        </motion.div>
-
-                        {/* Minimize and Chapters - Moved to right */}
-                        <motion.div
-                          initial={isInitialRender.current ? false : { opacity: 0, x: 20 * dx }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.2 }}
-                          className="flex items-center space-x-2"
-                        >
-                          {activity && (
-                            <div className="hidden sm:block">
-                              <ActivityShareDropdown
-                                activityName={activity.name}
-                                activityUrl={typeof window !== 'undefined' ? window.location.href : ''}
-                                orgslug={orgslug}
-                                courseUuid={course.course_uuid}
-                                activityId={activity.activity_uuid ? activity.activity_uuid.replace('activity_', '') : activityid.replace('activity_', '')}
-                                activityType={activity.activity_type}
-                              />
-                            </div>
-                          )}
-                          <ActivityChapterDropdown
-                            course={course}
-                            currentActivityId={activity ? (activity.activity_uuid ? activity.activity_uuid.replace('activity_', '') : activityid.replace('activity_', '')) : activityid.replace('activity_', '')}
-                            orgslug={orgslug}
-                            trailData={trailData}
-                          />
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setIsFocusMode(false)}
-                            className="bg-white nice-shadow p-2 rounded-full cursor-pointer hover:bg-gray-50"
-                            title={t('activities.exit_focus_mode')}
-                          >
-                            <Minimize2 size={16} className="text-gray-700" />
-                          </motion.button>
-                        </motion.div>
-                      </div>
-                    </div>
-                  </motion.div>
-
-                  {/* Focus Mode Content */}
-                  <div className="pt-16 pb-20 h-full overflow-auto">
-                    <div className="container mx-auto px-4">
-                      {activity && activity.published == true && (
-                        <>
-                          {activity.content.paid_access == false ? (
-                            <PaidCourseActivityDisclaimer course={course} />
-                          ) : (
-                            <motion.div
-                              initial={isInitialRender.current ? false : { scale: 0.95, opacity: 0 }}
-                              animate={{ scale: 1, opacity: 1 }}
-                              transition={{ delay: 0.3 }}
-                              className={`${activity.activity_type === 'TYPE_SCORM' ? 'rounded-xl overflow-hidden' : 'p-7 rounded-lg'} ${bgColor} mt-4`}
-                            >
-                              {/* Activity Types */}
-                              <div className={activity.activity_type === 'TYPE_SCORM' ? 'overflow-hidden' : ''}>
-                                {activityContent}
-                              </div>
-                            </motion.div>
-                          )}
-                        </>
-                      )}
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-white flex flex-col" style={{ zIndex: 'var(--z-overlay)' }}>
+                <header className="shrink-0 border-b border-gray-100 bg-white px-3 sm:px-6 py-3">
+                  <div className="max-w-6xl mx-auto flex flex-wrap items-center gap-3">
+                    <Link href={getUriWithOrg(orgslug, `/course/${courseuuid}`)} className="min-w-0 flex-1 font-semibold text-sm sm:text-base truncate" title={course.name}>{course.name}</Link>
+                    <span className="shrink-0 text-xs text-gray-600" aria-label={t('courses.course_progress')}>{progress.percentage}% · {progress.completed}/{progress.total}</span>
+                    <ActivityChapterDropdown course={course} currentActivityId={activityid} orgslug={orgslug} trailData={trailData} />
+                    <button onClick={() => setIsFocusMode(false)} className="shrink-0 min-h-11 min-w-11 rounded-xl hover:bg-gray-100 flex items-center justify-center" aria-label={t('activities.exit_focus_mode')} title={t('activities.exit_focus_mode')}><Minimize2 size={20} /></button>
+                  </div>
+                </header>
+                <main className="flex-1 min-h-0 overflow-auto px-2 sm:px-6 py-5">
+                  <div className="max-w-5xl mx-auto w-full min-w-0">
+                    {activityid === 'end' ? <CourseEndView courseName={course.name} orgslug={orgslug} courseUuid={course.course_uuid} thumbnailImage={course.thumbnail_image} course={course} trailData={trailData} /> : activity && activity.published && (
+                      activity.content.paid_access === false ? <PaidCourseActivityDisclaimer course={course} /> :
+                      <div className={`${activity.activity_type === 'TYPE_SCORM' ? 'overflow-hidden' : 'p-2 sm:p-5'} ${bgColor} rounded-xl min-w-0`}>{activityContent}</div>
+                    )}
+                  </div>
+                </main>
+                {!isManagement && activity?.published && activity.content.paid_access !== false && <footer className="shrink-0 border-t border-gray-100 px-3 sm:px-6 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white">
+                  <div className="max-w-6xl mx-auto space-y-2">
+                    <div className="flex justify-center"><ActivityActions activity={activity} activityid={activityid} course={course} orgslug={orgslug} assignment={assignment} showNavigation={false} trailData={trailData} isManagement={isManagement} /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => navigateToActivity(prevActivity)} disabled={!prevActivity} aria-label={t('common.previous')} title={prevActivity?.name} className="min-w-0 min-h-11 flex items-center gap-2 rounded-xl px-3 py-2 bg-gray-50 hover:bg-gray-100 disabled:opacity-40"><ChevronLeft size={20} className="shrink-0" /><span className="min-w-0 text-start"><span className="block text-xs text-gray-500">{t('common.previous')}</span><span className="hidden sm:block truncate text-sm font-semibold">{prevActivity?.name || t('activities.no_previous_activity')}</span></span></button>
+                      <button onClick={() => navigateToActivity(nextActivity)} disabled={!nextActivity && !isLastActivity} aria-label={nextActivity ? t('common.next') : st('Итоги курса')} title={nextActivity?.name} className="min-w-0 min-h-11 flex items-center justify-end gap-2 rounded-xl px-3 py-2 bg-gray-50 hover:bg-gray-100 disabled:opacity-40"><span className="min-w-0 text-end"><span className="block text-xs text-gray-500">{nextActivity ? t('common.next') : st('Итоги курса')}</span><span className="hidden sm:block truncate text-sm font-semibold">{nextActivity?.name || st('Итоги курса')}</span></span><ChevronRight size={20} className="shrink-0" /></button>
                     </div>
                   </div>
-
-                  {/* Focus Mode Bottom Bar */}
-                  {!isManagement && activity && activity.published == true && activity.content.paid_access != false && (
-                    <motion.div 
-                      initial={isInitialRender.current ? false : { y: 100 }}
-                      animate={{ y: 0 }}
-                      exit={{ y: 100 }}
-                      transition={{ duration: 0.3 }}
-                      className="fixed bottom-0 start-0 end-0 bg-white/90 backdrop-blur-xl border-t border-gray-100"
-                      style={{ zIndex: 'var(--z-modal-content)' }}
-                    >
-                      <div className="container mx-auto px-4">
-                        <div className="flex items-center justify-between h-16">
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => navigateToActivity(prevActivity)}
-                              className={`flex items-center space-x-1.5 p-2 rounded-md transition-all duration-200 cursor-pointer ${
-                                prevActivity
-                                  ? 'text-gray-700'
-                                  : 'opacity-50 text-gray-400 cursor-not-allowed'
-                              }`}
-                              disabled={!prevActivity}
-                              title={prevActivity ? `${t('common.previous')}: ${prevActivity.name}` : t('activities.no_previous_activity')}
-                            >
-                              <ChevronLeft size={20} className="text-gray-800 shrink-0" />
-                              <div className="flex flex-col items-start">
-                                <span className="text-xs text-gray-500">{t('common.previous')}</span>
-                                <span className="text-sm capitalize font-semibold text-start">
-                                  {prevActivity ? prevActivity.name : t('activities.no_previous_activity')}
-                                </span>
-                              </div>
-                            </button>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <ActivityActions
-                              activity={activity}
-                              activityid={activityid}
-                              course={course}
-                              orgslug={orgslug}
-                              assignment={assignment}
-                              showNavigation={false}
-                              trailData={trailData}
-                              isManagement={isManagement}
-                            />
-                            <button
-                              onClick={() => navigateToActivity(nextActivity)}
-                              className={`flex items-center space-x-1.5 p-2 rounded-md transition-all duration-200 cursor-pointer ${
-                                nextActivity || isLastActivity
-                                  ? 'text-gray-700'
-                                  : 'opacity-50 text-gray-400 cursor-not-allowed'
-                              }`}
-                              disabled={!nextActivity && !isLastActivity}
-                              title={
-                                nextActivity
-                                  ? `${t('common.next')}: ${nextActivity.name}`
-                                  : isLastActivity
-                                    ? st("Итоги курса")
-                                    : t('activities.no_next_activity')
-                              }
-                            >
-                              <div className="flex flex-col items-end">
-                                <span className="text-xs text-gray-500">{t('common.next')}</span>
-                                <span className="text-sm capitalize font-semibold text-end">
-                                  {nextActivity
-                                    ? nextActivity.name
-                                    : isLastActivity
-                                      ? st("Итоги курса")
-                                      : t('activities.no_next_activity')}
-                                </span>
-                              </div>
-                              <ChevronRight size={20} className="text-gray-800 shrink-0" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </motion.div>
-              </AnimatePresence>
+                </footer>}
+              </motion.div>
             ) : (
               <GeneralWrapperStyled>
-                {/* Original non-focus mode UI */}
                 {activityid === 'end' ? (
                   isManagement ? (
                     <div className="mx-auto my-16 max-w-2xl rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center text-blue-950">
@@ -901,9 +662,7 @@ function ActivityClient(props: ActivityClientProps) {
                               <h1 className="font-bold text-gray-950 text-base sm:text-2xl first-letter:uppercase">
                                 {displayName}
                               </h1>
-                              {/* Authors and Dates Section */}
                               <div className="flex flex-wrap items-center gap-3 mt-2">
-                                {/* Avatars */}
                                 {course.authors && course.authors.length > 0 && (
                                   <div className="flex -space-x-3">
                                     {course.authors.filter((a: any) => a.authorship_status === 'ACTIVE').slice(0, 3).map((author: any, idx: number) => (
@@ -926,7 +685,6 @@ function ActivityClient(props: ActivityClientProps) {
                                     )}
                                   </div>
                                 )}
-                                {/* Author names */}
                                 {course.authors && course.authors.length > 0 && (
                                   <div className="text-xs text-gray-700 font-medium flex items-center gap-1">
                                     {course.authors.filter((a: any) => a.authorship_status === 'ACTIVE').length > 1 && (
@@ -964,8 +722,7 @@ function ActivityClient(props: ActivityClientProps) {
                                     )}
                                   </div>
                                 )}
-                                {/* Dates */}
-                                <div className="flex flex-wrap items-center text-xs text-gray-500 gap-1 sm:gap-2">
+                                {isManagement && <div className="flex flex-wrap items-center text-xs text-gray-500 gap-1 sm:gap-2">
                                   <span>
                                     {t('courses.created_on')} {formatDate(course.creation_date, i18n.language, { dateStyle: undefined, year: 'numeric', month: 'long', day: 'numeric' })}
                                   </span>
@@ -973,11 +730,12 @@ function ActivityClient(props: ActivityClientProps) {
                                   <span>
                                     {t('courses.last_updated')} {getRelativeTime(new Date(course.updated_at || course.last_updated || course.creation_date))}
                                   </span>
-                                </div>
+                                </div>}
                               </div>
                             </div>
                           </div>
-                          <div className="hidden sm:flex space-x-2 items-center relative shrink-0" style={{ zIndex: 'var(--z-interactive)' }}>
+                          <div className="flex self-end sm:self-auto gap-2 items-center relative shrink-0" style={{ zIndex: 'var(--z-interactive)' }}>
+                            {activity?.published && activity.content.paid_access !== false && <button type="button" onClick={() => setIsFocusMode(true)} className="min-h-11 px-3 rounded-xl bg-white hover:bg-gray-50 nice-shadow inline-flex items-center gap-2 text-xs font-semibold" aria-label={t('activities.focus_mode')}><Maximize2 size={18} />{t('activities.focus_mode')}</button>}
                             {activity && activity.published == true && activity.content.paid_access != false && (
                               <AuthenticatedClientElement checkMethod="authentication">
                                 {activity.activity_type != 'TYPE_ASSIGNMENT' && (
@@ -1021,32 +779,15 @@ function ActivityClient(props: ActivityClientProps) {
                           {activity.content.paid_access == false ? (
                             <PaidCourseActivityDisclaimer course={course} />
                           ) : (
-                            <div className="flex gap-6">
+                            <div className="flex gap-6 max-w-5xl mx-auto w-full">
                               <div className={`flex-1 min-w-0 ${activity.activity_type === 'TYPE_SCORM' ? 'rounded-xl overflow-hidden' : 'p-3 sm:p-7 rounded-lg'} ${bgColor} relative isolate`} style={{ zIndex: 'var(--z-base)' }}>
-                                <button
-                                  onClick={() => setIsFocusMode(true)}
-                                  className={`absolute ${activity.activity_type === 'TYPE_SCORM' ? 'top-2 end-2' : 'top-4 end-4'} hidden sm:flex bg-white/80 hover:bg-white nice-shadow p-2 rounded-full cursor-pointer transition-all duration-200 group overflow-hidden pointer-events-auto`}
-                                  style={{ zIndex: 'var(--z-interactive)' }}
-                                  title={t('activities.focus_mode')}
-                                >
-                                  <div className="flex items-center">
-                                    <Maximize2 size={16} className="text-gray-700" />
-                                    <span className="text-xs font-bold text-gray-700 opacity-0 group-hover:opacity-100 transition-all duration-200 w-0 group-hover:w-auto group-hover:ms-2 whitespace-nowrap">
-                                      {t('activities.focus_mode')}
-                                    </span>
-                                  </div>
-                                </button>
                                 {activityContent}
                               </div>
-                              <Suspense fallback={null}>
 
-                              </Suspense>
                             </div>
                           )}
                         </>
                       ) : null}
-
-                      {/* Activity Actions below the content box */}
                       {!isManagement && activity && activity.published == true && activity.content.paid_access != false && (
                         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mt-4 w-full gap-2 sm:gap-0">
                           <div className="order-1 sm:order-none">
@@ -1075,8 +816,6 @@ function ActivityClient(props: ActivityClientProps) {
                           </div>
                         </div>
                       )}
-
-                      {/* Fixed Activity Secondary Bar */}
                       {!isManagement && activity && activity.published == true && activity.content.paid_access != false && (
                         <FixedActivitySecondaryBar
                           course={course}
@@ -1091,16 +830,8 @@ function ActivityClient(props: ActivityClientProps) {
                 )}
               </GeneralWrapperStyled>
             )}
-              {/* </AISidePanelContentWrapper> */}
             </Suspense>
-          {/* </AIChatBotProvider> */}
         </Suspense>
-{/*
-<AIActivityAsk activity={activity} />
-*/}
-{/*
-<AISidePanelInline activity={activity} />
-*/}
         </AssignmentDirtyTasksProvider>
       </CourseProvider>
     </>
@@ -1125,13 +856,11 @@ function NextActivityButton({ course, currentActivityId, orgslug }: { course: an
   const { t: st } = useSchoolTranslation()
   const { t } = useTranslation();
   const router = useRouter();
-  const _isMobile = useMediaQuery('(max-width: 768px)');
 
   const findNextActivity = () => {
     let allActivities: any[] = [];
     let currentIndex = -1;
 
-    // Flatten all activities from all chapters
     course.chapters.forEach((chapter: any) => {
       chapter.activities.forEach((activity: any) => {
         const cleanActivityUuid = activity.activity_uuid?.replace('activity_', '');
@@ -1141,24 +870,17 @@ function NextActivityButton({ course, currentActivityId, orgslug }: { course: an
           chapterName: chapter.name
         });
 
-        // Check if this is the current activity
         if (activity.id === currentActivityId) {
           currentIndex = allActivities.length - 1;
         }
       });
     });
 
-    // Get next activity
     return currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null;
   };
 
   const nextActivity = findNextActivity();
 
-  // On the LAST activity, Next advances to the course-end screen (which holds
-  // the certificate) instead of disappearing. Previously the only route there
-  // was the trophy icon on the progress bar, which learners did not find — and
-  // it was unreachable altogether for anyone who had already marked the final
-  // activity complete on an earlier visit.
   const isLastActivity = !nextActivity;
   const cleanCourseUuid = course.course_uuid?.replace('course_', '');
 
@@ -1171,9 +893,10 @@ function NextActivityButton({ course, currentActivityId, orgslug }: { course: an
   };
 
   return (
-    <div
+    <button
+      type="button"
       onClick={navigateToActivity}
-      className="bg-gray-200 rounded-md px-3 sm:px-4 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out hover:bg-gray-200"
+      className="min-h-11 text-start bg-gray-200 rounded-md px-3 sm:px-4 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out hover:bg-gray-200"
     >
       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.next')}</span>
       <div className="flex items-center space-x-1">
@@ -1182,20 +905,18 @@ function NextActivityButton({ course, currentActivityId, orgslug }: { course: an
         </span>
         <ChevronRight size={17} className="shrink-0" />
       </div>
-    </div>
+    </button>
   );
 }
 
 function PreviousActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const _isMobile = useMediaQuery('(max-width: 768px)');
 
   const findPreviousActivity = () => {
     let allActivities: any[] = [];
     let currentIndex = -1;
 
-    // Flatten all activities from all chapters
     course.chapters.forEach((chapter: any) => {
       chapter.activities.forEach((activity: any) => {
         const cleanActivityUuid = activity.activity_uuid?.replace('activity_', '');
@@ -1205,14 +926,12 @@ function PreviousActivityButton({ course, currentActivityId, orgslug }: { course
           chapterName: chapter.name
         });
 
-        // Check if this is the current activity
         if (activity.id === currentActivityId) {
           currentIndex = allActivities.length - 1;
         }
       });
     });
 
-    // Get previous activity
     return currentIndex > 0 ? allActivities[currentIndex - 1] : null;
   };
 
@@ -1226,16 +945,17 @@ function PreviousActivityButton({ course, currentActivityId, orgslug }: { course
   };
 
   return (
-    <div
+    <button
+      type="button"
       onClick={navigateToActivity}
-      className="bg-white rounded-md px-3 sm:px-4 nice-shadow flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out"
+      className="min-h-11 text-start bg-white rounded-md px-3 sm:px-4 nice-shadow flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out"
     >
       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.previous')}</span>
       <div className="flex items-center space-x-1">
         <ChevronLeft size={17} className="shrink-0" />
         <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">{previousActivity.name}</span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -1254,8 +974,7 @@ function AssignmentTools(props: {
   const [gradeData, setGradeData] = React.useState<any>(null);
   const [isGradeModalOpen, setIsGradeModalOpen] = React.useState(false);
   const { width: windowWidth, height: windowHeight } = useWindowSize();
-  // Ensures the auto-open-on-mount logic only fires once per page view,
-  // so the modal doesn't pop back open every time gradeData refreshes.
+
   const hasAutoOpenedRef = React.useRef(false);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -1265,9 +984,7 @@ function AssignmentTools(props: {
       if (isSubmitting) return
       setIsSubmitting(true)
       try {
-        // Persist any answers the learner selected but didn't manually save, so
-        // grading never runs against an empty/stale answer sheet. Abort if a save
-        // fails rather than silently finalizing a 0%.
+
         const flushed = await dirtyTasks.flushAll()
         if (!flushed) {
           toast.error(t('assignments.failed_submit_assignment'))
@@ -1281,10 +998,7 @@ function AssignmentTools(props: {
           toast.success(t('assignments.assignment_submitted_success'))
           queryClient.invalidateQueries({ queryKey: queryKeys.assignments.submission(props.assignment?.assignment_uuid) })
           queryClient.invalidateQueries({ queryKey: queryKeys.assignments.taskSubmission(props.assignment?.assignment_uuid) })
-          // Submitting may auto-grade the assignment (GRADED), which makes the
-          // answer key eligible to be revealed (show_correct_answers). The task
-          // definitions were fetched pre-grade with the key stripped, so refetch
-          // them — otherwise the reveal renders every option as "incorrect".
+
           queryClient.invalidateQueries({ queryKey: queryKeys.assignments.tasks(props.assignment?.assignment_uuid) })
         }
         else {
@@ -1307,24 +1021,16 @@ function AssignmentTools(props: {
       );
       if (res.success) {
         toast.success(t('assignments.retry_assignment_success'));
-        // The retry wiped every per-task submission server-side. Clear the
-        // cached batch IMMEDIATELY (before the refetch lands) so the task
-        // editors — which remount on the incremented attempt number — hydrate
-        // from an empty state and don't briefly re-adopt the previous attempt's
-        // answers as their saved baseline (which would submit empty -> 0%).
+
         queryClient.setQueryData(queryKeys.assignments.taskSubmission(props.assignment?.assignment_uuid), {});
-        // Pull the fresh per-task batch + the user submission so the task
-        // editors snap back to an empty state without a hard reload.
+
         queryClient.invalidateQueries({ queryKey: queryKeys.assignments.submission(props.assignment?.assignment_uuid) });
         queryClient.invalidateQueries({ queryKey: queryKeys.assignments.taskSubmission(props.assignment?.assignment_uuid) });
-        // The submission is back to PENDING, so the answer key must be stripped
-        // again — refetch the task definitions so a revealed key from the graded
-        // attempt isn't left visible during the retry.
+
         queryClient.invalidateQueries({ queryKey: queryKeys.assignments.tasks(props.assignment?.assignment_uuid) });
         setGradeData(null);
         setIsGradeModalOpen(false);
-        // Re-arm the auto-open on this fresh attempt so the next graded
-        // result still pops the celebration / detail modal.
+
         hasAutoOpenedRef.current = false;
       } else {
         toast.error(t('assignments.retry_assignment_failed'));
@@ -1341,9 +1047,7 @@ function AssignmentTools(props: {
       session.data?.tokens?.access_token
     );
     if (res.success) {
-      // The backend returns a rich grade object: display_grade, points_summary,
-      // percentage_display, passed, overall_feedback, etc. We just render it —
-      // no client-side math.
+
       setGradeData(res.data);
     }
   };
@@ -1355,10 +1059,6 @@ function AssignmentTools(props: {
   }
     , [submission, props.assignment])
 
-  // Auto-open the grade details modal when the student lands on a GRADED
-  // assignment that was auto-graded. We only do this once per mount so it
-  // doesn't reopen every time SWR re-hydrates the grade data in the
-  // background.
   useEffect(() => {
     if (hasAutoOpenedRef.current) return;
     if (!gradeData) return;
@@ -1369,11 +1069,6 @@ function AssignmentTools(props: {
     setIsGradeModalOpen(true);
   }, [gradeData, submission, props.assignment]);
 
-  // No submission yet, OR the row exists in PENDING / NOT_SUBMITTED because
-  // the student previously hit "Try again" and the retry endpoint reset the
-  // row in place. In both cases the next action is the same: submit for
-  // grading. The submit endpoint upserts on PENDING so a fresh submission
-  // here reuses the existing row and preserves the attempt counter.
   const isAwaitingSubmission =
     !submission ||
     submission.length === 0 ||
@@ -1383,9 +1078,7 @@ function AssignmentTools(props: {
   const isRetryAttempt = isAwaitingSubmission && submission?.length > 0 && attemptNumber > 1;
 
   if (isAwaitingSubmission) {
-    // Past the deadline the server 403s every write, including the flush that
-    // "Submit for grading" performs. Offering the button anyway produced a
-    // generic failure toast with no explanation of why.
+
     if (isAssignmentPastDue(props.assignment?.due_date)) {
       return (
         <div className="bg-rose-800 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white transition delay-150 duration-300 ease-in-out">
@@ -1400,9 +1093,6 @@ function AssignmentTools(props: {
       )
     }
 
-    // While the submit runs the trigger itself reports it: saving every pending
-    // answer and grading server-side takes seconds on a long assignment, and
-    // the bar is what the learner is looking at.
     if (isSubmitting) {
       return (
         <div className="bg-cyan-800 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white transition delay-150 duration-300 ease-in-out">
@@ -1455,7 +1145,7 @@ function AssignmentTools(props: {
   }
 
   if (submission[0].submission_status === 'GRADED') {
-    // Fallback string if the server response hasn't hydrated yet or is old.
+
     const displayGrade = gradeData?.display_grade
       ?? (gradeData ? `${gradeData.grade}/${gradeData.max_grade}` : '...');
     const pointsSummary = gradeData?.points_summary;
@@ -1467,27 +1157,19 @@ function AssignmentTools(props: {
     const pillBg = isPassing ? 'bg-teal-600' : 'bg-rose-600';
     const pillChip = isPassing ? 'bg-white text-teal-800' : 'bg-white text-rose-700';
 
-    // Retry availability mirrors the backend's eligibility check: teacher
-    // opted in (allow_retries) and attempt counter hasn't reached the cap
-    // (max_retries=0 means unlimited). We compute it client-side too so the
-    // "Try again" button is only rendered when it would actually succeed.
     const allowRetries = !!props.assignment?.allow_retries;
     const maxRetries = Number(props.assignment?.max_retries || 0);
     const currentAttempt = Number(submission?.[0]?.attempt_number || 1);
     const attemptsRemaining = maxRetries
       ? Math.max(0, maxRetries - currentAttempt)
       : null;
-    // Past the deadline the server refuses a retry — and rightly so: retry wipes
-    // the answers, grade and certificate, and every resubmit path is deadline
-    // gated, so a retry here would destroy graded work with no way back. Mirror
-    // that client-side rather than offering a button that 403s.
+
     const retryPastDue = isAssignmentPastDue(props.assignment?.due_date);
     const canRetry =
       allowRetries && !retryPastDue && (maxRetries === 0 || currentAttempt < maxRetries);
 
     return (
       <>
-        {/* Compact pill — same footprint and alignment as the Next button */}
         <button
           type="button"
           onClick={() => setIsGradeModalOpen(true)}
@@ -1515,10 +1197,6 @@ function AssignmentTools(props: {
             <ChevronRight size={15} className="shrink-0" />
           </div>
         </button>
-
-        {/* Confetti for passing students — fires once each time the modal
-            opens because react-confetti with recycle={false} plays through
-            and the conditional remount restarts it. */}
         {isGradeModalOpen && isPassing && gradeData && (
           <div className="fixed inset-0 pointer-events-none z-[300]">
             <ReactConfetti
@@ -1532,10 +1210,6 @@ function AssignmentTools(props: {
             />
           </div>
         )}
-
-        {/* Detail modal — opens on click and auto-opens once when the
-            assignment is auto-graded so students see their result right
-            away. */}
         <Modal
           isDialogOpen={isGradeModalOpen}
           onOpenChange={(open: boolean) => setIsGradeModalOpen(open)}
@@ -1543,13 +1217,11 @@ function AssignmentTools(props: {
           noPadding
           dialogContent={
             <div className="flex flex-col">
-              {/* Hero */}
               <div className={`relative px-6 pt-8 pb-7 overflow-hidden ${
                 isPassing
                   ? 'bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50'
                   : 'bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50'
               }`}>
-                {/* Decorative blobs */}
                 <div className={`absolute -top-12 -end-12 w-44 h-44 rounded-full blur-3xl opacity-40 ${
                   isPassing ? 'bg-emerald-300' : 'bg-rose-300'
                 }`} />
@@ -1591,8 +1263,6 @@ function AssignmentTools(props: {
                   </div>
                 </div>
               </div>
-
-              {/* Body */}
               <div className="px-6 pt-5 pb-6 space-y-5">
                 {tasks && tasks.length > 0 && (
                   <div className="space-y-2.5">
@@ -1602,12 +1272,7 @@ function AssignmentTools(props: {
                     <div className="space-y-1.5">
                       {tasks.map((tb: any) => {
                         const pct = Math.max(0, Math.min(100, tb.percentage || 0));
-                        // Use the server's per-task verdict. Hardcoding 60 here
-                        // contradicted the real threshold (50 for most grading
-                        // types, or the teacher's own pass_threshold_percentage),
-                        // so a task at 50% rendered as failing in this modal while
-                        // the hero above it said "Passing" and the page behind it
-                        // showed a green "Task passed" card.
+
                         const passedTask = tb.submitted && (
                           typeof tb.passed === 'boolean' ? tb.passed : pct >= 60
                         );
@@ -1744,425 +1409,7 @@ function AssignmentTools(props: {
     )
   }
 
-  // Default return in case none of the conditions are met
   return null
 }
 
 export default ActivityClient
-
-// export function MarkStatus(props: {
-//   activity: any
-//   activityid: string
-//   course: any
-//   orgslug: string,
-//   trailData: any
-// }) {
-//   const { t } = useTranslation()
-//   const router = useRouter()
-//   const session = useLHSession() as any;
-//   const org = useOrg() as any;
-//   const { isUserPartOfTheOrg } = useOrgMembership();
-//   const queryClient = useQueryClient();
-//   const { track } = useLHAnalytics('learner');
-//   const _isMobile = useMediaQuery('(max-width: 768px)')
-//   const [isLoading, setIsLoading] = React.useState(false);
-//   const [showMarkedTooltip, setShowMarkedTooltip] = React.useState(false);
-//   const [showUnmarkedTooltip, setShowUnmarkedTooltip] = React.useState(false);
-//
-//
-//   React.useEffect(() => {
-//     if (typeof window !== 'undefined') {
-//       const markedTooltipCount = localStorage.getItem('activity_marked_tooltip_count');
-//       const unmarkedTooltipCount = localStorage.getItem('activity_unmarked_tooltip_count');
-//
-//       if (!markedTooltipCount || parseInt(markedTooltipCount) < 3) {
-//         setShowMarkedTooltip(true);
-//       }
-//       if (!unmarkedTooltipCount || parseInt(unmarkedTooltipCount) < 3) {
-//         setShowUnmarkedTooltip(true);
-//       }
-//     }
-//   }, []);
-//
-//   const handleMarkedTooltipClose = () => {
-//     if (typeof window !== 'undefined') {
-//       localStorage.setItem('activity_marked_tooltip_count', '3');
-//       setShowMarkedTooltip(false);
-//     }
-//   };
-//
-//   const handleUnmarkedTooltipClose = () => {
-//     if (typeof window !== 'undefined') {
-//       localStorage.setItem('activity_unmarked_tooltip_count', '3');
-//       setShowUnmarkedTooltip(false);
-//     }
-//   };
-//
-//   const infoIcon = (
-//     <svg
-//       viewBox="0 0 24 24"
-//       fill="none"
-//       stroke="currentColor"
-//       strokeWidth="2"
-//       strokeLinecap="round"
-//       strokeLinejoin="round"
-//     >
-//       <circle cx="12" cy="12" r="10" />
-//       <path d="M12 16v-4" />
-//       <path d="M12 8h.01" />
-//     </svg>
-//   );
-//
-//   const areAllActivitiesCompleted = () => {
-//     const run = props.trailData?.runs?.find(
-//       (run: any) => run.course_uuid === props.course.course_uuid
-//     );
-//     if (!run) return false;
-//
-//     let totalActivities = 0;
-//     let completedActivities = 0;
-//
-//     props.course.chapters.forEach((chapter: any) => {
-//       chapter.activities.forEach((activity: any) => {
-//         totalActivities++;
-//         const isCompleted = run.steps.find(
-//           (step: any) => step.activity_uuid === activity.activity_uuid && step.complete === true
-//         );
-//         if (isCompleted) {
-//           completedActivities++;
-//         }
-//       });
-//     });
-//
-//     return completedActivities >= totalActivities - 1;
-//   };
-//
-//   const findNextActivity = () => {
-//     const flat: any[] = [];
-//     let currentIndex = -1;
-//     props.course.chapters.forEach((chapter: any) => {
-//       chapter.activities.forEach((activity: any) => {
-//         flat.push(activity);
-//         if (activity.id === props.activity.id) {
-//           currentIndex = flat.length - 1;
-//         }
-//       });
-//     });
-//     return currentIndex >= 0 && currentIndex < flat.length - 1 ? flat[currentIndex + 1] : null;
-//   };
-//
-//   async function markActivityAsCompleteFront() {
-//     try {
-//       const willCompleteAll = areAllActivitiesCompleted();
-//       const nextActivity = findNextActivity();
-//       setIsLoading(true);
-//
-//       await markActivityAsComplete(
-//         props.orgslug,
-//         props.course.course_uuid,
-//         props.activity.activity_uuid,
-//         session.data?.tokens?.access_token
-//       );
-//
-//       await queryClient.invalidateQueries({ queryKey: queryKeys.trail.org(org?.id) });
-//
-//       track(AnalyticsEvent.ActivityMarkedComplete, {
-//         activity_uuid: props.activity.activity_uuid,
-//         course_uuid: props.course.course_uuid,
-//         activity_type: props.activity.activity_type,
-//         will_complete_course: willCompleteAll,
-//         has_next_activity: !!nextActivity,
-//       });
-//       // North-star terminal event: the learner just finished the whole course.
-//       if (willCompleteAll) {
-//         track(AnalyticsEvent.CourseCompleted, {
-//           course_uuid: props.course.course_uuid,
-//         });
-//       }
-//
-//       const cleanCourseUuid = props.course.course_uuid.replace('course_', '');
-//       await queryClient.invalidateQueries({ queryKey: queryKeys.courses.meta(cleanCourseUuid) });
-//       if (willCompleteAll || !nextActivity) {
-//         router.push(getUriWithOrg(props.orgslug, '') + `/course/${cleanCourseUuid}/activity/end`);
-//       } else {
-//         const nextUuid = nextActivity.activity_uuid?.replace('activity_', '');
-//         router.push(getUriWithOrg(props.orgslug, '') + `/course/${cleanCourseUuid}/activity/${nextUuid}`);
-//       }
-//     } catch (error) {
-//       console.error('Error marking activity as complete:', error);
-//       toast.error(t('activities.failed_mark_complete'));
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   }
-//
-//   async function unmarkActivityAsCompleteFront() {
-//     try {
-//       setIsLoading(true);
-//
-//       await unmarkActivityAsComplete(
-//         props.orgslug,
-//         props.course.course_uuid,
-//         props.activity.activity_uuid,
-//         session.data?.tokens?.access_token
-//       );
-//
-//       await queryClient.invalidateQueries({ queryKey: queryKeys.trail.org(org?.id) });
-//       await queryClient.invalidateQueries({ queryKey: queryKeys.courses.meta(props.course.course_uuid.replace('course_', '')) });
-//     } catch (_error) {
-//       toast.error(t('activities.failed_unmark_complete'));
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   }
-//
-//   const isActivityCompleted = () => {
-//     // Clean up course UUID by removing 'course_' prefix if it exists
-//     const cleanCourseUuid = props.course.course_uuid?.replace('course_', '');
-//
-//     let run = props.trailData?.runs?.find(
-//       (run: any) => {
-//         const cleanRunCourseUuid = run.course?.course_uuid?.replace('course_', '');
-//         return cleanRunCourseUuid === cleanCourseUuid;
-//       }
-//     );
-//
-//     if (run) {
-//       // Find the step that matches the current activity
-//       return run.steps.find(
-//         (step: any) => step.activity_id === props.activity.id && step.complete === true
-//       );
-//     }
-//     return false;
-//   }
-//
-//   // Don't render until we have trail data
-//   if (!props.trailData) {
-//     return null;
-//   }
-//
-//   // Don't show progress tracking for non-members
-//   if (!isUserPartOfTheOrg) {
-//     return null;
-//   }
-//
-//   return (
-//     <>
-//       {isActivityCompleted() ? (
-//         <div className="flex items-center space-x-2">
-//           <div className="relative">
-//             <ConfirmationModal
-//               confirmationButtonText={t('activities.unmark_activity')}
-//               confirmationMessage={t('activities.unmark_activity_confirm')}
-//               dialogTitle={t('activities.unmark_activity_title')}
-//               dialogTrigger={
-//                 <div className="bg-teal-600 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white hover:cursor-pointer transition delay-150 duration-300 ease-in-out">
-//                   <span className="text-[10px] font-bold mb-1 uppercase">{t('common.status')}</span>
-//                   <div className="flex items-center space-x-2">
-//                     <svg
-//                       width="17"
-//                       height="17"
-//                       viewBox="0 0 24 24"
-//                       fill="none"
-//                       stroke="currentColor"
-//                       strokeWidth="2"
-//                       strokeLinecap="round"
-//                       strokeLinejoin="round"
-//                     >
-//                       <rect x="3" y="3" width="18" height="18" rx="2" />
-//                       <path d="M7 12l3 3 7-7" />
-//                     </svg>
-//                     <span className="text-xs font-bold">{t('common.complete')}</span>
-//                   </div>
-//                 </div>
-//               }
-//               functionToExecute={unmarkActivityAsCompleteFront}
-//               status="warning"
-//             />
-//             {showMarkedTooltip && (
-//               <MiniInfoTooltip
-//                 icon={infoIcon}
-//                 message={t('activities.unmark_tooltip')}
-//                 onClose={handleMarkedTooltipClose}
-//                 iconColor="text-teal-600"
-//                 iconSize={24}
-//                 width="w-64"
-//               />
-//             )}
-//           </div>
-//         </div>
-//       ) : (
-//         <div className="flex items-center space-x-2">
-//           <div className="relative">
-//             <div
-//               className={`${isLoading ? 'opacity-90' : ''} bg-gray-800 rounded-md px-4 nice-shadow flex flex-col p-2.5 text-white hover:cursor-pointer transition-all duration-200 ${isLoading ? 'cursor-not-allowed' : 'hover:bg-gray-700'}`}
-//               onClick={!isLoading ? markActivityAsCompleteFront : undefined}
-//             >
-//               <span className="text-[10px] font-bold mb-1 uppercase">{t('common.status')}</span>
-//               <div className="flex items-center space-x-2">
-//                 {isLoading ? (
-//                   <div className="animate-spin">
-//                     <svg
-//                       width="17"
-//                       height="17"
-//                       viewBox="0 0 24 24"
-//                       fill="none"
-//                       stroke="currentColor"
-//                       strokeWidth="2"
-//                       strokeLinecap="round"
-//                       strokeLinejoin="round"
-//                     >
-//                       <path d="M21 12a9 9 0 11-6.219-8.56" />
-//                     </svg>
-//                   </div>
-//                 ) : (
-//                   <svg
-//                     width="17"
-//                     height="17"
-//                     viewBox="0 0 24 24"
-//                     fill="none"
-//                     stroke="currentColor"
-//                     strokeWidth="2"
-//                     strokeLinecap="round"
-//                     strokeLinejoin="round"
-//                   >
-//                     <rect x="3" y="3" width="18" height="18" rx="2" />
-//                   </svg>
-//                 )}
-//                 <span className="text-xs font-bold min-w-[90px]">{isLoading ? t('activities.marking') : t('activities.mark_as_complete')}</span>
-//               </div>
-//             </div>
-//             {showUnmarkedTooltip && (
-//               <MiniInfoTooltip
-//                 icon={infoIcon}
-//                 message={t('activities.mark_tooltip')}
-//                 onClose={handleUnmarkedTooltipClose}
-//                 iconColor="text-gray-600"
-//                 iconSize={24}
-//                 width="w-64"
-//               />
-//             )}
-//           </div>
-//         </div>
-//       )}
-//     </>
-//   )
-// }
-//
-// function NextActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {
-//   const { t } = useTranslation();
-//   const router = useRouter();
-//   const _isMobile = useMediaQuery('(max-width: 768px)');
-//
-//   const findNextActivity = () => {
-//     let allActivities: any[] = [];
-//     let currentIndex = -1;
-//
-//     // Flatten all activities from all chapters
-//     course.chapters.forEach((chapter: any) => {
-//       chapter.activities.forEach((activity: any) => {
-//         const cleanActivityUuid = activity.activity_uuid?.replace('activity_', '');
-//         allActivities.push({
-//           ...activity,
-//           cleanUuid: cleanActivityUuid,
-//           chapterName: chapter.name
-//         });
-//
-//         // Check if this is the current activity
-//         if (activity.id === currentActivityId) {
-//           currentIndex = allActivities.length - 1;
-//         }
-//       });
-//     });
-//
-//     // Get next activity
-//     return currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null;
-//   };
-//
-//   const nextActivity = findNextActivity();
-//
-//   // On the LAST activity, Next advances to the course-end screen (which holds
-//   // the certificate) instead of disappearing. Previously the only route there
-//   // was the trophy icon on the progress bar, which learners did not find — and
-//   // it was unreachable altogether for anyone who had already marked the final
-//   // activity complete on an earlier visit.
-//   const isLastActivity = !nextActivity;
-//   const cleanCourseUuid = course.course_uuid?.replace('course_', '');
-//
-//   const navigateToActivity = () => {
-//     router.push(
-//       isLastActivity
-//         ? getUriWithOrg(orgslug, '') + `/course/${cleanCourseUuid}/activity/end`
-//         : getUriWithOrg(orgslug, '') + `/course/${cleanCourseUuid}/activity/${nextActivity.cleanUuid}`
-//     );
-//   };
-//
-//   return (
-//     <div
-//       onClick={navigateToActivity}
-//       className="bg-gray-200 rounded-md px-3 sm:px-4 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out hover:bg-gray-200"
-//     >
-//       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.next')}</span>
-//       <div className="flex items-center space-x-1">
-//         <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">
-//           {isLastActivity ? 'Итоги курса' : nextActivity.name}
-//         </span>
-//         <ChevronRight size={17} className="shrink-0" />
-//       </div>
-//     </div>
-//   );
-// }
-//
-// function PreviousActivityButton({ course, currentActivityId, orgslug }: { course: any, currentActivityId: string, orgslug: string }) {
-//   const { t } = useTranslation();
-//   const router = useRouter();
-//   const _isMobile = useMediaQuery('(max-width: 768px)');
-//
-//   const findPreviousActivity = () => {
-//     let allActivities: any[] = [];
-//     let currentIndex = -1;
-//
-//     // Flatten all activities from all chapters
-//     course.chapters.forEach((chapter: any) => {
-//       chapter.activities.forEach((activity: any) => {
-//         const cleanActivityUuid = activity.activity_uuid?.replace('activity_', '');
-//         allActivities.push({
-//           ...activity,
-//           cleanUuid: cleanActivityUuid,
-//           chapterName: chapter.name
-//         });
-//
-//         // Check if this is the current activity
-//         if (activity.id === currentActivityId) {
-//           currentIndex = allActivities.length - 1;
-//         }
-//       });
-//     });
-//
-//     // Get previous activity
-//     return currentIndex > 0 ? allActivities[currentIndex - 1] : null;
-//   };
-//
-//   const previousActivity = findPreviousActivity();
-//
-//   if (!previousActivity) return null;
-//
-//   const navigateToActivity = () => {
-//     const cleanCourseUuid = course.course_uuid?.replace('course_', '');
-//     router.push(getUriWithOrg(orgslug, '') + `/course/${cleanCourseUuid}/activity/${previousActivity.cleanUuid}`);
-//   };
-//
-//   return (
-//     <div
-//       onClick={navigateToActivity}
-//       className="bg-white rounded-md px-3 sm:px-4 nice-shadow flex flex-col p-2 sm:p-2.5 text-gray-600 hover:cursor-pointer transition delay-150 duration-300 ease-in-out"
-//     >
-//       <span className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{t('common.previous')}</span>
-//       <div className="flex items-center space-x-1">
-//         <ChevronLeft size={17} className="shrink-0" />
-//         <span className="text-xs sm:text-sm font-semibold truncate max-w-[120px] sm:max-w-[200px]">{previousActivity.name}</span>
-//       </div>
-//     </div>
-//   );
-// }
-//

@@ -17,6 +17,8 @@ import {
   CERTIFICATE_CAPTURE_WIDTH,
 } from '@services/courses/certificateDownload';
 import { useTranslation } from 'react-i18next';
+import { courseProgress } from '@/lib/student-experience';
+import { normalizeLocale } from '@/lib/locale';
 
 interface CourseEndViewProps {
   courseName: string;
@@ -42,13 +44,9 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
   const [userCertificate, setUserCertificate] = useState<any>(null);
   const [isLoadingCertificate, setIsLoadingCertificate] = useState(false);
   const [certificateError, setCertificateError] = useState<string | null>(null);
-  // Offscreen, fixed-width render of the certificate used as the PDF source.
-  // The visible copy is fluid (max-w-2xl and narrower on mobile), so capturing
-  // it directly would make the exported file depend on the viewer's screen.
+
   const certificateCaptureRef = useRef<HTMLDivElement>(null);
 
-  // Recipient's display name for the certificate (full name -> username ->
-  // session user). Empty when unknown so the "Presented to" line is skipped.
   const getLearnerName = (): string => {
     const u = userCertificate?.user;
     const full = [u?.first_name, u?.last_name].filter(Boolean).join(' ').trim();
@@ -59,58 +57,24 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
     return sessionFull || s?.username || '';
   };
   const learnerName = getLearnerName();
-  // Absolute: encoded in the QR code on the certificate PDF, scanned outside the app
+
   const qrCodeLink = getAbsoluteUriWithOrg(orgslug, `/certificates/${userCertificate?.certificate_user.user_certification_uuid}/verify`);
 
+  const progressInfo = useMemo(() => courseProgress(course, trailData), [course, trailData]);
+  const isCourseCompleted = progressInfo.total > 0 && progressInfo.completed === progressInfo.total;
+  const [isDownloading, setIsDownloading] = useState(false);
 
-
-  // Check if course is actually completed
-  const isCourseCompleted = useMemo(() => {
-    if (!trailData || !course) return false;
-    
-    // Flatten all activities
-    const allActivities = course.chapters.flatMap((chapter: any) => 
-      chapter.activities.map((activity: any) => ({
-        ...activity,
-        chapterId: chapter.id
-      }))
-    );
-    
-    // Check if all activities are completed
-    const isActivityDone = (activity: any) => {
-      const cleanCourseUuid = course.course_uuid?.replace('course_', '');
-      const run = trailData?.runs?.find(
-        (run: any) => {
-          const cleanRunCourseUuid = run.course?.course_uuid?.replace('course_', '');
-          return cleanRunCourseUuid === cleanCourseUuid;
-        }
-      );
-      
-      if (run) {
-        return run.steps.find(
-          (step: any) => step.activity_id === activity.id && step.complete === true && step.teacher_verified === true
-        );
-      }
-      return false;
-    };
-    
-    const totalActivities = allActivities.length;
-    const completedActivities = allActivities.filter((activity: any) => isActivityDone(activity)).length;
-    return totalActivities > 0 && completedActivities === totalActivities;
-  }, [trailData, course]);
-
-  // Fetch user certificate when course is completed
   useEffect(() => {
     const fetchUserCertificate = async () => {
       if (!isCourseCompleted) return;
 
       if (!session?.data?.tokens?.access_token) {
-        setCertificateError(t('auth.authenticate_to_contribute')); // Reusing an auth error key
+        setCertificateError(t('auth.authenticate_to_contribute'));
         return;
       }
 
       if (!org?.id) {
-        return; // Wait for org to be available
+        return;
       }
 
       setIsLoadingCertificate(true);
@@ -139,19 +103,12 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
     fetchUserCertificate();
   }, [isCourseCompleted, courseUuid, session?.data?.tokens?.access_token, org?.id]);
 
-  // Generate the PDF from the SAME <CertificatePreview> the learner sees.
-  //
-  // This used to build a separate certificate out of a hand-written HTML
-  // string, which had drifted into a completely different design: no pattern
-  // artwork, no org logo or name, an emoji instead of the award mark, and its
-  // own colour palette. We now rasterise a hidden, fixed-width render of the
-  // real component (see `certificateCaptureRef` below), so the download always
-  // matches the on-screen and admin-preview certificate.
   const downloadCertificate = async () => {
-    if (!userCertificate) return;
+    if (!userCertificate || isDownloading) return;
     const node = certificateCaptureRef.current;
     if (!node) return;
 
+    setIsDownloading(true);
     try {
       await downloadCertificateNodeAsPdf(
         node,
@@ -159,13 +116,12 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
       );
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error(t('certificate.download_failed', 'Failed to generate PDF. Please try again.'));
+      toast.error(t('certificate.download_failed'));
+    } finally {
+      setIsDownloading(false);
     }
   };
 
-  // Single source of truth for the certificate's contents. Both the visible
-  // certificate and the offscreen one we rasterise into the PDF are rendered
-  // from this, so they cannot drift apart.
   const certificatePreviewProps = useMemo(() => {
     if (!userCertificate) return null;
     const config = userCertificate.certification?.config || {};
@@ -178,56 +134,17 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
       certificateId: userCertificate.certificate_user.user_certification_uuid,
       learnerName,
       awardedDate: new Date(userCertificate.certificate_user.created_at).toLocaleDateString(
-        i18n.language === 'fr' ? 'fr-FR' : 'en-US',
+        normalizeLocale(i18n.language),
         { year: 'numeric', month: 'long', day: 'numeric' },
       ),
       qrCodeLink,
     };
   }, [userCertificate, learnerName, qrCodeLink, i18n.language]);
 
-  // Calculate progress for incomplete courses
-  const progressInfo = useMemo(() => {
-    if (!trailData || !course || isCourseCompleted) return null;
-    
-    const allActivities = course.chapters.flatMap((chapter: any) => 
-      chapter.activities.map((activity: any) => ({
-        ...activity,
-        chapterId: chapter.id
-      }))
-    );
-    
-    const isActivityDone = (activity: any) => {
-      const cleanCourseUuid = course.course_uuid?.replace('course_', '');
-      const run = trailData?.runs?.find(
-        (run: any) => {
-          const cleanRunCourseUuid = run.course?.course_uuid?.replace('course_', '');
-          return cleanRunCourseUuid === cleanCourseUuid;
-        }
-      );
-      
-      if (run) {
-        return run.steps.find(
-          (step: any) => step.activity_id === activity.id && step.complete === true && step.teacher_verified === true
-        );
-      }
-      return false;
-    };
-    
-    const totalActivities = allActivities.length;
-    const completedActivities = allActivities.filter((activity: any) => isActivityDone(activity)).length;
-    const progressPercentage = Math.round((completedActivities / totalActivities) * 100);
-    
-    return {
-      completed: completedActivities,
-      total: totalActivities,
-      percentage: progressPercentage
-    };
-  }, [trailData, course, isCourseCompleted]);
-
   if (isCourseCompleted) {
-    // Show congratulations for completed course
+
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 relative overflow-hidden">
+      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-0 sm:px-4 relative">
         <div className="fixed inset-0 pointer-events-none">
           <ReactConfetti
             width={width}
@@ -238,7 +155,7 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
           />
         </div>
         
-        <div className="bg-white rounded-2xl p-8 nice-shadow max-w-4xl w-full space-y-6 relative z-10">
+        <div className="bg-white rounded-2xl p-4 sm:p-8 nice-shadow max-w-4xl w-full space-y-6 relative z-10">
           <div className="flex flex-col items-center space-y-6">
             {thumbnailImage && (
               <img
@@ -257,11 +174,11 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
             </div>
           </div>
           
-          <h1 className="text-4xl font-bold text-gray-900">
+          <h1 className="text-2xl sm:text-4xl break-words font-bold text-gray-900">
             {t('courses.congratulations')}
           </h1>
           
-          <p className="text-xl text-gray-600">
+          <p className="text-base sm:text-xl break-words text-gray-600">
             {t('courses.successfully_completed')}
             <span className="font-semibold text-gray-900"> {courseName}</span>
           </p>
@@ -289,10 +206,6 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
                   <CertificatePreview {...certificatePreviewProps} />
                 </div>
               </div>
-              {/* PDF source. Identical props to the visible certificate above,
-                  just pinned to a fixed width so the export is the same on
-                  every screen. Kept in the layout (offscreen, not display:none)
-                  because html2canvas cannot measure a hidden subtree. */}
               <div
                 aria-hidden="true"
                 className="pointer-events-none fixed top-0 start-0 -z-50 opacity-0"
@@ -302,19 +215,20 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
                   <CertificatePreview {...certificatePreviewProps} />
                 </div>
               </div>
-              <div className="flex justify-center space-x-4">
+              <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3">
                 <button
                   onClick={downloadCertificate}
-                  className="inline-flex items-center space-x-2 bg-green-600 text-white px-6 py-3 rounded-full hover:bg-green-700 transition duration-200"
+                  disabled={isDownloading}
+                  className="inline-flex items-center justify-center gap-2 min-h-11 text-sm whitespace-normal bg-green-600 text-white px-4 py-3 rounded-xl hover:bg-green-700 transition duration-200"
                 >
                   <Download className="w-5 h-5" />
-                  <span>{t('certificate.download_certificate')}</span>
+                  <span>{isDownloading ? t('student_experience.downloading') : t('certificate.download_certificate')}</span>
                 </button>
                 <Link
                   href={getUriWithOrg(orgslug, `/certificates/${userCertificate.certificate_user.user_certification_uuid}/verify`)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 transition duration-200"
+                  className="inline-flex items-center justify-center gap-2 min-h-11 text-sm whitespace-normal bg-blue-600 text-white px-4 py-3 rounded-xl hover:bg-blue-700 transition duration-200"
                 >
                   <Shield className="w-5 h-5" />
                   <span>{t('certificate.verify_certificate')}</span>
@@ -332,7 +246,7 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
           <div className="pt-6">
             <Link
               href={getUriWithOrg(orgslug, `/course/${courseUuid.replace('course_', '')}`)}
-              className="inline-flex items-center space-x-2 bg-gray-800 text-white px-6 py-3 rounded-full hover:bg-gray-700 transition duration-200"
+              className="inline-flex items-center justify-center gap-2 min-h-11 text-sm whitespace-normal bg-gray-800 text-white px-4 py-3 rounded-xl hover:bg-gray-700 transition duration-200"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>{t('courses.back_to_course')}</span>
@@ -342,10 +256,10 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
       </div>
     );
   } else {
-    // Show progress and encouragement for incomplete course
+
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
-        <div className="bg-white rounded-2xl p-8 nice-shadow max-w-2xl w-full space-y-6">
+      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-0 sm:px-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-8 nice-shadow max-w-2xl w-full space-y-6">
           <div className="flex flex-col items-center space-y-6">
             {thumbnailImage && (
               <img
@@ -364,11 +278,11 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
             </div>
           </div>
           
-          <h1 className="text-4xl font-bold text-gray-900">
+          <h1 className="text-2xl sm:text-4xl break-words font-bold text-gray-900">
             {t('courses.keep_going')}
           </h1>
           
-          <p className="text-xl text-gray-600">
+          <p className="text-base sm:text-xl break-words text-gray-600">
             {t('courses.making_great_progress')}
             <span className="font-semibold text-gray-900"> {courseName}</span>
           </p>
@@ -407,7 +321,7 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
           <div className="pt-6">
             <Link
               href={getUriWithOrg(orgslug, `/course/${courseUuid.replace('course_', '')}`)}
-              className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 transition duration-200"
+              className="inline-flex items-center justify-center gap-2 min-h-11 text-sm whitespace-normal bg-blue-600 text-white px-4 py-3 rounded-xl hover:bg-blue-700 transition duration-200"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>{t('courses.continue_learning')}</span>
@@ -419,4 +333,4 @@ const CourseEndView: React.FC<CourseEndViewProps> = ({
   }
 };
 
-export default CourseEndView; 
+export default CourseEndView;

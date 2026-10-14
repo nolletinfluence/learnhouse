@@ -48,6 +48,23 @@ async def approve(db, course, user, admin, request):
     await decide_request(application.id, "approved", admin, db)
     return application
 
+@patch("src.services.courses.certifications.dispatch_webhooks", new_callable=AsyncMock)
+@patch("src.services.courses.certifications.track", new_callable=AsyncMock)
+async def test_mentor_attendance_issues_one_certificate_and_ignores_drafts(mock_track, mock_webhooks, db, course, activity, regular_user, admin_user, mock_request):
+    from src.db.courses.activities import Activity
+    from src.db.courses.certifications import Certifications, CertificateUser
+
+    await approve(db, course, regular_user, admin_user, mock_request)
+    db.add(Certifications(course_id=course.id, certification_uuid="certification_attendance", config={"certification_type": "completion"}))
+    db.add(Activity(name="Draft", activity_uuid="activity_unpublished_certificate", activity_type=activity.activity_type, activity_sub_type=activity.activity_sub_type, content={}, org_id=course.org_id, course_id=course.id, published=False))
+    await db.commit()
+    await mark_attendance(mock_request, course.course_uuid, activity.activity_uuid, regular_user.id, AttendanceInput(status="absent"), admin_user, db)
+    assert not (await db.execute(select(CertificateUser))).scalars().all()
+    await mark_attendance(mock_request, course.course_uuid, activity.activity_uuid, regular_user.id, AttendanceInput(status="present", grade=0), admin_user, db)
+    certificates = (await db.execute(select(CertificateUser))).scalars().all()
+    assert len(certificates) == 1 and certificates[0].user_id == regular_user.id
+    await mark_attendance(mock_request, course.course_uuid, activity.activity_uuid, regular_user.id, AttendanceInput(status="present", grade=85), admin_user, db)
+    assert len((await db.execute(select(CertificateUser))).scalars().all()) == 1
 
 @pytest.mark.parametrize("guest", [True, False])
 async def test_public_course_does_not_expose_lessons_before_enrollment(db, course, activity, regular_user, anonymous_user, mock_request, guest):

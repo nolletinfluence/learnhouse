@@ -7,6 +7,7 @@ import UserAvatar from '@components/Objects/UserAvatar'
 import useAdminStatus from '@components/Hooks/useAdminStatus'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
 import { useOrg } from '@components/Contexts/OrgContext'
+import { paymentsEnabled } from '@/lib/student-experience'
 import { getUriWithOrg, getMainDomainUri, getTenancy } from '@services/config/config'
 import { canSwitchOrganization } from '@services/tenancy/productPolicy'
 import { getOrgLogoMediaDirectory } from '@services/media/media'
@@ -52,9 +53,6 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
   const { track } = useLHAnalytics()
   const colors = getMenuColorClasses(primaryColor)
 
-  // The user's organizations (deduped) from the session roles — used by the
-  // "My Organizations" submenu. Only relevant in multi-org (SaaS) mode, where
-  // the apex hub (/home, /new, /billing) exists.
   const multiOrg = canSwitchOrganization(getTenancy())
   const myOrgs = useMemo(() => {
     const roles = session?.data?.roles || []
@@ -71,12 +69,10 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
   const userRoleInfo = useMemo((): RoleInfo | null => {
     if (!userRoles || userRoles.length === 0) return null;
 
-    // Find the highest priority role for the current organization
     const orgRoles = userRoles.filter((role: any) => role.org.id === org?.id);
 
     if (orgRoles.length === 0) return null;
 
-    // Sort by role priority (admin > maintainer > instructor > user)
     const sortedRoles = [...orgRoles].sort((a: any, b: any) => {
       const getRolePriority = (role: any) => {
         if (role.role.role_uuid === 'role_global_admin' || role.role.id === 1) return 4;
@@ -89,7 +85,6 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
 
     const highestRole = sortedRoles[0];
 
-    // Define role configurations based on actual database roles
     const roleConfigs: { [key: string]: RoleInfo } = {
       'role_global_admin': {
         name: t('roles.role_admin'),
@@ -121,7 +116,6 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
       }
     };
 
-    // Determine role based on role_uuid or id
     let roleKey = 'role_global_user'; // default
     if (highestRole.role.role_uuid) {
       roleKey = highestRole.role.role_uuid;
@@ -134,20 +128,18 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
     }
 
     return roleConfigs[roleKey] || roleConfigs['role_global_user'];
-    // t is a real dependency: the labels must recompute on language change
+
   }, [userRoles, org?.id, t]);
 
   const customRoles = useMemo((): CustomRoleInfo[] => {
     if (!userRoles || userRoles.length === 0) return [];
 
-    // Find roles for the current organization
     const orgRoles = userRoles.filter((role: any) => role.org.id === org?.id);
     
     if (orgRoles.length === 0) return [];
 
-    // Filter for custom roles (not system roles)
     const customRoles = orgRoles.filter((role: any) => {
-      // Check if it's a system role
+
       const isSystemRole = 
         role.role.role_uuid?.startsWith('role_global_') ||
         [1, 2, 3, 4].includes(role.role.id) ||
@@ -160,7 +152,7 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
       name: role.role.name || t('roles.custom_role'),
       description: role.role.description
     }));
-    // t is a real dependency: the fallback label must recompute on language change
+
   }, [userRoles, org?.id, t]);
 
   return (
@@ -204,7 +196,6 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
                           </div>
                         </Tooltip>
                       )}
-                      {/* Custom roles */}
                       {customRoles.map((customRole, index) => (
                         <Tooltip 
                           key={index}
@@ -249,12 +240,12 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
                     <span>{t('user.user_settings')}</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                {paymentsEnabled(org) && <DropdownMenuItem asChild>
                   <Link href={getUriWithOrg(org?.slug, '/account/purchases')} className="flex items-center space-x-2">
                     <ShoppingBag size={16} weight="fill" />
                     <span>{t('account.purchases')}</span>
                   </Link>
-                </DropdownMenuItem>
+                </DropdownMenuItem>}
                 {multiOrg && (
                   <>
                     <DropdownMenuSeparator />
@@ -332,7 +323,7 @@ export const HeaderProfileBox = ({ primaryColor = '' }: { primaryColor?: string 
                   className="flex items-center space-x-2 text-red-600 focus:text-red-600"
                 >
                   <SignOut size={16} weight="fill" data-dir-flip />
-                  <span>Sign Out</span>
+                  <span>{t('user.settings.security.sign_out')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

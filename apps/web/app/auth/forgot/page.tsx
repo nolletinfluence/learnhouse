@@ -1,3 +1,4 @@
+import { serverLocale } from '@/lib/locale-server'
 import { getOrganizationContextInfo } from '@services/organizations/orgs'
 import { getAuthOrgSlug } from '@services/org/orgResolution'
 import ForgotPasswordClient from './forgot'
@@ -5,10 +6,11 @@ import { Metadata } from 'next'
 import OrgNotFound from '@components/Objects/StyledElements/Error/OrgNotFound'
 
 export async function generateMetadata(): Promise<Metadata> {
+  const title = (await serverLocale()) === 'en' ? 'Forgot Password' : 'Восстановление пароля'
   const orgslug = await getAuthOrgSlug()
 
   if (!orgslug) {
-    return { title: 'Forgot Password — BestDevs LMS' }
+    return { title: `${title} — BestDevs LMS`, robots: { index: false, follow: false } }
   }
 
   let org: any = null
@@ -18,11 +20,11 @@ export async function generateMetadata(): Promise<Metadata> {
       tags: ['organizations'],
     })
   } catch {
-    // Stale cookie or unknown org — fall back to generic title
+    org = null
   }
 
   return {
-    title: 'Forgot Password' + ` — ${org?.name || 'BestDevs LMS'}`,
+    title: title + ` — ${org?.name || 'BestDevs LMS'}`,
     robots: { index: false, follow: false },
   }
 }
@@ -44,8 +46,6 @@ const ForgotPasswordPage = async () => {
       return <OrgNotFound />
     }
   }
-  // Org-less apex: `org` stays null (unbranded). Password reset is platform-level
-  // (by email), so no org is needed for the reset call.
 
   return <ForgotPasswordClient org={org} />
 }

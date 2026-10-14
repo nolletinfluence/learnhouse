@@ -1,4 +1,5 @@
 'use client'
+import { useGoogleSignIn } from '@/hooks/useGoogleSignIn'
 import FormLayout, {
   FormField,
 } from '@components/Objects/StyledElements/Form/Form'
@@ -7,7 +8,8 @@ import { useFormik } from 'formik'
 import React, { useState, useEffect } from 'react'
 import { AlertTriangle, Info, Lock, Mail, Shield, X, Clock, Send, CheckCircle2 } from 'lucide-react'
 import { checkSSOEnabled, redirectToSSOLogin } from '@services/auth/sso'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { authReturnPath, authReturnQuery } from '@/lib/student-experience'
 import Link from 'next/link'
 import { useAuth } from '@components/Contexts/AuthContext'
 import { getLEARNHOUSE_TOP_DOMAIN_VAL, getDeploymentMode, isOnCustomDomain } from '@services/config/config'
@@ -33,12 +35,11 @@ const LoginClient = (props: LoginClientProps) => {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const turnstileRef = React.useRef<TurnstileWidgetHandle>(null)
   const turnstileRequired = useTurnstileRequired()
-  const router = useRouter();
+  const router = useRouter()
+  const searchParams = useSearchParams();
   const session = useLHSession() as any;
   const isAuthenticated = session?.status === 'authenticated'
 
-  // The org's allowed sign-in methods. Offering a method the org has turned off
-  // only leads to a 403 from the backend, so it isn't offered at all.
   const allowedMethods = React.useMemo(
     () => getAllowedAuthMethods(props.org),
     [props.org]
@@ -47,38 +48,17 @@ const LoginClient = (props: LoginClientProps) => {
   const magicLoginAllowed = allowedMethods.has('magic_login')
   const googleAllowed = allowedMethods.has('google')
   const ssoAllowed = allowedMethods.has('sso')
-  const [googleConfiguration, setGoogleConfiguration] = useState<'checking' | 'configured' | 'unconfigured'>('checking')
+  const googleConfiguration = useGoogleSignIn(googleAllowed)
   const googleConfigured = googleConfiguration === 'configured'
-  // SSO counts only once it is actually configured for the org (ssoEnabled).
+
   const hasAlternativeMethods = (googleAllowed && googleConfigured) || magicLoginAllowed || (ssoAllowed && ssoEnabled)
 
   useEffect(() => {
-    if (!googleAllowed) {
-      setGoogleConfiguration('unconfigured')
-      return
+    if (isAuthenticated && !isSubmitting) {
+      router.replace(authReturnPath(searchParams) || '/home')
     }
+  }, [isAuthenticated, isSubmitting, router, searchParams])
 
-    const controller = new AbortController()
-    fetch('/api/auth/google/authorize', { signal: controller.signal })
-      .then(async (response) => response.ok ? response.json() : { configured: false })
-      .then((status) => setGoogleConfiguration(status.configured === true ? 'configured' : 'unconfigured'))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        setGoogleConfiguration('unconfigured')
-      })
-
-    return () => controller.abort()
-  }, [googleAllowed])
-
-  // A signed-in user has nothing to do on /login → bounce to the hub. The proxy
-  // does this best-effort, but pages must self-handle it too (mirrors signup.tsx).
-  // Guarded by !isSubmitting so a FRESH login (which flips the session to
-  // authenticated) doesn't race the onSubmit's own post-login navigation.
-  useEffect(() => {
-    if (isAuthenticated && !isSubmitting) router.replace('/home')
-  }, [isAuthenticated, isSubmitting, router])
-
-  // Error state with type information
   const [error, setError] = useState('')
   const [errorType, setErrorType] = useState<string | null>(null)
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
@@ -87,18 +67,12 @@ const LoginClient = (props: LoginClientProps) => {
   const [showErrorModal, setShowErrorModal] = useState(false)
   const [retryAfter, setRetryAfter] = useState<number | null>(null)
 
-  // Second-factor challenge. When mfaToken is set the credentials form is
-  // replaced in place by the code step — same route, so the ?next redirect and
-  // the org context survive without being threaded through a navigation.
   const [mfaToken, setMfaToken] = useState<string | null>(null)
   const [mfaCode, setMfaCode] = useState('')
   const [useBackupCode, setUseBackupCode] = useState(false)
   const [mfaError, setMfaError] = useState('')
   const [mfaSubmitting, setMfaSubmitting] = useState(false)
 
-  // Passwordless "email me a login link" affordance. Toggled in place next to
-  // the credentials form; on success it flips to a "check your email"
-  // confirmation. Kept entirely separate from the password/2FA state above.
   const [magicMode, setMagicMode] = useState(false)
   const [magicEmail, setMagicEmail] = useState('')
   const [magicSubmitting, setMagicSubmitting] = useState(false)
@@ -106,7 +80,7 @@ const LoginClient = (props: LoginClientProps) => {
   const [magicError, setMagicError] = useState('')
 
   const openMagicMode = () => {
-    // Seed from whatever they already typed in the password form.
+
     setMagicEmail(formik.values.email)
     setMagicError('')
     setMagicSent(false)
@@ -132,28 +106,20 @@ const LoginClient = (props: LoginClientProps) => {
       setMagicError(res.detail)
       return
     }
-    // The backend answers generically whether or not the account exists, so a
-    // non-rate-limited response always advances to the confirmation state.
+
     setMagicSent(true)
   }
 
-  // An admin magic link for a 2FA-enabled user lands here with a pending token
-  // in the query string instead of a session (see /admin/{org}/auth/magic-consume).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('mfa_token')
     if (token) setMfaToken(token)
   }, [])
 
-  // Honor a post-login redirect via ?next / ?redirect, sanitized to an
-  // internal same-origin path (no open-redirect), defaulting to /home.
-  // Forward it through the cross-domain /redirect_from_auth handoff.
   const buildCallbackUrl = () => {
     const params = new URLSearchParams(window.location.search)
-    // `redirect_to` is what the magic-link consume endpoint forwards when it
-    // bounces a 2FA-enabled user here instead of signing them straight in.
-    const raw = params.get('next') ?? params.get('redirect') ?? params.get('redirect_to')
-    const dest = raw && /^\/(?!\/)/.test(raw) ? raw : '/home'
+
+    const dest = authReturnPath(params) || '/home'
     return `${window.location.origin}/redirect_from_auth?next=${encodeURIComponent(dest)}`
   }
 
@@ -189,15 +155,13 @@ const LoginClient = (props: LoginClientProps) => {
       code_ = parsed.code ?? null
       if (parsed.message) message = parsed.message
     } catch {
-      // keep the default message
+      code_ = null
     }
 
     track(AnalyticsEvent.LoginFailed, { method: 'credentials_mfa', error_type: code_ })
 
     if (code_ === 'MFA_SESSION_EXPIRED') {
-      // The pending token died. Returning to the password step is the only way
-      // forward — keeping the code field up would let them retry forever
-      // against a token that can never be accepted.
+
       setMfaToken(null)
       setMfaCode('')
       setUseBackupCode(false)
@@ -213,9 +177,6 @@ const LoginClient = (props: LoginClientProps) => {
     setMfaSubmitting(false)
   }
 
-  // Auto-submit once six digits are in — every authenticator app produces
-  // exactly six, so making the user reach for a button is pure friction.
-  // Backup codes are excluded: they are variable-shaped and pasted.
   useEffect(() => {
     if (mfaToken && !useBackupCode && !mfaSubmitting && mfaCode.length === 6) {
       handleMfaSubmit()
@@ -225,32 +186,29 @@ const LoginClient = (props: LoginClientProps) => {
   const handleGoogleSignIn = () => {
     if (!googleConfigured) return
     track(AnalyticsEvent.LoginGoogleClicked)
-    // Store org context in cookies before OAuth redirect
+
     if (props.org?.slug) {
       const topDomain = getLEARNHOUSE_TOP_DOMAIN_VAL();
       const isSecure = window.location.protocol === 'https:';
       const secureAttr = isSecure ? '; secure' : '';
       const baseAttributes = `; path=/; SameSite=Lax${secureAttr}`;
-      // Host-only on custom domains: a `.{platformTopDomain}` cookie can't be set
-      // from learn.acme.org (Domain not a suffix of host) → the browser drops it
-      // and the callback loses org context. Omit the Domain there.
+
       const domainAttr = (topDomain === 'localhost' || isOnCustomDomain()) ? '' : `; domain=.${topDomain}`;
       document.cookie = `LH_oauth_orgslug=${props.org.slug}${baseAttributes}${domainAttr}`;
       document.cookie = `LH_oauth_org_id=${props.org.id}${baseAttributes}${domainAttr}`;
     }
-    // Use absolute URL with current origin for custom domain support
+
     signIn('google', { callbackUrl: buildCallbackUrl() });
   };
 
-  // Check if SSO is enabled for this organization (requires enterprise plan)
   useEffect(() => {
     const checkSSO = async () => {
-      // The org can switch SSO off as a sign-in method regardless of its plan.
+
       if (!ssoAllowed) {
         setSsoEnabled(false)
         return
       }
-      // SSO is only available for enterprise plan (requires EE or SaaS/enterprise)
+
       const orgConfig = props.org?.config?.config
       const plan = orgConfig?.plan ?? orgConfig?.cloud?.plan
       const mode = getDeploymentMode()
@@ -264,7 +222,7 @@ const LoginClient = (props: LoginClientProps) => {
           const result = await checkSSOEnabled(props.org.slug)
           setSsoEnabled(result.sso_enabled)
         } catch (error) {
-          // SSO not available, silently ignore
+
           console.debug('SSO check failed:', error)
         }
       }
@@ -302,8 +260,7 @@ const LoginClient = (props: LoginClientProps) => {
   }
 
   const handleResendVerification = async () => {
-    // org?.id is undefined on the org-less apex — the backend resends by email
-    // without an org, so we only require the email here.
+
     if (!unverifiedEmail) return
 
     setIsResendingVerification(true)
@@ -348,7 +305,6 @@ const LoginClient = (props: LoginClientProps) => {
 
       track(AnalyticsEvent.LoginSubmitted, { has_sso_enabled: ssoEnabled })
 
-      // Bot check before attempting credentials (blocks credential-stuffing).
       let botOk = false
       try {
         botOk = await verifyTurnstileToken(turnstileToken)
@@ -363,8 +319,6 @@ const LoginClient = (props: LoginClientProps) => {
         return
       }
 
-      // Use absolute URL with current origin for custom domain support;
-      // forwards a sanitized ?next so the post-exchange landing honors it.
       const callbackUrl = buildCallbackUrl();
 
       let res: any = null
@@ -373,15 +327,12 @@ const LoginClient = (props: LoginClientProps) => {
           redirect: false,
           email: values.email,
           password: values.password,
-          // Bind the session to this org when the login page is org-scoped, so
-          // the org's session/auth-method policy can enforce against it.
+
           orgSlug: props.org?.slug,
           callbackUrl
         });
       } catch {
-        // Transport-level failure (offline, DNS/TLS): next-auth THROWS rather than
-        // returning res.error. Without this, isSubmitting stays true and the submit
-        // button is permanently disabled with a spinning loader until a reload.
+
         track(AnalyticsEvent.LoginFailed, { method: 'credentials', error_type: 'exception' })
         setError(t('auth.wrong_email_password'))
         setShowErrorModal(true)
@@ -391,10 +342,6 @@ const LoginClient = (props: LoginClientProps) => {
         return
       }
 
-      // Password accepted, second factor outstanding. Must be checked before
-      // the res.error branch below: this result carries error === null, so it
-      // would otherwise fall through to the success path and redirect an
-      // unauthenticated user.
       if (res && res.mfa_required && res.mfa_token) {
         track(AnalyticsEvent.LoginSubmitted, { has_sso_enabled: ssoEnabled, mfa_required: true })
         setMfaToken(res.mfa_token)
@@ -407,14 +354,15 @@ const LoginClient = (props: LoginClientProps) => {
 
       if (res && res.error) {
         let loginErrorType: string | null = null
-        // Try to parse the error message for error codes
+
         try {
-          // The error from next-auth might contain our structured error
+
           const errorData = JSON.parse(res.error);
           if (errorData.code) {
             loginErrorType = errorData.code;
             setErrorType(errorData.code);
-            setError(errorData.message || t('auth.wrong_email_password'));
+            const keys: Record<string, string> = { EMAIL_NOT_VERIFIED: 'auth.email_not_verified_message', ACCOUNT_LOCKED: 'auth.account_locked_message', RATE_LIMITED: 'auth.rate_limited_message' };
+            setError(t(keys[errorData.code] || 'auth.wrong_email_password'));
             if (errorData.code === 'EMAIL_NOT_VERIFIED') {
               setUnverifiedEmail(errorData.email || values.email);
             }
@@ -425,7 +373,7 @@ const LoginClient = (props: LoginClientProps) => {
             setError(t('auth.wrong_email_password'));
           }
         } catch {
-          // If parsing fails, check for specific error strings
+
           if (res.error.includes('EMAIL_NOT_VERIFIED')) {
             loginErrorType = 'EMAIL_NOT_VERIFIED';
             setErrorType('EMAIL_NOT_VERIFIED');
@@ -446,11 +394,11 @@ const LoginClient = (props: LoginClientProps) => {
         track(AnalyticsEvent.LoginFailed, { method: 'credentials', error_type: loginErrorType })
         setShowErrorModal(true);
         setIsSubmitting(false);
-        // Single-use token was consumed by this attempt — refresh for the retry.
+
         turnstileRef.current?.reset();
       } else {
         track(AnalyticsEvent.LoginSucceeded, { method: 'credentials' })
-        // First signIn already authenticated and set cookies — just redirect
+
         window.location.href = callbackUrl;
       }
     },
@@ -465,7 +413,6 @@ const LoginClient = (props: LoginClientProps) => {
         defaultValue: 'Pick up where you left off — your courses, students, and tools are waiting.',
       })}
     >
-        {/* Error Top Bar */}
         {showErrorModal && (
           <div className={`
             mx-6 md:mx-12 lg:mx-20 mt-6 rounded-xl border px-4 py-3 flex items-center justify-between gap-3 animate-in slide-in-from-top duration-200
@@ -533,7 +480,6 @@ const LoginClient = (props: LoginClientProps) => {
           <div className="w-full max-w-[420px] py-10">
             {mfaToken ? (
               <>
-                {/* Second-factor challenge */}
                 <h1 className="text-[28px] md:text-[32px] font-black text-black tracking-tight leading-tight">
                   {t('auth.mfa_title', { defaultValue: 'Two-step verification' })}
                 </h1>
@@ -630,7 +576,6 @@ const LoginClient = (props: LoginClientProps) => {
               </>
             ) : magicMode ? (
               <>
-                {/* Passwordless "email me a link" step */}
                 <h1 className="text-[28px] md:text-[32px] font-black text-black tracking-tight leading-tight">
                   {t('auth.magic_title', { defaultValue: 'Sign in with a link' })}
                 </h1>
@@ -741,7 +686,6 @@ const LoginClient = (props: LoginClientProps) => {
               </>
             ) : (
               <>
-            {/* Header */}
             <h1 className="text-[28px] md:text-[32px] font-black text-black tracking-tight leading-tight">{t('auth.welcome_back')}</h1>
             <p className="mt-2 text-black/45 text-[15px] font-medium">
               {passwordAllowed
@@ -826,8 +770,6 @@ const LoginClient = (props: LoginClientProps) => {
                 </Form.Submit>
               </FormLayout>
               )}
-
-              {/* Divider — only earns its place between two sets of options. */}
               {passwordAllowed && hasAlternativeMethods && (
                 <div className="relative my-6">
                   <div className="absolute inset-0 flex items-center">
@@ -838,8 +780,6 @@ const LoginClient = (props: LoginClientProps) => {
                   </div>
                 </div>
               )}
-
-              {/* Social & SSO Buttons */}
               <div className="space-y-2.5">
                 {googleAllowed && (
                 <button
@@ -875,9 +815,6 @@ const LoginClient = (props: LoginClientProps) => {
                 </button>
                 )}
               </div>
-
-              {/* Every method is off, or the only allowed one (SSO) is not set
-                  up yet. Say so instead of rendering an empty page. */}
               {!passwordAllowed && !hasAlternativeMethods && (
                 <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 flex items-start gap-3">
                   <Info size={16} className="shrink-0 mt-0.5 text-black/40" />
@@ -889,11 +826,9 @@ const LoginClient = (props: LoginClientProps) => {
                   </p>
                 </div>
               )}
-
-              {/* Sign Up Link */}
               <p className="text-center text-sm text-black/35 mt-6">
                 {t('auth.no_account')}{' '}
-                <Link href="/signup" className="text-black font-semibold hover:underline">
+                <Link href={'/signup' + authReturnQuery(searchParams)} className="text-black font-semibold hover:underline">
                   {t('auth.sign_up')}
                 </Link>
               </p>

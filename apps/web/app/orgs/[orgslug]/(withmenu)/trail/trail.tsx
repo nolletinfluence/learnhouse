@@ -1,18 +1,11 @@
 'use client'
-import { useLHSession } from '@components/Contexts/LHSessionContext'
 import { useOrg } from '@components/Contexts/OrgContext'
 import TrailCourseCard from '@components/Pages/Trail/TrailCourseCard'
 import UserCertificates from '@components/Pages/Trail/UserCertificates'
 import TypeOfContentTitle from '@components/Objects/StyledElements/Titles/TypeOfContentTitle'
 import GeneralWrapperStyled from '@components/Objects/StyledElements/Wrappers/GeneralWrapper'
 import { useTrail } from '@/hooks/queries/useTrail'
-import React, { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '@/lib/query/keys'
-import { removeCourse } from '@services/courses/activity'
-import { revalidateTags } from '@services/utils/ts/requests'
-import { useRouter } from 'next/navigation'
-import ConfirmationModal from '@components/Objects/StyledElements/ConfirmationModal/ConfirmationModal'
+import React from 'react'
 import { BookOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import FeatureGate from '@components/Dashboard/Shared/FeatureGate/FeatureGate'
@@ -21,48 +14,14 @@ import { useTrackView, AnalyticsEvent } from '@services/analytics'
 function Trail(params: any) {
   const { t } = useTranslation()
   let orgslug = params.orgslug
-  const session = useLHSession() as any
-  const access_token = session?.data?.tokens?.access_token;
   const org = useOrg() as any
   const orgID = org?.id
-  const router = useRouter()
-  const [isQuittingAll, setIsQuittingAll] = useState(false)
-  const [quittingProgress, setQuittingProgress] = useState(0)
-  const queryClient = useQueryClient()
 
-  // Check if courses feature is enabled
   const isCoursesEnabled = org?.config?.config?.resolved_features?.courses?.enabled ?? org?.config?.config?.features?.courses?.enabled !== false
 
-  // Only fetch trail data if courses feature is enabled; shares cache with course/activity pages
   const { data: trail } = useTrail(isCoursesEnabled ? orgID : undefined)
 
   useTrackView(AnalyticsEvent.TrailViewed, { runs_count: trail?.runs?.length ?? 0 }, !!trail)
-
-  const handleQuitAllCourses = async () => {
-    if (!trail?.runs?.length || isQuittingAll) return;
-
-    setIsQuittingAll(true)
-    const totalCourses = trail.runs.length;
-
-    try {
-      for (let i = 0; i < trail.runs.length; i++) {
-        const run = trail.runs[i];
-        await removeCourse(run.course.course_uuid, orgslug, access_token);
-        setQuittingProgress(Math.round(((i + 1) / totalCourses) * 100));
-      }
-
-      await revalidateTags(['courses'], orgslug);
-      router.refresh();
-      await queryClient.invalidateQueries({ queryKey: queryKeys.trail.org(orgID) });
-    } catch (error) {
-      console.error('Error quitting courses:', error);
-    } finally {
-      setIsQuittingAll(false)
-      setQuittingProgress(0)
-    }
-  }
-
-  useEffect(() => { }, [trail, org])
 
   return (
     <FeatureGate feature="courses" orgslug={orgslug} context="public">
@@ -70,30 +29,7 @@ function Trail(params: any) {
       <div className="flex flex-col space-y-2 mb-6">
         <div className="flex items-center justify-between">
           <TypeOfContentTitle title={t('courses.progress')} type="tra" />
-          {trail?.runs?.length > 0 && (
-            <ConfirmationModal
-              confirmationButtonText={isQuittingAll ? t('courses.quitting_courses', { progress: quittingProgress }) : t('courses.quit_all_courses')}
-              confirmationMessage={t('courses.quit_all_courses_confirm')}
-              dialogTitle={t('courses.quit_all_courses_title')}
-              dialogTrigger={
-                <button
-                  disabled={isQuittingAll}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors
-                    ${isQuittingAll
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : 'bg-red-50 text-red-700 hover:bg-red-100'
-                    }`}
-                >
-                  {isQuittingAll
-                    ? t('courses.quitting_courses', { progress: quittingProgress })
-                    : t('courses.quit_all_courses')
-                  }
-                </button>
-              }
-              functionToExecute={handleQuitAllCourses}
-              status="warning"
-            />
-          )}
+
         </div>
 
         {!trail ? (
@@ -101,12 +37,9 @@ function Trail(params: any) {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="rounded-xl overflow-hidden">
-                  {/* Progress thumbnail */}
                   <div className="bg-gray-200 w-full h-40 rounded-xl" />
-                  {/* Card body */}
                   <div className="pt-3 space-y-2">
                     <div className="h-4 bg-gray-200 rounded w-3/4" />
-                    {/* Progress bar */}
                     <div className="h-2 bg-gray-200 rounded-full w-full" />
                     <div className="h-3 bg-gray-200 rounded w-1/3" />
                   </div>

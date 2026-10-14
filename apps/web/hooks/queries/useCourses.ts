@@ -22,9 +22,9 @@ export function useCourseMeta(courseUuid: string) {
   const accessToken = session?.data?.tokens?.access_token as string | undefined
 
   return useQuery({
-    queryKey: queryKeys.courses.meta(courseUuid),
+    queryKey: [...queryKeys.courses.meta(courseUuid), session?.data?.user?.id ?? 'guest'],
     queryFn: () => getCourseMetadata(courseUuid, {}, accessToken, { slim: true }),
-    enabled: !!courseUuid,
+    enabled: !!courseUuid && session.status !== 'loading',
     staleTime: 60_000,
   })
 }

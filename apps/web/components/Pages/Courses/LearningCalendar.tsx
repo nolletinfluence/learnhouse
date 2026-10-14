@@ -10,6 +10,7 @@ import { useLHSession } from '@components/Contexts/LHSessionContext'
 import { learningRequest } from '@services/courses/learning'
 import { getUriWithOrg } from '@services/config/config'
 import { lessonDateInput, lessonDateLabel } from '@/lib/learning'
+import { meetingLink } from '@/lib/student-experience'
 
 export default function LearningCalendar({ dashboard = false }: { dashboard?: boolean }) {
   const { t: st, i18n: schoolI18n } = useSchoolTranslation()
@@ -61,7 +62,7 @@ export default function LearningCalendar({ dashboard = false }: { dashboard?: bo
       </section>
       <section className="rounded-2xl bg-white border border-neutral-200 p-5"><div className="flex justify-between items-center mb-4"><h2 className="font-bold">{selected ? st("Занятия за день") : st("Занятия за месяц")}</h2>{selected && <button className="text-xs underline" onClick={() => setSelected('')}>{st("Весь месяц")}</button>}</div>
         {isLoading ? <p className="text-neutral-400 text-sm">{st("Загружаем расписание…")}</p> : !shown.length ? <p className="text-sm text-neutral-400">{st("На этот период занятий нет.")}{dashboard ? ` ${st("Назначьте даты в плане курса.")}` : ` ${st("Расписание появится после зачисления и назначения дат ментором.")}`}</p>
-          : <div className="space-y-4">{shown.map(lesson => <article key={lesson.activity_uuid} className="pb-4 border-b border-neutral-100 last:border-0"><p className="text-xs text-lime-700 font-semibold">{lessonDateLabel(lesson.scheduled_at, lesson.timezone, schoolI18n.language)} · {lesson.duration_minutes}  {st("мин.")}</p><h3 className="font-semibold text-sm mt-1">{lesson.name}</h3><p className="text-xs text-neutral-500 mt-1">{lesson.course_name}</p>{lesson.location && <p className="text-xs text-neutral-500 mt-1 break-words">{lesson.location}</p>}
+          : <div className="space-y-4">{shown.map(lesson => <article key={lesson.activity_uuid} className="pb-4 border-b border-neutral-100 last:border-0"><p className="text-xs text-lime-700 font-semibold">{lessonDateLabel(lesson.scheduled_at, lesson.timezone, schoolI18n.language)} · {lesson.duration_minutes}  {st("мин.")}</p><h3 className="font-semibold text-sm mt-1">{lesson.name}</h3><p className="text-xs text-neutral-500 mt-1">{lesson.course_name}</p>{lesson.location && (meetingLink(lesson.location) ? <a href={meetingLink(lesson.location)!} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 underline mt-1">{st("Подключиться к занятию")}</a> : <p className="text-xs text-neutral-500 mt-1 break-words">{lesson.location}</p>)}
             <Link className="inline-flex items-center gap-1.5 text-xs font-semibold mt-2" href={getUriWithOrg(org.slug, dashboard ? `/dash/courses/course/${lesson.course_uuid.replace(/^course_/, '')}/journal` : `/course/${lesson.course_uuid.replace(/^course_/, '')}/activity/${lesson.activity_uuid.replace(/^activity_/, '')}`)}>{dashboard ? st("Открыть журнал") : st("Открыть занятие")}<ArrowRight size={13} /></Link>
           </article>)}</div>}
       </section>

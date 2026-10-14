@@ -15,17 +15,15 @@ function Watermark() {
     const plan = usePlan()
     const watermarkConfig = org?.config?.config?.customization?.general?.watermark ?? org?.config?.config?.general?.watermark
 
-    // Visibility rules, in priority order:
     //   1. EE         → always hidden (white-label is part of the EE license).
-    //   2. SaaS free  → always shown (free tier is branded).
-    //   3. Otherwise  → respect the admin's toggle (default on).
+
     if (mode === 'ee') return null
     const showWatermark = plan === 'free' || watermarkConfig !== false
     if (!showWatermark) return null
 
     return (
-        <div className='fixed bottom-8 end-8 z-50'>
-            <Link href={resolveBestDevsLandingUrl()} className="flex items-center cursor-pointer bg-white/80 backdrop-blur-lg text-gray-700 rounded-2xl p-2 light-shadow text-xs px-5 font-semibold space-x-2">
+        <div className="flex justify-center px-4 pt-6 pb-28 sm:pb-6">
+            <Link href={resolveBestDevsLandingUrl()} className="inline-flex flex-wrap justify-center items-center gap-2 text-gray-500 text-xs font-semibold">
                 <p>{t('common.made_with')}</p>
                 <BestDevsLogo
                     showName

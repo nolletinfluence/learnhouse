@@ -2220,6 +2220,7 @@
   display: flex;
   width: 100%;
   height: 100%;
+  min-width: 0;
 }
 
 .canva-content-wrapper > div:first-child {
@@ -2228,6 +2229,7 @@
 }
 
 .canva-content-wrapper > div:last-child {
+  min-width: 0;
   width: 80%;
 }
 
@@ -2247,6 +2249,9 @@
 
 .canva-content-wrapper .ProseMirror {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+  line-height: 1.75;
   padding: 1rem;
   caret-color: transparent;
 }
@@ -2307,12 +2312,25 @@
   list-style-type: decimal;
 }
 
+.canva-content-wrapper .ProseMirror .tableWrapper {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .canva-content-wrapper .ProseMirror table {
   border-collapse: collapse;
   margin: 0;
-  overflow: hidden;
-  table-layout: fixed;
+  table-layout: auto;
   width: 100%;
+}
+
+.canva-content-wrapper .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 100px;
+}
+
+@media (max-width: 768px) {
+  .canva-content-wrapper .ProseMirror table { min-width: 480px; }
+  .canva-content-wrapper .ProseMirror .tableWrapper:focus-visible { outline: 2px solid #2563eb; }
 }
 
 .canva-content-wrapper .ProseMirror table td,

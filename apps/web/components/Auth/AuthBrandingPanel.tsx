@@ -11,8 +11,7 @@ import { BestDevsLogo } from '@components/Brand/BestDevsLogo'
 interface AuthBrandingPanelProps {
   org: any
   welcomeText?: string
-  // No-org (apex) panel copy — platform-style title + subtitle shown at the top
-  // of the illustration. Falls back to the login wording when omitted.
+
   title?: string
   subtitle?: string
 }
@@ -31,25 +30,21 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
   const UNSPLASH_UTM = '?utm_source=BestDevs_LMS&utm_medium=referral'
   const withUtm = (url: string) => (url ? `${url}${UNSPLASH_UTM}` : '')
 
-  // Check if org has enterprise plan - hide BestDevs LMS branding for enterprise users
-  // In OSS mode, always show branding regardless of plan
   const plan = usePlan()
   const isEnterprise = plan === 'enterprise'
 
-  // No org context (the generic apex login) → use the platform's auth
-  // illustration instead of the flat gradient.
   const noOrg = !org
 
   const getBackgroundStyle = (): React.CSSProperties => {
     if (noOrg) {
       return {
-        backgroundImage: 'url(/auth-default.png)',
+        backgroundImage: 'url(/auth-default.webp)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }
     }
     if (background_type === 'gradient' || !background_image) {
-      // Keep the original black gradient
+
       return {
         background: 'linear-gradient(041.61deg, #202020 7.15%, #000000 90.96%)',
       }
@@ -74,22 +69,17 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
   }
 
   const displayMessage = welcome_message || welcomeText || ''
-  // No-org platform copy (defaults mirror the platform login illustration).
+
   const noOrgTitle = title || `Welcome back to ${BESTDEVS_LMS_NAME}.`
   const noOrgSubtitle =
     subtitle || 'Pick up where you left off — your courses, students, and tools are waiting.'
-  // Treat the no-org illustration like a photo background: dark scrim, no
-  // blueprint-grid overlay.
+
   const hasCustomBackground = noOrg || (background_type !== 'gradient' && background_image)
 
   return (
     <div className="relative h-full w-full">
-      {/* Inset rounded card (platform-style) */}
       <div className="absolute inset-16 rounded-2xl overflow-hidden">
-        {/* Base layer: org's chosen background (gradient | custom | unsplash) */}
         <div className="absolute inset-0" style={getBackgroundStyle()} />
-
-        {/* Blueprint + dot overlays — ONLY for gradient fallback (no photo) */}
         {!hasCustomBackground && (
           <>
             <div
@@ -111,15 +101,9 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
             />
           </>
         )}
-
-        {/* Dark scrim for org photo backgrounds (centered text needs it).
-            The no-org illustration stays vivid — it's darkened only at the top. */}
         {hasCustomBackground && !noOrg && (
           <div className="absolute inset-0 bg-black/30" />
         )}
-
-        {/* No-org: top blur + darken so the platform-style heading reads over
-            the illustration (mirrors the platform login panel). */}
         {noOrg && (
           <>
             <div
@@ -138,8 +122,6 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
             />
           </>
         )}
-
-        {/* Content */}
         <div className="relative z-10 flex flex-col h-full p-10">
           {!isEnterprise && !noOrg && (
             <div className="login-topbar">
@@ -173,7 +155,6 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
                   "flex flex-col items-center text-center gap-6",
                   text_color === 'light' ? "text-white" : "text-gray-900"
                 )}>
-                  {/* Organization logo */}
                   <Link prefetch href={getUriWithOrg(org?.slug, '/')}>
                     <div className="w-24 h-24 rounded-2xl ring-1 ring-inset ring-white/10 bg-white flex items-center justify-center overflow-hidden">
                       {org?.logo_image ? (
@@ -187,8 +168,6 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
                       )}
                     </div>
                   </Link>
-
-                  {/* Text content */}
                   <div className="space-y-1">
                     <h1 className="font-black text-3xl tracking-tight">{org?.name || BESTDEVS_LMS_NAME}</h1>
                     {displayMessage && (
@@ -202,13 +181,9 @@ export default function AuthBrandingPanel({ org, welcomeText, title, subtitle }:
                   </div>
                 </div>
               </div>
-
-              {/* Bottom spacer for visual balance */}
               <div className="h-10" />
             </>
           )}
-
-          {/* Unsplash attribution (required by Unsplash API guidelines) */}
           {background_type === 'unsplash' && background_image && unsplash_photographer_name && (
             <div className={cn(
               "absolute bottom-3 start-4 end-4 z-10 text-[11px] leading-tight",

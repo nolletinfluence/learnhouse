@@ -12,6 +12,7 @@ import { getAllUserCertificates } from '@services/courses/certifications'
 import { asArray } from '@services/utils/ts/requests'
 import { useTranslation } from 'react-i18next'
 import { getCourseThumbnailMediaDirectory } from '@services/media/media'
+import { normalizeLocale } from '@/lib/locale'
 
 interface UserCertificatesProps {
   orgslug: string
@@ -24,7 +25,7 @@ const UserCertificates: React.FC<UserCertificatesProps> = ({ orgslug }) => {
   const org = useOrg() as any
 
   const { data: certificates, error, isLoading } = useQuery({
-    queryKey: queryKeys.certifications.detail(`user_all_${org?.id}`),
+    queryKey: queryKeys.certifications.detail(`user_all_${org?.id}_${session?.data?.user?.id}`),
     queryFn: () => getAllUserCertificates(org.id, access_token),
     select: (res: any) => asArray(res),
     enabled: !!access_token && !!org?.id,
@@ -115,7 +116,7 @@ const UserCertificates: React.FC<UserCertificatesProps> = ({ orgslug }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {certificatesData.map((certificate: any) => {
           const verificationLink = getUriWithOrg(orgslug, `/certificates/${certificate.certificate_user.user_certification_uuid}/verify`)
-          const awardedDate = new Date(certificate.certificate_user.created_at).toLocaleDateString(i18n.language === 'fr' ? 'fr-FR' : 'en-US', {
+          const awardedDate = new Date(certificate.certificate_user.created_at).toLocaleDateString(normalizeLocale(i18n.language), {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
@@ -126,7 +127,7 @@ const UserCertificates: React.FC<UserCertificatesProps> = ({ orgslug }) => {
               key={certificate.certificate_user.user_certification_uuid}
               className="group relative flex flex-col bg-white rounded-xl nice-shadow overflow-hidden w-full transition-all duration-300 hover:scale-[1.01]"
             >
-              {/* Thumbnail */}
+
               <Link
                 href={verificationLink}
                 target="_blank"
@@ -151,7 +152,7 @@ const UserCertificates: React.FC<UserCertificatesProps> = ({ orgslug }) => {
                 </div>
               </Link>
 
-              {/* Content */}
+
               <div className="p-3 flex flex-col space-y-1.5">
                 <Link
                   href={verificationLink}
@@ -179,7 +180,7 @@ const UserCertificates: React.FC<UserCertificatesProps> = ({ orgslug }) => {
                     href={verificationLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider"
+                    className="inline-flex min-h-11 items-center gap-1 px-2 text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider"
                   >
                     {t('certificate.verify')}
                     <ExternalLink className="w-3 h-3" />
@@ -194,4 +195,4 @@ const UserCertificates: React.FC<UserCertificatesProps> = ({ orgslug }) => {
   )
 }
 
-export default UserCertificates 
+export default UserCertificates

@@ -21,7 +21,7 @@ from src.db.courses.chapter_activities import ChapterActivity
 from src.db.courses.courses import Course
 from src.db.trail_steps import TrailStep
 from src.db.user_audit_events import UserAuditEventType
-from src.db.users import AnonymousUser, PublicUser
+from src.db.users import AnonymousUser, PublicUser, User
 from src.security.rbac import AccessAction, check_resource_access
 from src.services.analytics import events as analytics_events
 from src.services.analytics.analytics import track
@@ -31,9 +31,6 @@ from src.services.webhooks.dispatch import dispatch_webhooks
 logger = logging.getLogger(__name__)
 
 
-####################################################
-# CRUD
-####################################################
 
 
 async def create_certification(
@@ -44,7 +41,6 @@ async def create_certification(
 ) -> CertificationRead:
     """Create a new certification for a course"""
     
-    # Check if course exists
     statement = select(Course).where(Course.id == certification_object.course_id)
     course = (await db_session.execute(statement)).scalars().first()
 
@@ -54,10 +50,8 @@ async def create_certification(
             detail="Course not found",
         )
 
-    # RBAC check
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.CREATE)
 
-    # Create certification
     certification = Certifications(
         course_id=certification_object.course_id,
         config=certification_object.config or {},
@@ -66,7 +60,6 @@ async def create_certification(
         update_date=str(datetime.now()),
     )
 
-    # Insert certification in DB
     db_session.add(certification)
     await db_session.commit()
     await db_session.refresh(certification)
@@ -91,7 +84,6 @@ async def get_certification(
             detail="Certification not found",
         )
 
-    # Get course for RBAC check
     statement = select(Course).where(Course.id == certification.course_id)
     course = (await db_session.execute(statement)).scalars().first()
 
@@ -101,7 +93,6 @@ async def get_certification(
             detail="Course not found",
         )
 
-    # RBAC check
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.READ)
 
     return CertificationRead(**certification.model_dump())
@@ -115,7 +106,6 @@ async def get_certifications_by_course(
 ) -> list[CertificationRead]:
     """Get all certifications for a course"""
     
-    # Get course for RBAC check
     statement = select(Course).where(Course.course_uuid == course_uuid)
     course = (await db_session.execute(statement)).scalars().first()
 
@@ -125,10 +115,8 @@ async def get_certifications_by_course(
             detail="Course not found",
         )
 
-    # RBAC check
     await check_resource_access(request, db_session, current_user, course_uuid, AccessAction.READ)
 
-    # Get certifications for this course
     statement = select(Certifications).where(Certifications.course_id == course.id)
     certifications = (await db_session.execute(statement)).scalars().all()
 
@@ -153,7 +141,6 @@ async def update_certification(
             detail="Certification not found",
         )
 
-    # Get course for RBAC check
     statement = select(Course).where(Course.id == certification.course_id)
     course = (await db_session.execute(statement)).scalars().first()
 
@@ -163,15 +150,12 @@ async def update_certification(
             detail="Course not found",
         )
 
-    # RBAC check
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.UPDATE)
 
-    # Update only the fields that were passed in
     for var, value in vars(certification_object).items():
         if value is not None:
             setattr(certification, var, value)
 
-    # Update the update_date
     certification.update_date = str(datetime.now())
 
     db_session.add(certification)
@@ -198,7 +182,6 @@ async def delete_certification(
             detail="Certification not found",
         )
 
-    # Get course for RBAC check
     statement = select(Course).where(Course.id == certification.course_id)
     course = (await db_session.execute(statement)).scalars().first()
 
@@ -208,19 +191,8 @@ async def delete_certification(
             detail="Course not found",
         )
 
-    # RBAC check
     await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.DELETE)
 
-    # CertificateUser.certification_id is declared ON DELETE CASCADE, so deleting
-    # the template also destroys every certificate ever awarded from it — the
-    # learners' "my certificates" list empties and every verification link they
-    # shared, including the QR code printed on already-downloaded PDFs, starts
-    # reporting the certificate as revoked. That is irreversible: re-creating the
-    # template mints a new id, and nothing re-issues to past graduates.
-    #
-    # Refuse instead. Awarded certificates must be revoked deliberately, one at a
-    # time, through revoke_user_certificate — which also emits the revocation
-    # analytics and webhooks that a silent cascade skips entirely.
     awarded_count = (await db_session.execute(
         select(func.count(CertificateUser.id)).where(
             CertificateUser.certification_id == certification.id
@@ -245,9 +217,6 @@ async def delete_certification(
     return {"detail": "Certification deleted successfully"}
 
 
-####################################################
-# Certificate User Functions
-####################################################
 
 
 async def create_certificate_user(
@@ -266,7 +235,6 @@ async def create_certificate_user(
     - When called directly, requires proper RBAC checks
     """
     
-    # Check if certification exists
     statement = select(Certifications).where(Certifications.id == certification_id)
     certification = (await db_session.execute(statement)).scalars().first()
 
@@ -276,9 +244,7 @@ async def create_certificate_user(
             detail="Certification not found",
         )
 
-    # SECURITY: If current_user is provided, perform RBAC check
     if current_user:
-        # Get course for RBAC check
         statement = select(Course).where(Course.id == certification.course_id)
         course = (await db_session.execute(statement)).scalars().first()
 
@@ -288,10 +254,8 @@ async def create_certificate_user(
                 detail="Course not found",
             )
 
-        # Require course ownership or instructor role for creating certificates
         await check_resource_access(request, db_session, current_user, course.course_uuid, AccessAction.CREATE)
 
-    # Check if certificate user already exists
     statement = select(CertificateUser).where(
         CertificateUser.user_id == user_id,
         CertificateUser.certification_id == certification_id
@@ -304,12 +268,10 @@ async def create_certificate_user(
             detail="User already has a certificate for this course",
         )
 
-    # Generate readable certificate user UUID
     current_year = datetime.now().year
     current_month = datetime.now().month
     current_day = datetime.now().day
     
-    # Get user to extract user_uuid
     from src.db.users import User
     statement = select(User).where(User.id == user_id)
     user = (await db_session.execute(statement)).scalars().first()
@@ -320,7 +282,6 @@ async def create_certificate_user(
             detail="User not found",
         )
     
-    # Extract last 4 characters from user_uuid for uniqueness (since all start with "user_")
     user_uuid_short = user.user_uuid[-4:] if user.user_uuid else "USER"
     
     _alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -332,7 +293,6 @@ async def create_certificate_user(
 
     user_certification_uuid = f"{today_user_prefix}{next_number_str}"
 
-    # Create certificate user
     certificate_user = CertificateUser(
         user_id=user_id,
         certification_id=certification_id,
@@ -345,9 +305,6 @@ async def create_certificate_user(
     try:
         await db_session.commit()
     except IntegrityError:
-        # A concurrent completion check inserted the certificate first. The
-        # unique (user_id, certification_id) constraint tripped — treat it as
-        # "already issued" and return the existing row instead of 500-ing.
         await db_session.rollback()
         existing = (
             await db_session.execute(
@@ -362,7 +319,6 @@ async def create_certificate_user(
         raise
     await db_session.refresh(certificate_user)
 
-    # Track certificate_claimed event for analytics and webhooks
     try:
         course = (await db_session.execute(
             select(Course).where(Course.id == certification.course_id)
@@ -446,7 +402,6 @@ async def revoke_user_certificate(
     await db_session.delete(cert_user)
     await db_session.commit()
 
-    # Best-effort revocation event (mirrors the claimed-event payload shape).
     try:
         course = (await db_session.execute(
             select(Course).where(Course.id == course_id)
@@ -492,7 +447,6 @@ async def get_user_certificates_for_course(
 ) -> list[dict]:
     """Get all certificates for a user in a specific course with certification details"""
     
-    # Check if course exists
     statement = select(Course).where(Course.course_uuid == course_uuid)
     course = (await db_session.execute(statement)).scalars().first()
 
@@ -502,22 +456,18 @@ async def get_user_certificates_for_course(
             detail="Course not found",
         )
 
-    # RBAC check
     await check_resource_access(request, db_session, current_user, course_uuid, AccessAction.READ)
 
-    # Get all certifications for this course
     statement = select(Certifications).where(Certifications.course_id == course.id)
     certifications = (await db_session.execute(statement)).scalars().all()
 
     if not certifications:
         return []
 
-    # Get all certificate users for this user and these certifications
     certification_ids = [cert.id for cert in certifications if cert.id]
     if not certification_ids:
         return []
 
-    # Batch fetch all certificate users for this user and these certifications
     statement = select(CertificateUser).where(
         CertificateUser.user_id == current_user.id,
         CertificateUser.certification_id.in_(certification_ids)  # type: ignore
@@ -527,12 +477,8 @@ async def get_user_certificates_for_course(
     if not cert_users:
         return []
 
-    # Build a map of certification_id -> Certifications (already fetched above)
     cert_map = {cert.id: cert for cert in certifications if cert.id}
 
-    # The recipient is always the requesting user (query filters on
-    # current_user.id), so the name can be attached without an extra lookup.
-    # Needed so the certificate page/PDF can show who it was awarded to.
     recipient = {
         "user_uuid": getattr(current_user, "user_uuid", None),
         "username": getattr(current_user, "username", None),
@@ -565,10 +511,6 @@ async def is_course_fully_completed(
     Uses COUNT aggregates instead of fetching all rows so this stays fast
     even on large courses.
     """
-    # Only PUBLISHED activities count toward completion — a draft/unpublished
-    # activity is never shown to the learner, so counting it in the total would
-    # make the course impossible to complete (and permanently withhold the
-    # certificate).
     total_activities = (await db_session.execute(
         select(func.count(ChapterActivity.id))
         .join(Activity, Activity.id == ChapterActivity.activity_id)
@@ -627,15 +569,12 @@ async def sync_trailrun_status(
     if not trailrun:
         return
 
-    # Only completion-derived states are managed here.
     if trailrun.status not in (
         StatusEnum.STATUS_IN_PROGRESS,
         StatusEnum.STATUS_COMPLETED,
     ):
         return
 
-    # Callers that already know whether the course is complete pass it in —
-    # this same pair of aggregates otherwise runs several times per submit.
     if is_complete is None:
         is_complete = await is_course_fully_completed(user_id, course_id, db_session)
     target = (
@@ -669,8 +608,6 @@ async def are_course_assignments_passed(
     completion means "all activities done", certification means "all assessments
     passed".
     """
-    # Lazy imports: the assignments service imports this module at load time, so
-    # importing it at module top would create a cycle.
     from src.db.courses.assignments import (
         Assignment,
         AssignmentTask,
@@ -679,9 +616,6 @@ async def are_course_assignments_passed(
     )
     from src.services.courses.activities.assignments import compute_assignment_grade
 
-    # Assignments that belong to activities actually in this course. Use an
-    # IN-subquery (not a join) so an activity reused across chapters isn't
-    # double-counted.
     assignments = (await db_session.execute(
         select(Assignment).where(
             Assignment.course_id == course_id,
@@ -698,7 +632,6 @@ async def are_course_assignments_passed(
 
     assignment_ids = [a.id for a in assignments if a.id is not None]
 
-    # Max grade per assignment (sum of task max values), one grouped query.
     max_rows = (await db_session.execute(
         select(
             AssignmentTask.assignment_id,
@@ -709,7 +642,6 @@ async def are_course_assignments_passed(
     )).all()
     max_by_assignment = {aid: int(m or 0) for aid, m in max_rows}
 
-    # This user's submission per assignment (at most one row each).
     subs = (await db_session.execute(
         select(AssignmentUserSubmission).where(
             AssignmentUserSubmission.user_id == user_id,
@@ -719,9 +651,6 @@ async def are_course_assignments_passed(
     sub_by_assignment = {s.assignment_id: s for s in subs}
 
     for assignment in assignments:
-        # An assignment with no gradable points (no tasks / all-zero max) can't
-        # be passed or failed — treat it as vacuously passed so it doesn't
-        # permanently block the certificate.
         if max_by_assignment.get(assignment.id, 0) <= 0:
             continue
         sub = sub_by_assignment.get(assignment.id)
@@ -768,41 +697,23 @@ async def check_course_completion_and_create_certificate(
     - It should only create certificates for users who have actually completed the course
     - The function is called from mark_activity_as_done_for_user which already has RBAC checks
     """
-    # Keep the enrollment status (TrailRun.status) in sync on every completion
-    # check. Assignment activities render their own submit flow instead of going
-    # through add_activity_to_trail, so when the last activity in a course is an
-    # assignment nothing else would flip the run to COMPLETED — leaving a
-    # certified learner reported as "in progress" in analytics/enrollment. This
-    # is idempotent (no-op when already correct) and also demotes if completion
-    # was lost.
-    # Same rule as is_course_fully_completed: only PUBLISHED activities count,
-    # so a draft activity can't permanently block completion + certificate
-    # issuance.
     if is_complete is None:
         is_complete = await is_course_fully_completed(user_id, course_id, db_session)
 
     await sync_trailrun_status(user_id, course_id, db_session, is_complete=is_complete)
 
     if is_complete:
-        # All activities completed, check if certification exists for this course
         statement = select(Certifications).where(Certifications.course_id == course_id)
         certification = (await db_session.execute(statement)).scalars().first()
         
         if certification and certification.id:
-            # Certificate integrity: completion is necessary but not sufficient —
-            # every graded assignment in the course must be passed. This withholds
-            # the certificate from learners who finished all activities but failed
-            # (or haven't yet been graded on) a required assessment.
             if not await are_course_assignments_passed(user_id, course_id, db_session):
                 return False
-            # SECURITY: Create certificate user link (system operation, no RBAC needed here)
-            # This is called from mark_activity_as_done_for_user which already has proper RBAC checks
             try:
                 await create_certificate_user(request, user_id, certification.id, db_session)
                 return True  # Newly completed
             except HTTPException as e:
                 if e.status_code == 400 and "already has a certificate" in e.detail:
-                    # Certificate already exists — course was completed before
                     return False
                 else:
                     raise e
@@ -818,7 +729,6 @@ async def get_certificate_by_user_certification_uuid(
 ) -> dict:
     """Get a certificate by user_certification_uuid with certification details"""
     
-    # Get certificate user by user_certification_uuid
     statement = select(CertificateUser).where(
         CertificateUser.user_certification_uuid == user_certification_uuid
     )
@@ -830,7 +740,6 @@ async def get_certificate_by_user_certification_uuid(
             detail="Certificate not found",
         )
 
-    # Get the associated certification
     statement = select(Certifications).where(Certifications.id == certificate_user.certification_id)
     certification = (await db_session.execute(statement)).scalars().first()
 
@@ -840,7 +749,6 @@ async def get_certificate_by_user_certification_uuid(
             detail="Certification not found",
         )
 
-    # Get course information
     statement = select(Course).where(Course.id == certification.course_id)
     course = (await db_session.execute(statement)).scalars().first()
 
@@ -850,11 +758,16 @@ async def get_certificate_by_user_certification_uuid(
             detail="Course not found",
         )
 
-    # No RBAC check - allow anyone to access certificates by UUID
+    user = await db_session.get(User, certificate_user.user_id)
 
     return {
         "certificate_user": CertificateUserRead(**certificate_user.model_dump()),
         "certification": CertificationRead(**certification.model_dump()),
+        "user": {
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "username": user.username,
+        } if user else None,
         "course": {
             "id": course.id,
             "course_uuid": course.course_uuid,
@@ -872,20 +785,17 @@ async def get_all_user_certificates(
 ) -> list[dict]:
     """Get all certificates for the current user with complete linked information"""
     
-    # Get all certificate users for this user
     statement = select(CertificateUser).where(CertificateUser.user_id == current_user.id)
     certificate_users = (await db_session.execute(statement)).scalars().all()
 
     if not certificate_users:
         return []
 
-    # Batch fetch all certifications
     cert_ids = list({cu.certification_id for cu in certificate_users})
     statement = select(Certifications).where(Certifications.id.in_(cert_ids))  # type: ignore
     certifications = (await db_session.execute(statement)).scalars().all()
     cert_map = {cert.id: cert for cert in certifications}
 
-    # Batch fetch all courses
     course_ids = list({cert.course_id for cert in certifications if cert.course_id})
     if course_ids:
         statement = select(Course).where(Course.id.in_(course_ids))  # type: ignore
@@ -894,7 +804,6 @@ async def get_all_user_certificates(
     else:
         course_map = {}
 
-    # Batch fetch user information (all cert_users belong to current_user, but keep generic)
     from src.db.users import User
     user_ids = list({cu.user_id for cu in certificate_users})
     statement = select(User).where(User.id.in_(user_ids))  # type: ignore

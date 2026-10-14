@@ -1,6 +1,9 @@
 'use client'
+import { useGoogleSignIn } from '@/hooks/useGoogleSignIn'
+import { getAllowedAuthMethods } from '@services/auth/authMethods'
 import { useFormik } from 'formik'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { authReturnQuery } from '@/lib/student-experience'
 import React, { useEffect } from 'react'
 import FormLayout, {
   FormField,
@@ -47,9 +50,6 @@ const validate = (values: any, t: any, customFields: SignupFieldItem[]) => {
     errors.username = t('validation.username_min_length')
   }
 
-  // Bio is optional - no validation required
-
-  // The org's admin-defined fields. Client-side only; the server revalidates.
   const customFieldErrors = validateCustomFields(customFields, values.custom_fields, t)
   if (Object.keys(customFieldErrors).length > 0) {
     errors.custom_fields = customFieldErrors
@@ -67,19 +67,17 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
   const { t } = useTranslation()
   const { track } = useLHAnalytics('public')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  // Prefer the client OrgContext, but fall back to the server-provided org so the
-  // OAuth org cookies get written even during the react-query load window (an
-  // invite link opened cold) — otherwise a Google sign-up lands org-less instead
-  // of joined to the invited org. Mirrors OpenSignup.
+
   const contextOrg = useOrg() as any
   const org = (contextOrg && (contextOrg.id || contextOrg.slug)) ? contextOrg : props.org
+  const googleConfigured = useGoogleSignIn(getAllowedAuthMethods(org).has('google')) === 'configured'
   const _router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = React.useState('')
   const [message, setMessage] = React.useState<{ email_verified: boolean } | null>(null)
   const turnstileRef = React.useRef<TurnstileWidgetHandle>(null)
   const turnstileRequired = useTurnstileRequired()
-  // Field definitions ship with the org config the page already loaded, so no
-  // extra request is needed to render them.
+
   const customFields = React.useMemo<SignupFieldItem[]>(
     () => readSignupFields(org),
     [org],
@@ -111,15 +109,14 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
           track(AnalyticsEvent.SignupSucceeded, { email_verified: message.email_verified })
           setMessage(message)
         } else {
-          // Surface the backend's actual detail for ANY non-2xx instead of
-          // masking everything past a few statuses behind a generic message.
+
           track(AnalyticsEvent.SignupFailed, { status_code: res.status })
           setError(getErrorMessage(message?.detail, t('common.something_went_wrong')))
-          // Turnstile tokens are single-use — fetch a fresh one for the retry.
+
           turnstileRef.current?.reset()
         }
       } catch (err) {
-        // A network throw must not leave the form permanently locked.
+
         setError(getErrorMessage((err as any)?.detail, t('common.something_went_wrong')))
         turnstileRef.current?.reset()
       } finally {
@@ -130,8 +127,6 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
 
   useEffect(() => { }, [org])
 
-  // Honor a sanitized ?next / ?redirect destination through the
-  // cross-domain /redirect_from_auth handoff; default to /home.
   const buildCallbackUrl = () => {
     const params = new URLSearchParams(window.location.search)
     const raw = params.get('next') ?? params.get('redirect')
@@ -140,37 +135,32 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
   }
 
   const handleGoogleSignIn = () => {
-    // Store org context in cookies before OAuth redirect
+    if (!googleConfigured) return
+
     if (org?.slug) {
       const topDomain = getLEARNHOUSE_TOP_DOMAIN_VAL();
       const isSecure = window.location.protocol === 'https:';
       const secureAttr = isSecure ? '; secure' : '';
       const baseAttributes = `; path=/; SameSite=Lax${secureAttr}`;
-      // Host-only on custom domains (a .{platformTopDomain} cookie can't be set
-      // from learn.acme.org → browser drops it → callback loses org context).
+
       const domainAttr = (topDomain === 'localhost' || isOnCustomDomain()) ? '' : `; domain=.${topDomain}`;
       document.cookie = `LH_oauth_orgslug=${org.slug}${baseAttributes}${domainAttr}`;
       document.cookie = `LH_oauth_org_id=${org.id}${baseAttributes}${domainAttr}`;
-      // Invite-only orgs need the invite code itself, not just the org: the
-      // backend requires the same proof the form signup posts to
-      // /users/{org_id}/invite/{code}. Without it a Google sign-up through an
-      // invite link is refused instead of joining the org.
+
       if (props.inviteCode) {
         document.cookie = `LH_oauth_invite_code=${encodeURIComponent(props.inviteCode)}${baseAttributes}${domainAttr}`;
       }
     }
-    // Use absolute URL with current origin for custom domain support
+
     signIn('google', { callbackUrl: buildCallbackUrl() });
   };
 
   return (
     <div className="w-full max-w-[420px] py-10">
-      {/* Header */}
       <h1 className="text-[28px] md:text-[32px] font-black text-black tracking-tight leading-tight">{t('auth.create_account')}</h1>
       <p className="mt-2 text-black/45 text-[15px] font-medium">{t('auth.fill_in_details')}</p>
 
       <div className="mt-8">
-        {/* Error/Success Messages */}
         {error && (
           <div className="flex justify-center bg-red-50 rounded-xl text-red-600 space-x-2 items-center p-4 mb-6 border border-red-100">
             <AlertTriangle size={18} className="shrink-0" />
@@ -188,7 +178,7 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
               {t('auth.verification_email_sent_message')}
             </p>
             <hr className="border-green-100" />
-            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href="/login">
+            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href={'/login' + authReturnQuery(searchParams)}>
               <User size={14} />
               <span>{t('auth.login')}</span>
             </Link>
@@ -202,7 +192,7 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
               <div className="font-semibold text-sm">{t('auth.account_created_success')}</div>
             </div>
             <hr className="border-green-100" />
-            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href="/login">
+            <Link className="flex items-center gap-2 text-sm font-medium hover:underline" href={'/login' + authReturnQuery(searchParams)}>
               <User size={14} />
               <span>{t('auth.login')}</span>
             </Link>
@@ -360,8 +350,7 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
             </button>
           </Form.Submit>
         </FormLayout>
-
-        {/* Divider */}
+        {googleConfigured && <>
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-neutral-200" />
@@ -370,8 +359,6 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
             <span className="px-3 text-black/30 bg-white text-xs font-medium">{t('common.or')}</span>
           </div>
         </div>
-
-        {/* Google Sign In */}
         <button
           onClick={handleGoogleSignIn}
           disabled={isSubmitting}
@@ -380,11 +367,10 @@ function InviteOnlySignUpComponent(props: InviteOnlySignUpProps) {
           <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" alt="" className="w-4 h-4" />
           <span>{t('auth.sign_in_with_google')}</span>
         </button>
-
-        {/* Login Link */}
+        </>}
         <p className="text-center text-sm text-black/35 mt-6">
           {t('auth.already_have_account')}{' '}
-          <Link href="/login" className="text-black font-semibold hover:underline">
+          <Link href={'/login' + authReturnQuery(searchParams)} className="text-black font-semibold hover:underline">
             {t('auth.login')}
           </Link>
         </p>

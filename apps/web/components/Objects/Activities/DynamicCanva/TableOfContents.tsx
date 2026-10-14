@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Editor } from '@tiptap/react'
 import { Check } from 'lucide-react'
+import { headingId } from '@/lib/student-experience'
 
 interface TableOfContentsProps {
   editor: Editor | null
@@ -15,27 +16,18 @@ interface HeadingItem {
 
 const TableOfContents = ({ editor }: TableOfContentsProps) => {
   const [headings, setHeadings] = useState<HeadingItem[]>([])
-  const [open, setOpen] = useState(true)
 
   useEffect(() => {
     if (!editor) return
 
     const updateHeadings = () => {
       const items: HeadingItem[] = []
-      editor.state.doc.descendants((node) => {
+      editor.state.doc.descendants((node, position) => {
         if (node.type.name.startsWith('heading')) {
           const level = node.attrs.level || 1
           const headingText = node.textContent || ''
 
-          // Create slug from heading text (same logic as CustomHeading in DynamicCanva)
-          const slug = headingText
-            .toLowerCase()
-            .trim()
-            .replace(/[^\w\s-]/g, '') // Remove special characters
-            .replace(/[\s_-]+/g, '-') // Replace spaces and underscores with hyphens
-            .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
-
-          const id = slug ? `heading-${slug}` : `heading-${Math.random().toString(36).substr(2, 9)}`
+          const id = headingId(headingText, position)
 
           items.push({
             level,

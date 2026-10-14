@@ -205,6 +205,7 @@ def token_user(org, user):
         rights={
             "users": {"action_read": True, "action_create": True},
             "courses": {"action_read": True, "action_update": True},
+            "certifications": {"action_create": True},
         },
     )
 
@@ -2028,8 +2029,15 @@ class TestResetUserProgress:
             await reset_user_progress(token_user, user.id, "missing", db)
         assert exc.value.status_code == 404
 
-
 class TestAwardCertificate:
+
+    @pytest.mark.parametrize("rights", [None, {}, {"courses": {"action_update": True}}, {"certifications": {"action_read": True}}, {"certifications": {"action_create": False}}])
+    async def test_denied_token_cannot_issue_certificate(self, rights, token_user, user, course, certification, mock_request, db):
+        token_user.rights = rights
+        with pytest.raises(HTTPException) as denied:
+            await award_certificate(token_user, user.id, course.course_uuid, mock_request, db)
+        assert denied.value.status_code == 403
+        assert not (await db.execute(select(CertificateUser))).scalars().all()
 
     @patch("src.services.courses.certifications.dispatch_webhooks", new_callable=AsyncMock)
     @patch("src.services.courses.certifications.track", new_callable=AsyncMock)
@@ -2076,6 +2084,7 @@ class TestAwardCertificate:
         assert exc.value.status_code == 400
 
     async def test_cross_org_blocked(self, other_org_token, user, course, certification, mock_request, db):
+        other_org_token.rights = {"certifications": {"action_create": True}}
         with pytest.raises(HTTPException) as exc:
             await award_certificate(
                 token_user=other_org_token, user_id=user.id,

@@ -1,5 +1,7 @@
 'use client'
 import React from 'react'
+import { useOrg } from '@components/Contexts/OrgContext'
+import { paymentsEnabled } from '@/lib/student-experience'
 import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
 import { User, Lock, ShoppingBag, Settings } from 'lucide-react'
@@ -21,14 +23,13 @@ const NAV_ITEMS = [
 
 export function AccountSidebar({ orgslug, currentSubpage }: AccountSidebarProps) {
   const { t } = useTranslation()
+  const org = useOrg()
   const session = useLHSession() as any
   const user = session?.data?.user
 
   return (
     <div className="space-y-4">
-      {/* User Info Card */}
       <div className="bg-white nice-shadow rounded-lg overflow-hidden">
-        {/* User Profile Header */}
         <div className="p-4 border-b border-gray-100">
           <div className="flex flex-col items-center text-center">
             <UserAvatar
@@ -44,8 +45,6 @@ export function AccountSidebar({ orgslug, currentSubpage }: AccountSidebarProps)
             </div>
           </div>
         </div>
-
-        {/* User Bio (truncated) */}
         {user?.bio && (
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
@@ -53,11 +52,9 @@ export function AccountSidebar({ orgslug, currentSubpage }: AccountSidebarProps)
             </p>
           </div>
         )}
-
-        {/* Navigation */}
         <div className="p-2">
           <nav className="space-y-1">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter(item => item.id !== 'purchases' || paymentsEnabled(org)).map((item) => {
               const Icon = item.icon
               const isActive = currentSubpage === item.id
               return (

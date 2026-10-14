@@ -10,9 +10,10 @@ export function useActivity(activityUuid: string) {
   const accessToken = session?.data?.tokens?.access_token as string | undefined
 
   return useQuery({
-    queryKey: queryKeys.activity.detail(activityUuid),
+    queryKey: [...queryKeys.activity.detail(activityUuid), session?.data?.user?.id ?? 'guest'],
     queryFn: () => getActivityWithAuthHeader(activityUuid, {}, accessToken),
-    enabled: !!activityUuid,
+    enabled: !!activityUuid && activityUuid !== 'end' && session.status !== 'loading',
+    retry: false,
     staleTime: 60_000,
   })
 }

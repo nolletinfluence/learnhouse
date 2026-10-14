@@ -10,7 +10,7 @@ interface FormLayoutProps {
 
 const FormLayout = ({ children, onSubmit, className }: FormLayoutProps) => {
   return (
-    <Form.Root onSubmit={onSubmit} className={className}>
+    <Form.Root method="post" onSubmit={onSubmit} className={className}>
       {children}
     </Form.Root>
   )

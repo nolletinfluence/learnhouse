@@ -16,18 +16,14 @@ import {
 import { ArrowRight, Backpack, Check, File, StickyNote, Video, Square, Image as ImageIcon, Layers, BookCopy, Lock, Globe, Package, Puzzle } from 'lucide-react'
 import { MarkdownLogo } from '@phosphor-icons/react'
 import { useOrg } from '@components/Contexts/OrgContext'
-import { CourseProvider } from '@components/Contexts/CourseContext'
-import { useMediaQuery } from 'usehooks-ts'
 import CoursesActions from '@components/Objects/Courses/CourseActions/CoursesActions'
-import CourseActionsMobile from '@components/Objects/Courses/CourseActions/CourseActionsMobile'
-import CourseAuthors from '@components/Objects/Courses/CourseAuthors/CourseAuthors'
 import { Breadcrumbs } from '@components/Objects/Breadcrumbs/Breadcrumbs'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query/keys'
 import { getActivityWithAuthHeader } from '@services/courses/activities'
 import { useTranslation } from 'react-i18next'
-// import CourseCommunitySection from '@components/Pages/Courses/CourseCommunitySection'
+
 import StudentJournal from '@components/Pages/Courses/StudentJournal'
 import CourseShare from '@components/Objects/Courses/CourseShare/CourseShare'
 import { JsonLd } from '@components/SEO/JsonLd'
@@ -75,7 +71,6 @@ const CourseClient = (props: any) => {
   const serverError = props.serverError
   const org = useOrg() as any
   const _router = useRouter()
-  const isMobile = useMediaQuery('(max-width: 768px)')
   const session = useLHSession() as any;
   const access_token = session?.data?.tokens?.access_token;
   const queryClient = useQueryClient()
@@ -95,7 +90,6 @@ const CourseClient = (props: any) => {
 
   const { track } = useLHAnalytics('learner')
 
-  // Track course view
   const courseId = course?.id
   const courseUuidForTracking = course?.course_uuid
   useEffect(() => {
@@ -106,12 +100,10 @@ const CourseClient = (props: any) => {
     }
   }, [courseId, courseUuidForTracking, track])
 
-  // Fetch trail data — shared cache with useTrail hook used elsewhere
   const { data: trailData } = useTrail(org?.id, {
     enabled: experience.trailEnabled,
   });
 
-  // Must be before any early returns (React rules of hooks)
   useEffect(() => {
     if (!course) return
 
@@ -127,31 +119,22 @@ const CourseClient = (props: any) => {
     }
   }, [course])
 
-  // Show loading state if fetching course data client-side
   if (!initialCourse && !serverError && courseLoading) {
     return (
       <GeneralWrapperStyled>
         <div className="animate-pulse">
-          {/* Breadcrumb placeholder */}
           <div className="pb-4 flex items-center gap-2">
             <div className="h-3 bg-gray-200 rounded w-16" />
             <div className="h-3 bg-gray-200 rounded w-2" />
             <div className="h-3 bg-gray-200 rounded w-32" />
           </div>
-
-          {/* Course title + share row */}
           <div className="pb-2 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
             <div className="h-9 bg-gray-200 rounded w-2/3" />
             <div className="h-8 bg-gray-200 rounded-lg w-24" />
           </div>
-
-          {/* Main content: left 3/4 + right 1/4 sidebar */}
-          <div className="flex flex-col md:flex-row gap-8 pt-2">
-            {/* Left column */}
-            <div className="w-full md:w-3/4 space-y-4">
-              {/* Thumbnail */}
-              <div className="bg-gray-200 rounded-lg w-full h-[200px] md:h-[400px]" />
-              {/* About text block */}
+          <div className="flex flex-col lg:flex-row gap-8 pt-2">
+            <div className="w-full lg:w-2/3 min-w-0 space-y-4">
+              <div className="bg-gray-200 rounded-lg w-full h-[200px] lg:h-[400px]" />
               <div className="space-y-2 py-2">
                 <div className="h-3 bg-gray-200 rounded w-full" />
                 <div className="h-3 bg-gray-200 rounded w-5/6" />
@@ -160,29 +143,21 @@ const CourseClient = (props: any) => {
                 <div className="h-3 bg-gray-200 rounded w-3/4" />
               </div>
             </div>
-
-            {/* Right sidebar */}
-            <div className="w-full md:w-1/4 space-y-4">
-              {/* Actions box */}
+            <div className="w-full lg:w-1/3 min-w-0 space-y-4">
               <div className="bg-gray-200 rounded-lg h-40" />
-              {/* Authors box */}
               <div className="bg-gray-200 rounded-lg h-24" />
             </div>
           </div>
-
-          {/* Chapter list */}
           <div className="w-full my-5 mb-10">
             <div className="h-7 bg-gray-200 rounded w-40 mb-5" />
             <div className="bg-white shadow-md shadow-gray-300/25 outline outline-1 outline-neutral-200/40 rounded-lg overflow-hidden">
               {Array.from({ length: 3 }).map((_, chIdx) => (
                 <div key={chIdx}>
-                  {/* Chapter header */}
                   <div className="flex items-center gap-3 py-4 px-4 bg-neutral-50 outline outline-1 outline-neutral-200/40">
                     <div className="h-5 w-5 bg-gray-200 rounded-full flex-shrink-0" />
                     <div className="h-5 bg-gray-200 rounded w-5 flex-shrink-0" />
                     <div className="h-5 bg-gray-200 rounded w-1/3" />
                   </div>
-                  {/* Activity rows — only expand first chapter */}
                   {chIdx === 0 && Array.from({ length: 3 }).map((_, aIdx) => (
                     <div key={aIdx} className="flex items-center gap-3 px-4 py-4 border-t border-neutral-100">
                       <div className="h-4 w-4 bg-gray-200 rounded flex-shrink-0" />
@@ -202,10 +177,8 @@ const CourseClient = (props: any) => {
     )
   }
 
-  // Determine the active error (server-side or client-side)
   const activeError = courseError || (!courseLoading && !clientCourseData ? serverError : null)
 
-  // Show error if course fetch failed
   if (!course && activeError) {
     return (
       <GeneralWrapperStyled>
@@ -233,18 +206,17 @@ const CourseClient = (props: any) => {
     }
 
     try {
-      // Try to parse as JSON (new format)
+
       const parsedLearnings = JSON.parse(courseData.learnings)
       if (Array.isArray(parsedLearnings)) {
-        // New format: array of learning items with text and emoji
+
         setLearnings(parsedLearnings)
         return
       }
     } catch (_e) {
-      // Not valid JSON, continue to legacy format handling
+      setLearnings([])
     }
 
-    // Legacy format: comma-separated string (changed from pipe-separated)
     const learningItems = courseData.learnings.split(',').map((text: string) => ({
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
       text: text.trim(), // Trim whitespace that might be present after commas
@@ -340,12 +312,10 @@ const CourseClient = (props: any) => {
     })
   }
 
-  // Generate JSON-LD structured data for SEO
   const generateJsonLd = () => {
     if (!course || !org) return null
     const seo = automaticCourseSEO(course, org.name)
 
-    // Check if JSON-LD is enabled (defaults to true if not set)
     if (!seo.index) return null
 
     const jsonLd = {
@@ -394,15 +364,15 @@ const CourseClient = (props: any) => {
               />
             </div>
 
-            <div className="flex flex-col md:flex-row gap-8 pt-2">
-              <div className="w-full md:w-3/4 space-y-4">
+            <div className="flex flex-col lg:flex-row gap-8 pt-2">
+              <div className="w-full lg:w-2/3 min-w-0 space-y-4">
                 {(() => {
                   const showVideo = course.thumbnail_type === 'video' || (course.thumbnail_type === 'both' && activeThumbnailType === 'video');
                   const showImage = course.thumbnail_type === 'image' || (course.thumbnail_type === 'both' && activeThumbnailType === 'image') || !course.thumbnail_type;
 
                   if (showVideo && course.thumbnail_video) {
                     return (
-                      <div className="relative inset-0 ring-1 ring-inset ring-black/10 rounded-lg shadow-xl w-full h-[200px] md:h-[400px]">
+                      <div className="relative inset-0 ring-1 ring-inset ring-black/10 rounded-lg shadow-xl w-full h-[200px] lg:h-[400px]">
                         {course.thumbnail_type === 'both' && (
                           <div className="absolute top-3 end-3 z-10">
                             <div className="bg-black/20 backdrop-blur-sm rounded-lg p-1 flex space-x-1">
@@ -450,7 +420,7 @@ const CourseClient = (props: any) => {
                     );
                   } else if (showImage && course.thumbnail_image) {
                     return (
-                      <div className="relative inset-0 ring-1 ring-inset ring-black/10 rounded-lg shadow-xl w-full h-[200px] md:h-[400px] bg-cover bg-center"
+                      <div className="relative inset-0 ring-1 ring-inset ring-black/10 rounded-lg shadow-xl w-full h-[200px] lg:h-[400px] bg-cover bg-center"
                         style={{
                           backgroundImage: `url(${getCourseThumbnailMediaDirectory(
                             org?.org_uuid,
@@ -459,7 +429,6 @@ const CourseClient = (props: any) => {
                           )})`,
                         }}
                       >
-                        {/* Hidden img with fetchpriority="high" so the browser fetches this LCP image immediately */}
                         { }
                         <img
                           src={getCourseThumbnailMediaDirectory(org?.org_uuid, course?.course_uuid, course?.thumbnail_image)}
@@ -536,22 +505,12 @@ const CourseClient = (props: any) => {
                 </div>
               </div>
 
-              <div className='course_metadata_right w-full md:w-1/4 space-y-4'>
-                {/* Actions Box */}
+              <div className='course_metadata_right w-full lg:w-1/3 min-w-0 space-y-4'>
                 {isManagement ? (
                   <ManagementPreviewCard course={course} courseuuid={courseuuid} orgslug={orgslug} />
                 ) : (
                   <CoursesActions courseuuid={courseuuid} orgslug={orgslug} course={course} trailData={trailData} />
                 )}
-                
-                {/* Authors & Updates Box */}
-                {/*
-                <div className="bg-white shadow-md shadow-gray-300/25 outline outline-1 outline-neutral-200/40 rounded-lg overflow-hidden p-4">
-                  <CourseProvider courseuuid={course.course_uuid}>
-                    <CourseAuthors authors={course.authors} />
-                  </CourseProvider>
-                </div>
-                */}
               </div>
             </div>
 
@@ -615,7 +574,6 @@ const CourseClient = (props: any) => {
                           [chapter.chapter_uuid]: !isExpanded
                         }))}
                       >
-                        {/* Chevron on the far left, vertically centered with the title */}
                         <div className="flex flex-col justify-center me-3 pt-1">
                           <svg 
                             className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
@@ -626,10 +584,8 @@ const CourseClient = (props: any) => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
-                        {/* Title and badge column */}
                         <div className="flex flex-col items-start w-full">
                           <div className="flex items-center flex-wrap mb-1 w-full min-w-0">
-                            {/* Numbered badge */}
                             <span className="flex items-center justify-center w-5 h-5 rounded-full bg-neutral-200 text-neutral-600 text-xs font-semibold me-2 border border-neutral-300 flex-shrink-0">
                               {idx + 1}
                             </span>
@@ -643,7 +599,7 @@ const CourseClient = (props: any) => {
                           </div>
                           <div className="flex items-center space-x-1 text-sm text-neutral-400 font-normal">
                             <Layers size={16} className="me-1" />
-                            <span>{chapter.activities.length} {t('activities.activities')}</span>
+                            <span>{t('student_experience.lesson_count', { count: chapter.activities.length })}</span>
                           </div>
                         </div>
                       </div>
@@ -730,22 +686,11 @@ const CourseClient = (props: any) => {
                 })}
               </div>
             </div>}
-
-            {/* Community Section */}
             <Suspense fallback={<div className="animate-pulse h-48 bg-gray-100 rounded-lg mt-4" />}>
-              {/* <CourseCommunitySection courseUuid={course.course_uuid} orgslug={orgslug} /> */}
               {course.learning_access === "enrolled" && <StudentJournal course={course} />}
             </Suspense>
           </GeneralWrapperStyled>
 
-          {/* Mobile Actions Box */}
-          {isMobile && (
-            isManagement ? (
-              <ManagementPreviewCard course={course} courseuuid={courseuuid} orgslug={orgslug} />
-            ) : (
-              <CourseActionsMobile courseuuid={courseuuid} orgslug={orgslug} course={course} trailData={trailData} />
-            )
-          )}
         </>
       )}
     </>

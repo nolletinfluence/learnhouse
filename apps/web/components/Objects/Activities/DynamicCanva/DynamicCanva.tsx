@@ -24,7 +24,7 @@ function normalizeMarkTypes(content: any): any {
   }
   return normalized;
 }
-// Custom Extensions
+
 import Callout from '@components/Objects/Editor/Extensions/Callout/Callout'
 import InfoCallout from '@components/Objects/Editor/Extensions/Callout/Info/InfoCallout'
 import WarningCallout from '@components/Objects/Editor/Extensions/Callout/Warning/WarningCallout'
@@ -37,7 +37,6 @@ import LibraryBlock from '@components/Objects/Editor/Extensions/Library/LibraryB
 import QuizBlock from '@components/Objects/Editor/Extensions/Quiz/QuizBlock'
 import MagicBlock from '@components/Objects/Editor/Extensions/MagicBlocks/MagicBlock'
 
-// Lowlight — slim grammar set; see editorLowlight.ts
 import { lowlight } from '@components/Objects/Editor/editorLowlight'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { NoTextInput } from '@components/Objects/Editor/Extensions/NoTextInput/NoTextInput'
@@ -64,8 +63,7 @@ interface Editor {
   content: string
   activity: any
   hideTableOfContents?: boolean
-  // Passed by the activity/embed/board renderers so the video block can build
-  // stream URLs even where the Org/Course React contexts aren't populated.
+
   courseUuid?: string
   orgUuid?: string
 }
@@ -99,9 +97,9 @@ function Canva(props: Editor) {
     extensions: [
       StarterKit.configure({
         heading: false,
-        // Disable codeBlock since we use CodeBlockLowlight instead
+
         codeBlock: false,
-        // Disable link since we use custom getLinkExtension() instead
+
         link: false,
         bulletList: {
           HTMLAttributes: {
@@ -116,9 +114,9 @@ function Canva(props: Editor) {
       }),
       CustomHeading,
       NoTextInput,
-      // Custom Extensions
+
       Callout,
-      // Legacy nodes — backward compat with existing calloutInfo/calloutWarning content
+
       InfoCallout.configure({ editable: isEditable }),
       WarningCallout.configure({ editable: isEditable }),
       ImageBlock.configure({
@@ -176,6 +174,7 @@ function Canva(props: Editor) {
       }),
       Table.configure({
         resizable: true,
+        renderWrapper: true,
       }),
       getLinkExtension(),
       WebPreview.configure({

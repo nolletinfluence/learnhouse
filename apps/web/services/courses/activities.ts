@@ -3,6 +3,7 @@ import {
   RequestBodyFormWithAuthHeader,
   RequestBodyWithAuthHeader,
   getResponseMetadata,
+  errorHandling,
 } from '@services/utils/ts/requests'
 
 export async function createActivity(
@@ -12,7 +13,7 @@ export async function createActivity(
   access_token: string
 ) {
   data.content = data.content || {}
-  // remove chapter_id from data
+
   delete data.chapterId
 
   const result = await fetch(
@@ -90,7 +91,7 @@ export async function createFileActivity(
   chapter_id: any,
   access_token: string
 ) {
-  // Send file thumbnail as form data
+
   const formData = new FormData()
   formData.append('chapter_id', chapter_id)
 
@@ -99,7 +100,7 @@ export async function createFileActivity(
   if (type === 'video') {
     formData.append('name', data.name)
     formData.append('video_file', file)
-    // Add video details
+
     if (data.details) {
       formData.append('details', JSON.stringify({
         startTime: data.details.startTime || 0,
@@ -114,7 +115,7 @@ export async function createFileActivity(
     formData.append('name', data.name)
     endpoint = `${getAPIUrl()}activities/documentpdf`
   } else {
-    // Handle other file types here
+    throw new Error(`Unsupported upload type: ${type}`)
   }
 
   const result: any = await fetch(
@@ -122,9 +123,7 @@ export async function createFileActivity(
     RequestBodyFormWithAuthHeader('POST', formData, null, access_token)
   )
   if (!result.ok) {
-    // A too-large body is rejected by the reverse proxy (nginx) with a 413
-    // and an HTML error page — not JSON — so surface a clear error instead of
-    // letting `result.json()` blow up with "Unexpected token '<'".
+
     if (result.status === 413) {
       throw new Error('The file is too large to upload.')
     }
@@ -141,11 +140,10 @@ export async function createExternalVideoActivity(
   chapter_id: any,
   access_token: string
 ) {
-  // add coursechapter_id to data
+
   data.chapter_id = String(chapter_id)
   data.activity_id = activity.id
-  
-  // Add video details with null checking
+
   const defaultDetails = {
     startTime: 0,
     endTime: null,
@@ -214,8 +212,7 @@ export async function getActivityWithAuthHeader(
     `${getAPIUrl()}activities/activity_${activity_uuid}`,
     RequestBodyWithAuthHeader('GET', null, next, access_token || undefined)
   )
-  const res = await result.json()
-  return res
+  return errorHandling(result)
 }
 
 export async function updateActivity(
@@ -340,8 +337,6 @@ export async function getUrlPreview(url: string) {
   const res = await result.json()
   return res
 }
-
-// Versioning API functions
 
 export async function getActivityVersions(
   activity_uuid: string,

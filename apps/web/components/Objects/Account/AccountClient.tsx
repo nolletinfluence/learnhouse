@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useEffect, useRef } from 'react'
+import { useOrg } from '@components/Contexts/OrgContext'
+import { paymentsEnabled } from '@/lib/student-experience'
 import GeneralWrapperStyled from '@components/Objects/StyledElements/Wrappers/GeneralWrapper'
 import { Breadcrumbs } from '@components/Objects/Breadcrumbs/Breadcrumbs'
 import { AccountSidebar } from '@components/Objects/Account/AccountSidebar'
@@ -33,14 +35,13 @@ const getSubpageTitle = (subpage: string, t: (_key: string) => string): string =
 }
 
 const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
-  const isMobile = useMediaQuery('(max-width: 768px)')
+  const isMobile = useMediaQuery('(max-width: 1023px)')
   const session = useLHSession() as any
   const user = session?.data?.user
   const { t } = useTranslation()
+  const org = useOrg()
   const { track } = useLHAnalytics('learner')
 
-  // Fire one impression per distinct subpage (component stays mounted across
-  // subpage changes, so guard on the value rather than relying on remount).
   const lastSubpageRef = useRef<string | null>(null)
   useEffect(() => {
     if (lastSubpageRef.current === subpage) return
@@ -58,6 +59,7 @@ const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
       case 'security':
         return <AccountSecurity />
       case 'purchases':
+        if (!paymentsEnabled(org)) return <div className="bg-white rounded-xl p-6"><h2 className="font-semibold">{t('account.purchases')}</h2><p className="mt-2 text-sm text-gray-500">{t('student_experience.payments_unavailable')}</p></div>
         return <AccountPurchases orgId={org_id} orgslug={orgslug} />
       default:
         return <AccountGeneral />
@@ -67,7 +69,6 @@ const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
   return (
     <>
       <GeneralWrapperStyled>
-        {/* Breadcrumbs */}
         <div className="pb-4">
           <Breadcrumbs
             items={[
@@ -80,36 +81,24 @@ const AccountClient = ({ orgslug, org_id, subpage }: AccountClientProps) => {
             ]}
           />
         </div>
-
-        {/* Layout - Sidebar Left, Content Right */}
-        <div className="flex flex-col md:flex-row gap-6 pt-2">
-          {/* Left Sidebar - User Info (Desktop only) */}
-          <div className="hidden md:block w-full md:w-72 lg:w-80 flex-shrink-0">
+        <div className="flex flex-col lg:flex-row gap-6 pt-2">
+          <div className="hidden lg:block w-full lg:w-72 lg:w-80 flex-shrink-0">
             <div className="sticky top-24">
               <AccountSidebar orgslug={orgslug} currentSubpage={subpage} />
             </div>
           </div>
-
-          {/* Main Content */}
           <div className="flex-1 min-w-0">
-            {/* Mobile only shows user name */}
-            <div className="md:hidden mb-4">
+            <div className="lg:hidden mb-4">
               <h1 className="text-xl font-bold text-gray-900">
                 {user?.first_name} {user?.last_name}
               </h1>
               <p className="mt-1 text-sm text-gray-500">@{user?.username}</p>
             </div>
-
-            {/* Subpage Content */}
             {renderSubpage()}
           </div>
         </div>
-
-        {/* Bottom padding for mobile action bar */}
         {isMobile && <div className="h-24" />}
       </GeneralWrapperStyled>
-
-      {/* Mobile Actions Bar */}
       {isMobile && (
         <AccountActionsMobile orgslug={orgslug} currentSubpage={subpage} />
       )}

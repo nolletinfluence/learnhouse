@@ -334,6 +334,7 @@ async def test_list_course_enrollments_course_not_found(db, org):
 @pytest.mark.asyncio
 async def test_award_certificate_course_not_found(db, org, user_role):
     token_user = _make_token_user(org.id)
+    token_user.rights["certifications"] = {"action_create": True}
     user = await _create_user(db, user_id=50, username="awardee", email="awardee@test.com")
     await _add_user_to_org(db, user, org, role_id=user_role.id)
 

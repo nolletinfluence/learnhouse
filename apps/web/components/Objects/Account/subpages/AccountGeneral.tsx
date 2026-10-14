@@ -1,6 +1,6 @@
 'use client';
 import { updateProfile } from '@services/settings/profile'
-import { getUser } from '@services/users/users'
+import { getOwnUser } from '@services/users/users'
 import React, { useEffect, useState, useCallback } from 'react'
 import { Formik, Form } from 'formik'
 import { useLHSession } from '@components/Contexts/LHSessionContext'
@@ -10,7 +10,6 @@ import {
   FileWarning,
   Info,
   UploadCloud,
-  AlertTriangle,
   Briefcase,
   GraduationCap,
   MapPin,
@@ -111,16 +110,15 @@ const DETAIL_TEMPLATES = {
   ]
 } as const;
 
-const validationSchema = Yup.object().shape({
-  email: Yup.string().email('Invalid email').required('Email is required'),
-  username: Yup.string().required('Username is required'),
-  first_name: Yup.string().required('First name is required'),
-  last_name: Yup.string().required('Last name is required'),
-  bio: Yup.string().max(400, 'Bio must be 400 characters or less'),
+const validationSchema = (t: (key: string) => string) => Yup.object().shape({
+  email: Yup.string().email(t('validation.invalid_email')).required(t('validation.required')),
+  username: Yup.string().required(t('validation.required')),
+  first_name: Yup.string(),
+  last_name: Yup.string(),
+  bio: Yup.string().max(400, t('student_experience.bio_limit')),
   details: Yup.object().shape({})
 });
 
-// Memoized detail card component for better performance
 const DetailCard = React.memo(({
   id,
   detail,
@@ -192,7 +190,7 @@ const DetailCard = React.memo(({
             value={detail.icon}
             onValueChange={handleIconChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full h-auto min-h-11 whitespace-normal">
               <SelectValue placeholder={t('user.settings.general.select_icon')}>
                 {detail.icon && (
                   <div className="flex items-center gap-2">
@@ -231,7 +229,6 @@ const DetailCard = React.memo(({
 
 DetailCard.displayName = 'DetailCard';
 
-// Form component to handle the details section
 const UserEditForm = ({
   values,
   setFieldValue,
@@ -271,8 +268,7 @@ const UserEditForm = ({
           </h2>
         </div>
 
-        <div className="flex flex-col lg:flex-row mt-0 mx-5 my-5 gap-8">
-          {/* Profile Information Section */}
+        <div className="flex flex-col xl:flex-row mt-0 mx-3 sm:mx-5 my-5 gap-6 min-w-0">
           <div className="flex-1 min-w-0 space-y-4">
             <div>
               <Label htmlFor="email">{t('user.settings.general.email')}</Label>
@@ -287,12 +283,7 @@ const UserEditForm = ({
               {touched.email && errors.email && (
                 <p className="text-red-500 text-sm mt-1">{errors.email}</p>
               )}
-              {values.email !== values.email && (
-                <div className="flex items-center space-x-2 mt-2 text-amber-600 bg-amber-50 p-2 rounded-md">
-                  <AlertTriangle size={16} />
-                  <span className="text-sm">{t('user.settings.general.logout_warning')}</span>
-                </div>
-              )}
+
             </div>
 
             <div>
@@ -360,7 +351,7 @@ const UserEditForm = ({
 
             <div className="space-y-4">
               <div className="flex flex-col gap-3">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap gap-3 justify-between items-center">
                   <Label>{t('user.settings.general.additional_details')}</Label>
                   <div className="flex gap-2">
                     <Button
@@ -454,10 +445,8 @@ const UserEditForm = ({
               </div>
             </div>
           </div>
-
-          {/* Profile Picture Section */}
-          <div className="lg:w-80 w-full">
-            <div className="bg-gray-50/50 p-6 rounded-lg nice-shadow h-full">
+          <div className="xl:w-72 w-full min-w-0 shrink-0">
+            <div className="bg-gray-50/50 p-4 sm:p-6 rounded-lg nice-shadow h-full">
               <div className="flex flex-col items-center space-y-6">
                 <Label className="font-bold">{t('user.settings.general.profile_picture')}</Label>
                 {profilePicture.error && (
@@ -499,7 +488,7 @@ const UserEditForm = ({
                       type="button"
                       variant="outline"
                       onClick={() => document.getElementById('fileInput')?.click()}
-                      className="w-full"
+                      className="w-full h-auto min-h-11 whitespace-normal"
                     >
                       <UploadCloud size={16} className="me-2" />
                       {t('user.settings.general.change_avatar')}
@@ -526,7 +515,7 @@ const UserEditForm = ({
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="bg-black text-white hover:bg-black/90"
+            className="bg-black text-white hover:bg-black/90 h-auto min-h-11 whitespace-normal"
           >
             {isSubmitting ? t('user.settings.general.saving') : t('user.settings.general.save_changes')}
           </Button>
@@ -551,7 +540,7 @@ function AccountGeneral() {
     const fetchUserData = async () => {
       if (session?.data?.user?.id) {
         try {
-          const data = await getUser(session.data.user.id, access_token);
+          const data = await getOwnUser(access_token);
           setUserData(data);
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -576,7 +565,7 @@ function AccountGeneral() {
     if (res.success === false) {
       setError(res.HTTPmessage)
     } else {
-      // Force refresh session to pick up the new avatar filename
+
       await session.update(true)
       setIsLoading(false)
       setError('')
@@ -600,7 +589,7 @@ function AccountGeneral() {
       if (res.success === false) {
         setError(res.HTTPmessage)
       } else {
-        // Force refresh session to pick up the new avatar filename
+
         await session.update(true)
         setIsLoading(false)
         setError('')
@@ -625,7 +614,7 @@ function AccountGeneral() {
       if (res.success === false) {
         setError(res.HTTPmessage)
       } else {
-        // Force refresh session to pick up the new avatar filename
+
         await session.update(true)
         setIsLoading(false)
         setError('')
@@ -675,13 +664,14 @@ function AccountGeneral() {
           bio: userData.bio || '',
           details: userData.details || {},
         }}
-        validationSchema={validationSchema}
+        validationSchema={validationSchema(t)}
         onSubmit={async (values, { setSubmitting }) => {
           const isEmailChanged = values.email !== userData.email
           const loadingToast = toast.loading(t('user.settings.general.saving'))
 
           try {
-            await updateProfile(values, userData.id, access_token)
+            const response = await updateProfile(values, userData.id, access_token)
+            if (!response.success) throw new Error('Profile update failed')
             toast.dismiss(loadingToast)
             track(AnalyticsEvent.AccountProfileUpdated, {
               email_changed: isEmailChanged,
@@ -692,10 +682,10 @@ function AccountGeneral() {
             } else {
               toast.success(t('user.settings.general.profile_updated'))
             }
-            const refreshedUser = await getUser(userData.id, access_token)
+            const refreshedUser = await getOwnUser(access_token)
             setUserData(refreshedUser)
           } catch {
-            toast.error('Failed to update profile', { id: loadingToast })
+            toast.error(t('user.settings.profile_builder.toasts.save_error'), { id: loadingToast })
           } finally {
             setSubmitting(false)
           }

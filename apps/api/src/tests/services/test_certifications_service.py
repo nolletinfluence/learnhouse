@@ -19,6 +19,7 @@ from src.db.courses.courses import Course
 from src.db.trail_runs import StatusEnum, TrailRun
 from src.db.trail_steps import TrailStep
 from src.db.trails import Trail
+from src.db.users import AnonymousUser, User
 from src.services.courses.certifications import (
     check_course_completion_and_create_certificate,
     create_certificate_user,
@@ -1292,6 +1293,28 @@ class TestCompletionHelpers:
 
 
 class TestCertificateLookup:
+    @pytest.mark.asyncio
+    async def test_public_certificate_includes_recipient_without_private_fields(
+        self, db, course, regular_user, mock_request
+    ):
+        user = await db.get(User, regular_user.id)
+        user.first_name = "Азим"
+        user.last_name = "Студент"
+        db.add(user)
+        await db.commit()
+        certification = await _create_certification(db, course, cert_uuid="cert_public")
+        certificate_user = await _create_certificate_user(db, certification, regular_user)
+
+        result = await get_certificate_by_user_certification_uuid(
+            mock_request, certificate_user.user_certification_uuid, AnonymousUser(), db
+        )
+
+        assert result["user"] == {
+            "first_name": "Азим",
+            "last_name": "Студент",
+            "username": regular_user.username,
+        }
+
     @pytest.mark.asyncio
     async def test_get_certificate_by_user_certification_uuid_success(
         self, db, course, regular_user, mock_request

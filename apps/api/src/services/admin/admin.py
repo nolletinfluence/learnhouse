@@ -1537,6 +1537,7 @@ async def award_certificate(
 ) -> dict:
     """Manually award a certificate, bypassing the completion gate."""
 
+    _require_token_right(token_user, "certifications", "action_create")
     await _get_user_in_org(user_id, token_user.org_id, db_session)
 
     course = (await db_session.execute(

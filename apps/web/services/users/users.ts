@@ -6,6 +6,14 @@ import {
   getResponseMetadata,
 } from '@services/utils/ts/requests'
 
+export async function getOwnUser(access_token: string) {
+  const result = await fetch(
+    `${getAPIUrl()}users/profile`,
+    RequestBodyWithAuthHeader('GET', null, null, access_token)
+  )
+  return errorHandling(result)
+}
+
 /**
  * Get user by ID.
  *

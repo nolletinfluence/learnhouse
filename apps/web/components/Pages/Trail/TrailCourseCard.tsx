@@ -144,7 +144,7 @@ function TrailCourseCard(props: TrailCourseCardProps) {
             <BookOpen size={40} strokeWidth={1.5} />
           </div>
         )}
-        {/* Progress overlay */}
+
         <div className="absolute bottom-0 start-0 end-0 h-1.5 bg-gray-200/80">
           <div
             className={`h-full ${course_progress === 100 ? 'bg-green-500' : 'bg-teal-500'}`}
@@ -153,7 +153,7 @@ function TrailCourseCard(props: TrailCourseCardProps) {
         </div>
       </Link>
 
-      {/* Content */}
+
       <div className="p-3 flex flex-col space-y-1.5">
         <Link
           href={courseLink}
@@ -172,7 +172,7 @@ function TrailCourseCard(props: TrailCourseCardProps) {
         </div>
 
         <div className="pt-1.5 flex items-center justify-between border-t border-gray-100">
-          {/* Certificate or Progress indicator */}
+
           {course_progress === 100 ? (
             isLoadingCertificate ? (
               <div className="flex items-center gap-1.5 text-gray-400">
@@ -202,7 +202,7 @@ function TrailCourseCard(props: TrailCourseCardProps) {
               href={getUriWithOrg(props.orgslug, `/certificates/${courseCertificate.certificate_user.user_certification_uuid}/verify`)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider"
+              className="inline-flex min-h-11 items-center gap-1 px-2 text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider"
             >
               {t('certificate.verify')}
               <ExternalLink className="w-3 h-3" />
@@ -210,7 +210,7 @@ function TrailCourseCard(props: TrailCourseCardProps) {
           ) : (
             <Link
               href={courseLink}
-              className="text-[10px] font-bold text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-wider"
+              className="inline-flex min-h-11 items-center px-2 text-[10px] font-bold text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-wider"
             >
               {t('courses.continue_learning')}
             </Link>

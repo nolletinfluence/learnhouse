@@ -245,6 +245,14 @@ async def mark_attendance(request, course_uuid, activity_uuid, student_id, paylo
     run.update_date = timestamp()
     db.add(run)
     await db.commit()
+    if run.status == StatusEnum.STATUS_COMPLETED:
+        from src.services.courses.certifications import (
+            check_course_completion_and_create_certificate,
+        )
+
+        await check_course_completion_and_create_certificate(
+            request, student_id, course.id, db, is_complete=True
+        )
     return entry.model_dump()
 
 
